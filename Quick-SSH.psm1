@@ -27,7 +27,10 @@ function Get-QuickSSHHosts {
     try {
         $raw = Get-Content -Path $Script:ConfigFile -Raw -Encoding UTF8
         if ([string]::IsNullOrWhiteSpace($raw)) { return @() }
-        return @($raw | ConvertFrom-Json)
+        $data = $raw | ConvertFrom-Json
+        # 兼容单个对象 { ... } 和数组 [{ ... }, { ... }]
+        if ($data -is [array]) { return $data }
+        return @($data)
     } catch {
         return @()
     }

@@ -42,13 +42,20 @@ function loadHosts() {
     ensureConfig();
     try {
         const raw = fs.readFileSync(CONFIG_FILE, "utf-8").trim();
-        return raw ? JSON.parse(raw) : [];
-    } catch { return []; }
+        if (!raw) return [];
+        const data = JSON.parse(raw);
+        // 兼容单个对象 { ... } 和数组 [{ ... }, { ... }]
+        return Array.isArray(data) ? data : [data];
+    } catch {
+        return [];
+    }
 }
 
 function saveHosts(hosts) {
     ensureConfig();
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(hosts, null, 4), "utf-8");
+    // 确保始终保存为数组
+    const data = Array.isArray(hosts) ? hosts : [];
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(data, null, 4), "utf-8");
 }
 
 // ============================================================
