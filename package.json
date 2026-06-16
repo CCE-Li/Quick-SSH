@@ -1,0 +1,35 @@
+{
+  "name": "quick-ssh-new",
+  "version": "1.0.0",
+  "description": "🚀 Quick-SSH - 仿 Docker 命令行风格的 PowerShell SSH 连接管理工具",
+  "keywords": [
+    "ssh",
+    "powershell",
+    "quick-ssh",
+    "qssh",
+    "connection-manager",
+    "windows"
+  ],
+  "homepage": "https://github.com/CCE-Li/quick-ssh#readme",
+  "bugs": {
+    "url": "https://github.com/CCE-Li/quick-ssh/issues"
+  },
+  "license": "MIT",
+  "author": "",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CCE-Li/quick-ssh.git"
+  },
+  "scripts": {
+    "postinstall": "node index.js postinstall",
+    "preuninstall": "node index.js preuninstall"
+  },
+  "engines": {
+    "node": ">=10.0.0"
+  },
+  "os": [
+    "win32"
+  ],
+  "private": false
+}
