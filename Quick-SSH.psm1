@@ -1,4 +1,4 @@
-# Quick-SSH.psm1 - PowerShell SSH Connection Manager
+﻿# Quick-SSH.psm1 - PowerShell SSH Connection Manager
 # 仿 Docker 命令行风格的 SSH 连接管理工具
 # 配置文件路径: %USERPROFILE%\.quickssh\hosts.json
 
@@ -6,8 +6,10 @@
 # 内部函数 - 配置管理
 # ============================================================
 
-$Script:ConfigDir  = Join-Path $env:USERPROFILE ".quickssh"
-$Script:ConfigFile = Join-Path $Script:ConfigDir "hosts.json"
+$Script:ConfigDir   = Join-Path $env:USERPROFILE ".quickssh"
+$Script:ConfigFile  = Join-Path $Script:ConfigDir "hosts.json"
+$Script:ModuleRoot  = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Script:TUIScript   = Join-Path $Script:ModuleRoot "qssh-tui.js"
 
 # 初始化配置目录和空 JSON 文件
 function Initialize-QuickSSHConfig {
@@ -162,7 +164,7 @@ function Invoke-QuickSSHConnect {
     param([string]$Alias)
 
     if (-not $Alias) {
-        Show-QuickSSHHelp
+        Invoke-QuickSSHTUI
         return
     }
 
@@ -249,6 +251,29 @@ function Invoke-QuickSSHImport {
 }
 
 # ============================================================
+# TUI 终端界面
+# ============================================================
+
+function Invoke-QuickSSHTUI {
+    # 检测 Node.js 是否可用
+    $nodePath = (Get-Command "node" -ErrorAction SilentlyContinue).Source
+    if (-not $nodePath) {
+        Write-QSError "错误：启动 TUI 需要 Node.js，请先安装 Node.js (https://nodejs.org)"
+        Write-QSError "或者使用命令行模式: qssh help"
+        return
+    }
+
+    if (-not (Test-Path $Script:TUIScript)) {
+        Write-QSError "错误：未找到 TUI 脚本: $Script:TUIScript"
+        return
+    }
+
+    # 启动 TUI，等待退出后返回
+    Write-Host "正在启动 Quick-SSH TUI ..." -ForegroundColor Cyan
+    & "node" $Script:TUIScript
+}
+
+# ============================================================
 # 帮助信息
 # ============================================================
 
@@ -257,6 +282,7 @@ function Show-QuickSSHHelp {
     Write-Host "Quick-SSH - PowerShell SSH 连接管理工具" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "用法:" -ForegroundColor Yellow
+    Write-Host "  qssh                   启动 TUI 终端界面（推荐，类似 yazi 操作体验）"
     Write-Host "  qssh ps [关键词]      列出所有已保存的 SSH 连接（对应 docker ps）"
     Write-Host "  qssh add <别名> <用户@主机:端口> [--key <私钥路径>]" -ForegroundColor Gray
     Write-Host "                        添加新 SSH 连接（端口默认 22，私钥默认 ~/.ssh/id_rsa）"
@@ -267,6 +293,7 @@ function Show-QuickSSHHelp {
     Write-Host "  qssh help             显示本帮助信息"
     Write-Host ""
     Write-Host "示例:" -ForegroundColor Yellow
+    Write-Host "  qssh                         # 启动 TUI 界面"
     Write-Host "  qssh ps"
     Write-Host "  qssh ps 生产"
     Write-Host "  qssh add my-server root@192.168.1.100:22 --key D:\.ssh\id_rsa"
@@ -295,7 +322,7 @@ function global:qssh {
     Initialize-QuickSSHConfig
 
     if (-not $Command) {
-        Show-QuickSSHHelp
+        Invoke-QuickSSHTUI
         return
     }
 

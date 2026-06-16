@@ -31,5 +31,8 @@
   "os": [
     "win32"
   ],
-  "private": false
+  "private": false,
+  "dependencies": {
+    "blessed": "^0.1.81"
+  }
 }
