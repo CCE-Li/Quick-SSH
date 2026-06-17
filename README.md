@@ -1,16 +1,8 @@
-# Quick-SSH 🚀
-
-> PowerShell SSH 连接管理工具
+![Quick-SSH](doc/images/poster.png)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue)
-
-一键保存、管理、连接 SSH 服务器，告别记忆繁琐的 IP、端口和密钥路径。
-
-![TUI 主界面](doc/images/sample01.png)
-
-![命令行操作](doc/images/sample02.png)
 
 ---
 
