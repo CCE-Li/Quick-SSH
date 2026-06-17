@@ -75,6 +75,8 @@ npm install -g quick-ssh
 
 ### 方式二：手动加载
 
+ps：我还没试过，有问题的话可以提issues
+
 ```powershell
 # 下载本仓库，在 src\Quick-SSH.psm1 所在目录执行：
 Import-Module .\src\Quick-SSH.psm1 -DisableNameChecking
@@ -85,6 +87,12 @@ Import-Module .\src\Quick-SSH.psm1 -DisableNameChecking
 ## 快速入门
 
 ```powershell
+# 直接输入qssh进入tui
+qssh
+
+# help
+qssh help
+
 # 添加一个 SSH 连接
 qssh add my-server root@192.168.1.100:22 --key C:\Users\You\.ssh\id_rsa
 
@@ -290,16 +298,6 @@ npm uninstall -g quick-ssh
 卸载时：
 - ✅ 自动从 `$PROFILE` 中移除 `Import-Module` 配置
 - ✅ **保留** `%USERPROFILE%\.quickssh\hosts.json` 用户配置数据
-
----
-
-## 颜色输出说明
-
-| 颜色 | 含义 |
-|------|------|
-| 🟢 绿色 | 操作成功 |
-| 🟡 黄色 | 提示 / 警告 |
-| 🔴 红色 | 错误 |
 
 ---
 
