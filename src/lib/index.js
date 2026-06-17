@@ -18,6 +18,9 @@ const IMPORT_MARKER_END   = "# <<< Quick-SSH auto-generated <<<";
 /**
  * 获取 PowerShell 配置文件路径列表
  *  同时兼容 PowerShell 7+ 和 Windows PowerShell 5.1-
+ *
+ *  注意：部分用户的 Documents 被重定向到 OneDrive，必须同时检测
+ *  OneDrive 目录下的配置文件路径，否则 postinstall 可能写到错误位置。
  */
 function getPowerShellProfilePaths() {
     const userProfile = process.env.USERPROFILE;
@@ -25,10 +28,61 @@ function getPowerShellProfilePaths() {
         console.error("[Quick-SSH] 错误：无法获取 %USERPROFILE% 环境变量。");
         return [];
     }
-    return [
-        path.join(userProfile, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1"),
-        path.join(userProfile, "Documents", "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1"),
-    ];
+
+    /** 生成 PS7 和 Windows PowerShell 的配置文件路径 */
+    function makePaths(docsRoot) {
+        return [
+            path.join(docsRoot, "PowerShell", "Microsoft.PowerShell_profile.ps1"),
+            path.join(docsRoot, "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1"),
+        ];
+    }
+
+    const pathSet = new Set();
+
+    // 1) 标准路径：%USERPROFILE%\Documents\...
+    pathSet.add(path.join(userProfile, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1"));
+    pathSet.add(path.join(userProfile, "Documents", "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1"));
+
+    // 2) OneDrive 路径（如果已配置）
+    const oneDriveVars = ["OneDrive", "OneDriveConsumer"];
+    for (const envVar of oneDriveVars) {
+        const root = process.env[envVar];
+        if (root && typeof root === "string" && root.length > 0) {
+            const docs = path.join(root, "Documents");
+            if (docs !== path.join(userProfile, "Documents")) {
+                for (const p of makePaths(docs)) pathSet.add(p);
+            }
+        }
+    }
+
+    return Array.from(pathSet);
+}
+
+/**
+ * 从候选路径列表中筛选出实际存在的配置文件（按 PS7 / Windows PowerShell 分组）
+ *  返回 [ps7Paths, winPsPaths]，每组按 "已存在优先" 排序
+ */
+function resolveProfilePaths(candidates) {
+    const ps7     = [];  // PowerShell 7
+    const winPs   = [];  // Windows PowerShell 5.1-
+    const ps7Key  = "PowerShell\\Microsoft.PowerShell_profile.ps1";
+    const winKey  = "WindowsPowerShell\\Microsoft.PowerShell_profile.ps1";
+
+    for (const p of candidates) {
+        const norm = p.replace(/\\/g, "/");
+        if (norm.endsWith(ps7Key.replace(/\\/g, "/"))) {
+            ps7.push(p);
+        } else if (norm.endsWith(winKey.replace(/\\/g, "/"))) {
+            winPs.push(p);
+        }
+    }
+
+    // 按 "已存在 → 不存在" 排序
+    const sorter = (a, b) => (fs.existsSync(b) ? 1 : 0) - (fs.existsSync(a) ? 1 : 0);
+    ps7.sort(sorter);
+    winPs.sort(sorter);
+
+    return [ps7, winPs];
 }
 
 /**
@@ -60,11 +114,19 @@ function getModulePath() {
 function runPostInstall() {
     console.log("[Quick-SSH] 正在配置 PowerShell 自动加载...");
 
-    const profilePaths = getPowerShellProfilePaths();
-    if (profilePaths.length === 0) {
+    // 收集所有候选路径并按 "已存在优先" 排序
+    const candidates  = getPowerShellProfilePaths();
+    if (candidates.length === 0) {
         console.error("[Quick-SSH] ❌ 无法定位 PowerShell 配置文件。");
         process.exit(1);
     }
+
+    const [ps7Paths, winPsPaths] = resolveProfilePaths(candidates);
+
+    // 各取第一个（即已存在的路径优先，不存在则退回到标准路径）
+    const profilePaths = [];
+    if (ps7Paths.length > 0)   profilePaths.push(ps7Paths[0]);
+    if (winPsPaths.length > 0) profilePaths.push(winPsPaths[0]);
 
     const modulePath  = getModulePath();
     if (!fs.existsSync(modulePath)) {
@@ -108,10 +170,26 @@ function runPostInstall() {
         fs.writeFileSync(profilePath, content, "utf-8");
     }
 
+    // 打印友好的提示信息
+    const relPath = (idx) => {
+        const p = profilePaths[idx];
+        if (!p) return "";
+        const parts = p.split(path.sep);
+        const docsIdx = parts.findIndex(s => /^documents$/i.test(s));
+        if (docsIdx !== -1 && docsIdx + 2 < parts.length) {
+            return "..." + path.sep + parts.slice(docsIdx).join(path.sep);
+        }
+        return p;
+    };
+
     console.log("[Quick-SSH] ✔ 安装完成！请重启 PowerShell 终端或执行:");
-    console.log(`[Quick-SSH]    & (Get-Content "\${env:USERPROFILE}\\Documents\\PowerShell\\Microsoft.PowerShell_profile.ps1" -Raw) | Invoke-Expression`);
-    console.log(`[Quick-SSH]    或 Windows PowerShell:`);
-    console.log(`[Quick-SSH]    & (Get-Content "\${env:USERPROFILE}\\Documents\\WindowsPowerShell\\Microsoft.PowerShell_profile.ps1" -Raw) | Invoke-Expression`);
+    if (ps7Paths.length > 0) {
+        console.log(`[Quick-SSH]    PowerShell 7:   & (Get-Content "${relPath(0)}" -Raw) | Invoke-Expression`);
+    }
+    if (winPsPaths.length > 0) {
+        const idx = ps7Paths.length > 0 ? 1 : 0;
+        console.log(`[Quick-SSH]    Windows PowerShell: & (Get-Content "${relPath(idx)}" -Raw) | Invoke-Expression`);
+    }
 }
 
 // ============================================================
