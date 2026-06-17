@@ -141,7 +141,7 @@ const MODE_LABELS = {
 };
 
 const MODE_HINTS = {
-    [MODE.NORMAL]:  " j/k ↑↓  g首 G尾  ↵连接  d删除  a添加  /搜索  e导出  i导入  r重命名  p检测  P全检  ?帮助  q退出",
+    [MODE.NORMAL]:  " j/k ↑↓  gg首 G尾  ↵连接  d删除  a添加  /搜索  e导出  i导入  r重命名  p检测  P全检  ?帮助  q退出",
     [MODE.SEARCH]:  " 输入关键词过滤  Enter确认  Esc取消",
     [MODE.ADD]:     " 格式: 别名 用户@主机:端口 [--key 路径]  Enter确认  Esc取消",
     [MODE.EXPORT]:  " 输入导出文件路径 (默认: ~/.quickssh/export.json)  Enter确认  Esc取消",
@@ -563,7 +563,7 @@ function startTUI() {
 {cyan-fg}━━━━━━━━━ 导航 ━━━━━━━━━{/cyan-fg}
   {green-fg}j{/green-fg} / {green-fg}↓{/green-fg}      向下移动
   {green-fg}k{/green-fg} / {green-fg}↑{/green-fg}      向上移动
-  {green-ff}g{/green-fg}            跳转到第一个
+  {green-fg}gg{/green-fg}           跳转到第一个
   {green-fg}G{/green-fg}            跳转到最后一个
 
 {cyan-fg}━━━━━━━━━ 操作 ━━━━━━━━━{/cyan-fg}
@@ -703,17 +703,27 @@ function startTUI() {
         }
     });
 
+    // gg = 跳转到第一个（两次快速按 g），单次 g 无操作
+    let gPressTimer = null;
     screen.key(["g"], () => {
         if (currentMode !== MODE.NORMAL) return;
-        if (filteredHosts.length > 0) {
+        if (gPressTimer) {
+            // 第二次按 g → gg → 跳转到第一行
+            clearTimeout(gPressTimer);
+            gPressTimer = null;
             listBox.select(0);
             listBox.scrollTo(0);
             updateDetail();
             screen.render();
+        } else {
+            // 第一次按 g → 等待 500ms 内的第二次 g
+            gPressTimer = setTimeout(() => {
+                gPressTimer = null;
+            }, 500);
         }
     });
 
-    screen.key(["G"], () => {
+    screen.key(["G", "S-g"], () => {
         if (currentMode !== MODE.NORMAL) return;
         if (filteredHosts.length > 0) {
             listBox.select(filteredHosts.length - 1);

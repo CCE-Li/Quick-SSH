@@ -1,12 +1,16 @@
 # Quick-SSH 🚀
 
-> 仿 Docker 命令行风格的 PowerShell SSH 连接管理工具
+> PowerShell SSH 连接管理工具
 
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue)
 
 一键保存、管理、连接 SSH 服务器，告别记忆繁琐的 IP、端口和密钥路径。
+
+![TUI 主界面](doc/images/sample01.png)
+
+![命令行操作](doc/images/sample02.png)
 
 ---
 
@@ -213,6 +217,21 @@ quick-ssh/
 ├── Quick-SSH.psm1    # 核心 PowerShell 模块（全部逻辑）
 ├── index.js           # npm 生命周期钩子（安装/卸载自动配置）
 ├── package.json       # npm 包配置
+├── qssh-tui.js        # TUI 终端界面（Blessed）
+├── doc/
+│   └── images/        # 截图展示
+├── README.md          # 本文档
+└── LICENSE            # MIT 许可证
+```
+
+```
+quick-ssh/
+├── Quick-SSH.psm1    # 核心 PowerShell 模块
+├── index.js           # npm 生命周期钩子
+├── package.json       # npm 包配置
+├── qssh-tui.js        # TUI 终端界面（Blessed）
+├── doc/
+│   └── images/        # 截图展示
 ├── README.md          # 本文档
 └── LICENSE            # MIT 许可证
 ```

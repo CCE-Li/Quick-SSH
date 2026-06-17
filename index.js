@@ -16,29 +16,19 @@ const IMPORT_MARKER_START = "# >>> Quick-SSH auto-generated (do not modify) >>>"
 const IMPORT_MARKER_END   = "# <<< Quick-SSH auto-generated <<<";
 
 /**
- * 获取 PowerShell 配置文件路径（按优先级）
- *  1. PowerShell 7+   → $env:USERPROFILE\Documents\PowerShell\Microsoft.PowerShell_profile.ps1
- *  2. Windows PowerShell → $env:USERPROFILE\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
+ * 获取 PowerShell 配置文件路径列表
+ *  同时兼容 PowerShell 7+ 和 Windows PowerShell 5.1-
  */
-function getPowerShellProfilePath() {
+function getPowerShellProfilePaths() {
     const userProfile = process.env.USERPROFILE;
     if (!userProfile) {
         console.error("[Quick-SSH] 错误：无法获取 %USERPROFILE% 环境变量。");
-        return null;
+        return [];
     }
-
-    const candidates = [
-        // PowerShell 7+ (Core)
+    return [
         path.join(userProfile, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1"),
-        // Windows PowerShell 5.1-
         path.join(userProfile, "Documents", "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1"),
     ];
-
-    // 优先返回已存在的配置文件；都不存在则返回 PowerShell 7+ 的路径
-    for (const p of candidates) {
-        if (fs.existsSync(p)) return p;
-    }
-    return candidates[0];
 }
 
 /**
@@ -70,8 +60,8 @@ function getModulePath() {
 function runPostInstall() {
     console.log("[Quick-SSH] 正在配置 PowerShell 自动加载...");
 
-    const profilePath = getPowerShellProfilePath();
-    if (!profilePath) {
+    const profilePaths = getPowerShellProfilePaths();
+    if (profilePaths.length === 0) {
         console.error("[Quick-SSH] ❌ 无法定位 PowerShell 配置文件。");
         process.exit(1);
     }
@@ -83,40 +73,45 @@ function runPostInstall() {
     }
 
     const importBlock = buildImportBlock(modulePath);
-    let content = "";
 
-    // 读取现有配置
-    if (fs.existsSync(profilePath)) {
-        content = fs.readFileSync(profilePath, "utf-8");
-    }
+    for (const profilePath of profilePaths) {
+        let content = "";
 
-    // 检查是否已注册，避免重复插入
-    if (content.includes(IMPORT_MARKER_START)) {
-        // 已存在则替换旧块
-        const regex = new RegExp(
-            `${escapeRegExp(IMPORT_MARKER_START)}[\\s\\S]*?${escapeRegExp(IMPORT_MARKER_END)}`,
-            "g"
-        );
-        if (regex.test(content)) {
-            content = content.replace(regex, importBlock);
-            console.log("[Quick-SSH] 🔄 检测到旧的配置，已更新。");
+        // 读取现有配置
+        if (fs.existsSync(profilePath)) {
+            content = fs.readFileSync(profilePath, "utf-8");
         }
-    } else {
-        // 追加到文件末尾
-        content = content.trimEnd() + "\n\n" + importBlock + "\n";
-        console.log("[Quick-SSH] ➕ 已将 Import-Module 写入配置文件。");
+
+        // 检查是否已注册，避免重复插入
+        if (content.includes(IMPORT_MARKER_START)) {
+            // 已存在则替换旧块
+            const regex = new RegExp(
+                `${escapeRegExp(IMPORT_MARKER_START)}[\\s\\S]*?${escapeRegExp(IMPORT_MARKER_END)}`,
+                "g"
+            );
+            if (regex.test(content)) {
+                content = content.replace(regex, importBlock);
+                console.log(`[Quick-SSH] 🔄 已更新: ${profilePath}`);
+            }
+        } else {
+            // 追加到文件末尾
+            content = content.trimEnd() + "\n\n" + importBlock + "\n";
+            console.log(`[Quick-SSH] ➕ 已写入: ${profilePath}`);
+        }
+
+        // 确保目录存在
+        const dir = path.dirname(profilePath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+
+        fs.writeFileSync(profilePath, content, "utf-8");
     }
 
-    // 确保目录存在
-    const dir = path.dirname(profilePath);
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
-
-    fs.writeFileSync(profilePath, content, "utf-8");
-    console.log(`[Quick-SSH] ✔ 配置文件: ${profilePath}`);
     console.log("[Quick-SSH] ✔ 安装完成！请重启 PowerShell 终端或执行:");
-    console.log(`[Quick-SSH]    & (Get-Content "${profilePath}" -Raw) | Invoke-Expression`);
+    console.log(`[Quick-SSH]    & (Get-Content "\${env:USERPROFILE}\\Documents\\PowerShell\\Microsoft.PowerShell_profile.ps1" -Raw) | Invoke-Expression`);
+    console.log(`[Quick-SSH]    或 Windows PowerShell:`);
+    console.log(`[Quick-SSH]    & (Get-Content "\${env:USERPROFILE}\\Documents\\WindowsPowerShell\\Microsoft.PowerShell_profile.ps1" -Raw) | Invoke-Expression`);
 }
 
 // ============================================================
@@ -126,33 +121,34 @@ function runPostInstall() {
 function runPreUninstall() {
     console.log("[Quick-SSH] 正在清理 PowerShell 配置文件...");
 
-    const profilePath = getPowerShellProfilePath();
-    if (!profilePath) {
+    const profilePaths = getPowerShellProfilePaths();
+    if (profilePaths.length === 0) {
         console.log("[Quick-SSH] ✔ 未找到 PowerShell 配置文件，无需清理。");
         return;
     }
 
-    if (!fs.existsSync(profilePath)) {
-        console.log("[Quick-SSH] ✔ 配置文件不存在，无需清理。");
-        return;
-    }
-
-    let content = fs.readFileSync(profilePath, "utf-8");
-
-    // 构建正则移除整个 Import-Module 块
     const regex = new RegExp(
         `\\s*${escapeRegExp(IMPORT_MARKER_START)}[\\s\\S]*?${escapeRegExp(IMPORT_MARKER_END)}\\s*`,
         "g"
     );
 
-    if (regex.test(content)) {
-        content = content.replace(regex, "");
-        // 清理多余空行
-        content = content.replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
-        fs.writeFileSync(profilePath, content, "utf-8");
-        console.log(`[Quick-SSH] ✔ 已从 ${profilePath} 中移除 Import-Module 配置。`);
-    } else {
-        console.log("[Quick-SSH] ✔ 配置文件中未找到 Quick-SSH 注册信息。");
+    for (const profilePath of profilePaths) {
+        if (!fs.existsSync(profilePath)) {
+            console.log(`[Quick-SSH] - 跳过(不存在): ${profilePath}`);
+            continue;
+        }
+
+        let content = fs.readFileSync(profilePath, "utf-8");
+
+        if (regex.test(content)) {
+            content = content.replace(regex, "");
+            // 清理多余空行
+            content = content.replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
+            fs.writeFileSync(profilePath, content, "utf-8");
+            console.log(`[Quick-SSH] ✔ 已清理: ${profilePath}`);
+        } else {
+            console.log(`[Quick-SSH] - 无配置: ${profilePath}`);
+        }
     }
 
     console.log("[Quick-SSH] ✔ 清理完成！用户配置数据已保留 (%USERPROFILE%\\.quickssh\\hosts.json)。");
