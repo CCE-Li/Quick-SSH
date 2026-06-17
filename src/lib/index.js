@@ -1,5 +1,5 @@
 /**
- * index.js - Quick-SSH npm 生命周期钩子
+ * src/lib/index.js - Quick-SSH npm 生命周期钩子
  *
  * postinstall : 将 Import-Module 语句写入 PowerShell 配置文件，重启终端自动加载
  * preuninstall: 从 PowerShell 配置文件中移除 Import-Module 语句，保留用户数据
@@ -47,10 +47,10 @@ function buildImportBlock(modulePath) {
 
 /**
  * 获取当前包中 Quick-SSH.psm1 的路径
+ * 本文件位于 src/lib/ 目录，因此需要上两级到包根目录，再到 src/Quick-SSH.psm1
  */
 function getModulePath() {
-    // 在 npm 全局或本地安装时，index.js 位于包根目录
-    return path.join(__dirname, "Quick-SSH.psm1");
+    return path.join(__dirname, "..", "..", "src", "Quick-SSH.psm1");
 }
 
 // ============================================================
@@ -176,7 +176,7 @@ switch (command) {
         runPreUninstall();
         break;
     default:
-        console.log(`[Quick-SSH] index.js - Quick-SSH npm 生命周期脚本`);
-        console.log(`  用法: node index.js <postinstall|preuninstall>`);
+        console.log(`[Quick-SSH] src/lib/index.js - Quick-SSH npm 生命周期脚本`);
+        console.log(`  用法: node src/lib/index.js <postinstall|preuninstall>`);
         break;
 }

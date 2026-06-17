@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 /**
- * qssh-tui.js - Quick-SSH 终端用户界面 (TUI)
- * 类似 yazi 的布局 + Vim 操作键位
+ * src/tui/index.js - Quick-SSH 终端用户界面 (TUI)
+ *
+ * 类似 yazi 的布局 + Vim 操作键位。
+ * 依赖模块:
+ *   - modes.js   : 模式常量/标签/提示
+ *   - data.js    : 配置读写
+ *   - network.js : SSH 连接/在线检测
  *
  * 布局:
  *   ┌─ 标题栏 ─────────────────────────────────┐
@@ -12,14 +17,20 @@
  *   ├─ 状态栏 ─────────────────────────────────┤
  *   │ NORMAL  j/k ↑↓  ↵连接  d删除  /搜索  q退出│
  *   └──────────────────────────────────────────┘
- *
- * 依赖: blessed (npm install blessed)
- * 数据: %USERPROFILE%\.quickssh\hosts.json
  */
 
 const blessed   = require("blessed");
+const path      = require("path");
+const fs        = require("fs");
 
-// 阻止 blessed 切换备用屏幕缓冲区，保留 PowerShell 透明背景
+const { MODE, MODE_LABELS, MODE_HINTS } = require("./modes");
+const { CONFIG_DIR, CONFIG_FILE, loadHosts, saveHosts } = require("./data");
+const { sshConnect, checkHost } = require("./network");
+
+// ============================================================
+// 阻止 blessed 切换备用屏幕缓冲区（保留 PowerShell 透明背景）
+// ============================================================
+
 if (blessed.Program) {
     blessed.Program.prototype.alternateBuffer = function (val, cb) {
         if (typeof val === "function") { cb = val; }
@@ -29,80 +40,9 @@ if (blessed.Program) {
     if (blessed.Program.prototype.smcup) blessed.Program.prototype.smcup = function () { return this; };
     if (blessed.Program.prototype.rmcup) blessed.Program.prototype.rmcup = function () { return this; };
 }
-const net       = require("net");
-const fs        = require("fs");
-const path      = require("path");
-const { spawn } = require("child_process");
 
 // ============================================================
-// 配置
-// ============================================================
-
-const CONFIG_DIR  = path.join(process.env.USERPROFILE || "~", ".quickssh");
-const CONFIG_FILE = path.join(CONFIG_DIR, "hosts.json");
-
-// ============================================================
-// 数据层
-// ============================================================
-
-function ensureConfig() {
-    if (!fs.existsSync(CONFIG_DIR))  fs.mkdirSync(CONFIG_DIR, { recursive: true });
-    if (!fs.existsSync(CONFIG_FILE)) fs.writeFileSync(CONFIG_FILE, "[]", "utf-8");
-}
-
-function loadHosts() {
-    ensureConfig();
-    try {
-        const raw = fs.readFileSync(CONFIG_FILE, "utf-8").trim();
-        if (!raw) return [];
-        const data = JSON.parse(raw);
-        // 兼容单个对象 { ... } 和数组 [{ ... }, { ... }]
-        return Array.isArray(data) ? data : [data];
-    } catch {
-        return [];
-    }
-}
-
-function saveHosts(hosts) {
-    ensureConfig();
-    // 确保始终保存为数组
-    const data = Array.isArray(hosts) ? hosts : [];
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(data, null, 4), "utf-8");
-}
-
-// ============================================================
-// SSH 连接
-// ============================================================
-
-function sshConnect(host, cbReturn) {
-    const sshExe = "ssh.exe";
-    const args = [
-        "-i", host.key,
-        "-p", String(host.port),
-        "-o", "HostKeyAlgorithms=+ssh-rsa",
-        `${host.user}@${host.host}`,
-    ];
-
-    screen.destroy();
-    process.stdin.removeAllListeners("data");
-
-    process.stdout.write(`\n\x1b[32m正在连接到 '${host.alias}' (${host.user}@${host.host}:${host.port}) ...\x1b[0m\n\n`);
-
-    const child = spawn(sshExe, args, {
-        stdio: "inherit",
-        shell: true,
-    });
-
-    child.on("exit", (code) => {
-        process.stdout.write(`\n\x1b[33mSSH 会话已结束 (退出码: ${code})\x1b[0m\n`);
-        process.stdout.write(`\x1b[32m按 Enter 键返回 Quick-SSH TUI...\x1b[0m`);
-        process.stdin.setRawMode(false);
-        process.stdin.once("data", () => cbReturn());
-    });
-}
-
-// ============================================================
-// TUI 组件
+// TUI 组件引用
 // ============================================================
 
 let screen;
@@ -114,43 +54,23 @@ let inputBox;
 let helpBox;
 let confirmBox;
 
-// 在线状态缓存
-const hostStatus = {}; // { alias: "unknown" | "online" | "offline" }
+// ============================================================
+// 状态
+// ============================================================
 
+const hostStatus = {};        // { alias: "unknown" | "online" | "offline" }
 let hosts        = [];
 let filteredHosts = [];
 let filterText   = "";
-
-// 模式管理
-const MODE = { NORMAL: 0, SEARCH: 1, ADD: 2, EXPORT: 3, IMPORT: 4, CONFIRM: 5, HELP: 6, RENAME: 7 };
-let currentMode = MODE.NORMAL;
+let currentMode  = MODE.NORMAL;
 
 // ============================================================
 // UI 更新函数
 // ============================================================
 
-const MODE_LABELS = {
-    [MODE.NORMAL]:  "{green-fg}{bold} NORMAL {/bold}{/green-fg}",
-    [MODE.SEARCH]:  "{cyan-fg}{bold} SEARCH {/bold}{/cyan-fg}",
-    [MODE.ADD]:     "{yellow-fg}{bold} ADD {/bold}{/yellow-fg}",
-    [MODE.EXPORT]:  "{yellow-fg}{bold} EXPORT {/bold}{/yellow-fg}",
-    [MODE.IMPORT]:  "{yellow-fg}{bold} IMPORT {/bold}{/yellow-fg}",
-    [MODE.CONFIRM]: "{red-fg}{bold} CONFIRM {/bold}{/red-fg}",
-    [MODE.HELP]:    "{white-fg}{bold} HELP {/bold}{/white-fg}",
-    [MODE.RENAME]:  "{cyan-fg}{bold} RENAME {/bold}{/cyan-fg}",
-};
-
-const MODE_HINTS = {
-    [MODE.NORMAL]:  " j/k ↑↓  gg首 G尾  ↵连接  d删除  a添加  /搜索  e导出  i导入  r重命名  p检测  P全检  ?帮助  q退出",
-    [MODE.SEARCH]:  " 输入关键词过滤  Enter确认  Esc取消",
-    [MODE.ADD]:     " 格式: 别名 用户@主机:端口 [--key 路径]  Enter确认  Esc取消",
-    [MODE.EXPORT]:  " 输入导出文件路径 (默认: ~/.quickssh/export.json)  Enter确认  Esc取消",
-    [MODE.IMPORT]:  " 输入导入文件路径  Enter确认  Esc取消",
-    [MODE.CONFIRM]: " y确认  n取消",
-    [MODE.HELP]:    " 按任意键返回",
-    [MODE.RENAME]:  " 输入新别名  Enter确认  Esc取消",
-};
-
+/**
+ * 切换模式并更新界面
+ */
 function setMode(mode, inputValue) {
     currentMode = mode;
     statusBar.setContent(`${MODE_LABELS[mode] || ""} ${MODE_HINTS[mode] || ""}`);
@@ -161,7 +81,8 @@ function setMode(mode, inputValue) {
         if (mode === MODE.NORMAL) listBox.focus();
     }
 
-    if (mode === MODE.SEARCH || mode === MODE.ADD || mode === MODE.EXPORT || mode === MODE.IMPORT || mode === MODE.RENAME) {
+    if (mode === MODE.SEARCH || mode === MODE.ADD || mode === MODE.EXPORT ||
+        mode === MODE.IMPORT || mode === MODE.RENAME) {
         inputBox.show();
         inputBox.setValue(inputValue || "");
         inputBox.focus();
@@ -175,6 +96,9 @@ function setMode(mode, inputValue) {
     screen.render();
 }
 
+/**
+ * 刷新连接列表
+ */
 function refreshList(keepSelection) {
     hosts = loadHosts();
     filteredHosts = filterText
@@ -186,15 +110,15 @@ function refreshList(keepSelection) {
         : [...hosts];
 
     const prevIdx = listBox.selected;
-    const statusIndicators = {
+    const indicators = {
         online:  "{green-fg}●{/green-fg}",
         offline: "{red-fg}○{/red-fg}",
         unknown: "{yellow-fg}◌{/yellow-fg}",
     };
     listBox.setItems(filteredHosts.map(h => {
         const sta = hostStatus[h.alias] || "unknown";
-        const indicator = statusIndicators[sta] || statusIndicators.unknown;
-        return `${indicator} ${h.alias.padEnd(14)} ${h.user}@${h.host}:${h.port}`;
+        const ind = indicators[sta] || indicators.unknown;
+        return `${ind} ${h.alias.padEnd(14)} ${h.user}@${h.host}:${h.port}`;
     }));
 
     if (keepSelection && prevIdx < filteredHosts.length) {
@@ -212,6 +136,9 @@ function refreshList(keepSelection) {
     screen.render();
 }
 
+/**
+ * 更新详情面板
+ */
 function updateDetail() {
     const idx = listBox.selected;
     if (idx < 0 || idx >= filteredHosts.length) {
@@ -244,76 +171,15 @@ function updateDetail() {
     screen.render();
 }
 
-// ============================================================
-// 在线检测
-// ============================================================
-
 /**
- * 检查单台服务器是否在线（TCP 连接 SSH 端口）
+ * 在状态栏显示短暂消息（3 秒后自动恢复）
  */
-function checkHost(alias) {
-    return new Promise((resolve) => {
-        const h = hosts.find(e => e.alias === alias);
-        if (!h) { resolve(false); return; }
-
-        hostStatus[alias] = "checking";
-        refreshList();
-
-        const sock = new net.Socket();
-        const port = h.port || 22;
-        const timeout = 3000; // 3s
-
-        sock.setTimeout(timeout);
-        sock.on("connect", () => {
-            sock.destroy();
-            hostStatus[alias] = "online";
-            refreshList();
-            resolve(true);
-        });
-        sock.on("error", () => {
-            sock.destroy();
-            hostStatus[alias] = "offline";
-            refreshList();
-            resolve(false);
-        });
-        sock.on("timeout", () => {
-            sock.destroy();
-            hostStatus[alias] = "offline";
-            refreshList();
-            resolve(false);
-        });
-        sock.connect(port, h.host);
-    });
-}
-
-function checkSelectedHost() {
-    const idx = listBox.selected;
-    if (idx < 0 || idx >= filteredHosts.length) return;
-    const alias = filteredHosts[idx].alias;
-    flashMessage(`正在检测 '${alias}' ...`, "yellow");
-    checkHost(alias).then(ok => {
-        flashMessage(`'${alias}'  ${ok ? "● 在线" : "○ 离线"}`, ok ? "green" : "red");
-    });
-}
-
-function checkAllHosts() {
-    const list = filteredHosts.length > 0 ? filteredHosts : hosts;
-    if (list.length === 0) {
-        flashMessage("没有可检测的服务器", "red");
-        return;
-    }
-    flashMessage(`正在检测 ${list.length} 台服务器 ...`, "yellow");
-    let done = 0;
-    for (const h of list) {
-        checkHost(h.alias).then(() => {
-            done++;
-            if (done === list.length) {
-                const online  = list.filter(e => hostStatus[e.alias] === "online").length;
-                const offline = list.filter(e => hostStatus[e.alias] === "offline").length;
-                flashMessage(`检测完成: ${online} 在线, ${offline} 离线`, online > 0 ? "green" : "red");
-            }
-        });
-    }
+function flashMessage(msg, color) {
+    statusBar.setContent(`{${color}-fg} ${msg}{/${color}-fg}`);
+    screen.render();
+    setTimeout(() => {
+        if (currentMode === MODE.NORMAL) setMode(MODE.NORMAL);
+    }, 3000);
 }
 
 // ============================================================
@@ -323,7 +189,8 @@ function checkAllHosts() {
 function connectSelected() {
     const idx = listBox.selected;
     if (idx < 0 || idx >= filteredHosts.length) return;
-    sshConnect(filteredHosts[idx], startTUI);
+    // sshConnect 需要 screen 参数用于销毁
+    sshConnect(filteredHosts[idx], screen, startTUI);
 }
 
 function deleteSelected() {
@@ -331,7 +198,7 @@ function deleteSelected() {
     if (idx < 0 || idx >= filteredHosts.length) return;
     const h = filteredHosts[idx];
     confirmBox.setContent(
-        `{center}{red-fg}确认删除连接 '{h.alias}'？ (y/n){/red-fg}{/center}`
+        `{center}{red-fg}确认删除连接 '${h.alias}'？ (y/n){/red-fg}{/center}`
     );
     setMode(MODE.CONFIRM);
 }
@@ -349,12 +216,38 @@ function confirmDelete(confirmed) {
     setMode(MODE.NORMAL);
 }
 
-function flashMessage(msg, color) {
-    statusBar.setContent(`{${color}-fg} ${msg}{/${color}-fg}`);
-    screen.render();
-    setTimeout(() => {
-        if (currentMode === MODE.NORMAL) setMode(MODE.NORMAL);
-    }, 3000);
+// ============================================================
+// 在线检测操作
+// ============================================================
+
+function checkSelectedHost() {
+    const idx = listBox.selected;
+    if (idx < 0 || idx >= filteredHosts.length) return;
+    const alias = filteredHosts[idx].alias;
+    flashMessage(`正在检测 '${alias}' ...`, "yellow");
+    checkHost(alias, hosts, hostStatus, () => refreshList(true)).then(ok => {
+        flashMessage(`'${alias}'  ${ok ? "● 在线" : "○ 离线"}`, ok ? "green" : "red");
+    });
+}
+
+function checkAllHosts() {
+    const list = filteredHosts.length > 0 ? filteredHosts : hosts;
+    if (list.length === 0) {
+        flashMessage("没有可检测的服务器", "red");
+        return;
+    }
+    flashMessage(`正在检测 ${list.length} 台服务器 ...`, "yellow");
+    let done = 0;
+    for (const h of list) {
+        checkHost(h.alias, hosts, hostStatus, () => refreshList(true)).then(() => {
+            done++;
+            if (done === list.length) {
+                const online  = list.filter(e => hostStatus[e.alias] === "online").length;
+                const offline = list.filter(e => hostStatus[e.alias] === "offline").length;
+                flashMessage(`检测完成: ${online} 在线, ${offline} 离线`, online > 0 ? "green" : "red");
+            }
+        });
+    }
 }
 
 // ============================================================
@@ -570,6 +463,7 @@ function startTUI() {
   {green-fg}Enter{/green-fg}        连接选中的服务器
   {green-fg}d{/green-fg}            删除选中的连接
   {green-fg}a{/green-fg}            添加新连接
+  {green-fg}r{/green-fg}            重命名连接
   {green-fg}/ {/green-fg}           搜索 / 筛选
   {green-fg}Esc{/green-fg}          取消 / 返回普通模式
 
@@ -664,7 +558,7 @@ function startTUI() {
         if (currentMode === MODE.NORMAL) checkSelectedHost();
     });
 
-    // 全检: P(Shift) / S-p / C-p(备选，部分终端会拦截 Shift)
+    // 全检: P(Shift) / S-p / C-p
     screen.key(["P", "S-p", "C-p"], () => {
         if (currentMode === MODE.NORMAL) checkAllHosts();
     });
@@ -703,12 +597,11 @@ function startTUI() {
         }
     });
 
-    // gg = 跳转到第一个（两次快速按 g），单次 g 无操作
+    // gg = 跳转到第一个（500ms 内双击 g）
     let gPressTimer = null;
     screen.key(["g"], () => {
         if (currentMode !== MODE.NORMAL) return;
         if (gPressTimer) {
-            // 第二次按 g → gg → 跳转到第一行
             clearTimeout(gPressTimer);
             gPressTimer = null;
             listBox.select(0);
@@ -716,7 +609,6 @@ function startTUI() {
             updateDetail();
             screen.render();
         } else {
-            // 第一次按 g → 等待 500ms 内的第二次 g
             gPressTimer = setTimeout(() => {
                 gPressTimer = null;
             }, 500);
@@ -782,7 +674,7 @@ function startTUI() {
 }
 
 // ============================================================
-// 入口
+// 入口（直接运行时自动启动）
 // ============================================================
 
 startTUI();

@@ -9,7 +9,7 @@
 $Script:ConfigDir   = Join-Path $env:USERPROFILE ".quickssh"
 $Script:ConfigFile  = Join-Path $Script:ConfigDir "hosts.json"
 $Script:ModuleRoot  = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Script:TUIScript   = Join-Path $Script:ModuleRoot "qssh-tui.js"
+$Script:TUIScript   = Join-Path $Script:ModuleRoot "tui" "index.js"
 
 # 初始化配置目录和空 JSON 文件
 function Initialize-QuickSSHConfig {

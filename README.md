@@ -29,8 +29,8 @@ npm install -g quick-ssh
 ### 方式二：手动加载
 
 ```powershell
-# 下载本仓库，在 Quick-SSH.psm1 所在目录执行：
-Import-Module .\Quick-SSH.psm1 -DisableNameChecking
+# 下载本仓库，在 src\Quick-SSH.psm1 所在目录执行：
+Import-Module .\src\Quick-SSH.psm1 -DisableNameChecking
 ```
 
 ---
@@ -57,7 +57,7 @@ qssh rm my-server
 
 ### `qssh ps [关键词]`
 
-列出所有已保存的 SSH 连接（对应 `docker ps`）。
+列出所有已保存的 SSH 连接。
 
 | 列 | 说明 |
 |----|------|
@@ -214,26 +214,21 @@ npm uninstall -g quick-ssh
 
 ```
 quick-ssh/
-├── Quick-SSH.psm1    # 核心 PowerShell 模块（全部逻辑）
-├── index.js           # npm 生命周期钩子（安装/卸载自动配置）
-├── package.json       # npm 包配置
-├── qssh-tui.js        # TUI 终端界面（Blessed）
+├── src/
+│   ├── Quick-SSH.psm1          # 核心 PowerShell 模块
+│   ├── lib/
+│   │   └── index.js             # npm 生命周期钩子（安装/卸载自动配置）
+│   └── tui/
+│       ├── index.js             # TUI 主入口（Blessed 界面 + 键位绑定）
+│       ├── modes.js             # 模式常量/标签/提示（易于扩展）
+│       ├── data.js              # 数据层（配置读写）
+│       └── network.js           # 网络层（SSH 连接 + 在线检测）
 ├── doc/
-│   └── images/        # 截图展示
-├── README.md          # 本文档
-└── LICENSE            # MIT 许可证
-```
-
-```
-quick-ssh/
-├── Quick-SSH.psm1    # 核心 PowerShell 模块
-├── index.js           # npm 生命周期钩子
-├── package.json       # npm 包配置
-├── qssh-tui.js        # TUI 终端界面（Blessed）
-├── doc/
-│   └── images/        # 截图展示
-├── README.md          # 本文档
-└── LICENSE            # MIT 许可证
+│   └── images/                  # 截图展示
+├── package.json                 # npm 包配置
+├── README.md                    # 本文档
+├── LICENSE                      # MIT 许可证
+└── .gitignore
 ```
 
 ---
