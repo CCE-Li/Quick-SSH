@@ -1,6 +1,6 @@
 {
-  "name": "quick-ssh-new",
-  "version": "1.0.1",
+  "name": "quick-ssh",
+  "version": "1.0.2",
   "description": "🚀 Quick-SSH - 仿 Docker 命令行风格的 PowerShell SSH 连接管理工具",
   "keywords": [
     "ssh",
@@ -15,7 +15,7 @@
     "url": "https://github.com/CCE-Li/quick-ssh/issues"
   },
   "license": "MIT",
-  "author": "",
+  "author": "CCE-Li",
   "main": "index.js",
   "repository": {
     "type": "git",
