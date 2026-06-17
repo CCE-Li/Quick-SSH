@@ -65,14 +65,17 @@ function getPowerShellProfilePaths() {
 function resolveProfilePaths(candidates) {
     const ps7     = [];  // PowerShell 7
     const winPs   = [];  // Windows PowerShell 5.1-
-    const ps7Key  = "PowerShell\\Microsoft.PowerShell_profile.ps1";
-    const winKey  = "WindowsPowerShell\\Microsoft.PowerShell_profile.ps1";
+    // 注意：前面必须带路径分隔符，避免 "WindowsPowerShell" 误匹配 "PowerShell"
+    const ps7Key  = "\\PowerShell\\Microsoft.PowerShell_profile.ps1";
+    const winKey  = "\\WindowsPowerShell\\Microsoft.PowerShell_profile.ps1";
 
     for (const p of candidates) {
         const norm = p.replace(/\\/g, "/");
-        if (norm.endsWith(ps7Key.replace(/\\/g, "/"))) {
+        const ps7Match  = ps7Key.replace(/\\/g, "/");
+        const winMatch  = winKey.replace(/\\/g, "/");
+        if (norm.endsWith(ps7Match)) {
             ps7.push(p);
-        } else if (norm.endsWith(winKey.replace(/\\/g, "/"))) {
+        } else if (norm.endsWith(winMatch)) {
             winPs.push(p);
         }
     }

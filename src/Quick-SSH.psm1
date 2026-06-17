@@ -277,6 +277,77 @@ function Invoke-QuickSSHTUI {
 }
 
 # ============================================================
+# qssh init - 注册到 PowerShell 配置文件
+# ============================================================
+
+# 内部辅助函数：将 Import-Module 标记块写入单个配置文件
+function Write-QuickSSHProfile {
+    param([string]$ProfilePath)
+
+    $modulePath = Join-Path $Script:ModuleRoot "Quick-SSH.psm1"
+    $importBlock = @"
+# >>> Quick-SSH auto-generated (do not modify) >>>
+# Quick-SSH PowerShell SSH 连接管理工具
+# 安装路径: $modulePath
+if (Test-Path "$modulePath") { Import-Module "$modulePath" -DisableNameChecking }
+# <<< Quick-SSH auto-generated <<<
+"@
+
+    # 确保目录存在
+    $profileDir = Split-Path $ProfilePath -Parent
+    if (-not (Test-Path $profileDir)) {
+        New-Item -Path $profileDir -ItemType Directory -Force | Out-Null
+        Write-QSSuccess "✔ 已创建目录: $profileDir"
+    }
+
+    # 读取现有内容（文件可能不存在）
+    $content = ""
+    if (Test-Path $ProfilePath) {
+        $content = Get-Content -Path $ProfilePath -Raw -Encoding UTF8
+    }
+
+    # 检查是否已注册，去重处理
+    $markerStart = '# >>> Quick-SSH auto-generated (do not modify) >>>'
+    if ($content -match [regex]::Escape($markerStart)) {
+        $regex = [regex]::new(
+            [regex]::Escape('# >>> Quick-SSH auto-generated (do not modify) >>>') +
+            '[\s\S]*?' +
+            [regex]::Escape('# <<< Quick-SSH auto-generated <<<')
+        )
+        $content = $regex.Replace($content, $importBlock)
+        Write-QSSuccess "🔄 已更新: $ProfilePath"
+    } else {
+        $content = $content.TrimEnd() + "`r`n`r`n" + $importBlock + "`r`n"
+        Write-QSSuccess "✔ 已写入: $ProfilePath"
+    }
+
+    $content | Set-Content -Path $ProfilePath -Encoding UTF8 -NoNewline
+}
+
+# qssh init - 注册到当前 PowerShell 版本的 $PROFILE
+function Invoke-QuickSSHInit {
+
+    $profilePath = $PROFILE
+    if (-not $profilePath) {
+        Write-QSError "错误：无法获取 `$PROFILE 路径。"
+        return
+    }
+
+    Write-Host ""
+    Write-QSSuccess "检测到当前 `$PROFILE 路径:"
+    Write-Host "  $profilePath" -ForegroundColor Cyan
+    Write-Host ""
+
+    Write-QuickSSHProfile -ProfilePath $profilePath
+
+    Write-Host ""
+    Write-QSSuccess "✔ 配置完成！请重启 PowerShell 终端使其生效。"
+    Write-Host ""
+    Write-Host "   或执行以下命令立即加载：" -ForegroundColor Yellow
+    Write-Host "   & (Get-Content '$profilePath' -Raw) | Invoke-Expression" -ForegroundColor Cyan
+}
+
+# ============================================================
 # 帮助信息
 # ============================================================
 
@@ -291,6 +362,7 @@ function Show-QuickSSHHelp {
     Write-Host "                        添加新 SSH 连接（端口默认 22，私钥默认 ~/.ssh/id_rsa）"
     Write-Host "  qssh rm <别名>        删除指定别名的 SSH 连接（对应 docker rm）"
     Write-Host "  qssh <别名>           一键连接 SSH 服务器"
+    Write-Host "  qssh init             将 Quick-SSH 注册到 `$PROFILE，重启终端自动加载"
     Write-Host "  qssh export <文件>    导出全部主机配置到 JSON 文件"
     Write-Host "  qssh import <文件>    从 JSON 文件批量导入连接"
     Write-Host "  qssh help             显示本帮助信息"
@@ -364,6 +436,9 @@ function global:qssh {
             $file = if ($ArgsList.Count -gt 0) { $ArgsList[0] } else { "" }
             Invoke-QuickSSHImport -FilePath $file
         }
+        "init" {
+            Invoke-QuickSSHInit
+        }
         "help" {
             Show-QuickSSHHelp
         }
@@ -381,7 +456,7 @@ function global:qssh {
 Register-ArgumentCompleter -CommandName "qssh" -ScriptBlock {
     param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
 
-    $subCommands = @("ps", "add", "rm", "export", "import", "help")
+    $subCommands = @("ps", "add", "rm", "init", "export", "import", "help")
 
     # 获取已保存的主机别名
     $aliases = @()

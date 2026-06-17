@@ -14,6 +14,47 @@
 
 ---
 
+## 功能特性 ✨
+
+| 功能 | 说明 |
+|------|------|
+| 🔌 SSH 连接 | 一键连接已保存的 SSH 服务器 |
+| 🖥️ TUI 终端界面 | 可视化键盘操作界面，类 `yazi` 操作体验 |
+| ⌨️ Docker 风格 CLI | `ps`、`add`、`rm` 等子命令，上手即用 |
+| 🏓 Ping 检测 | 列表中实时显示各主机连通状态（在线/离线） |
+| 📦 npm 包管理 | 全局安装/卸载，自动配置 `$PROFILE` |
+| 🔄 导入/导出 | JSON 格式批量导入导出主机配置 |
+| ⏹ Tab 自动补全 | 子命令 + 已保存主机别名自动补全 |
+
+---
+
+## 安装前注意 ⚠️
+
+Quick-SSH 依赖 PowerShell 执行策略运行脚本。安装前请先检查：
+
+```powershell
+Get-ExecutionPolicy
+```
+
+| 返回值 | 说明 | 操作 |
+|--------|------|------|
+| `RemoteSigned` 或 `Unrestricted` | ✅ 正常 | 直接安装即可 |
+| `Restricted` | ❌ 无法运行脚本 | 需以管理员身份修改执行策略 |
+
+**如果当前为 `Restricted`，请以管理员身份打开 PowerShell 并执行：**
+
+```powershell
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+> 选择 `RemoteSigned` 表示仅信任来自互联网的脚本需要签名，本地脚本可直接运行，兼顾安全性与便利性。
+>
+> 如果希望更宽松（不推荐），可设为 `Unrestricted`。
+
+修改完成后执行 `Get-ExecutionPolicy` 确认已生效，即可继续安装。
+
+---
+
 ## 安装
 
 ### 方式一：npm 全局安装（推荐）
@@ -25,6 +66,12 @@ npm install -g quick-ssh
 安装完成后，**重启 PowerShell 终端**即可使用 `qssh` 命令。
 
 > 安装脚本会自动将 `Import-Module` 写入你的 PowerShell 配置文件 (`$PROFILE`)，重启终端后永久生效。
+
+如果希望在当前会话中立即加载（免重启），可执行 `qssh init` 后运行：
+
+```powershell
+& (Get-Content $PROFILE -Raw) | Invoke-Expression
+```
 
 ### 方式二：手动加载
 
@@ -54,6 +101,20 @@ qssh rm my-server
 ---
 
 ## 命令参考
+
+### `qssh`
+
+不带任何参数时启动 **TUI 终端界面**，通过键盘快捷键浏览和连接服务器。
+
+| 快捷键 | 功能 |
+|--------|------|
+| <kbd>↑</kbd> / <kbd>↓</kbd> | 移动选择 |
+| <kbd>Enter</kbd> | 连接选中主机 |
+| <kbd>/</kbd> | 搜索 / 筛选 |
+| <kbd>c</kbd> | Ping 连通性检测 |
+| <kbd>d</kbd> | 删除选中主机 |
+| <kbd>q</kbd> / <kbd>Esc</kbd> | 退出 TUI |
+| <kbd>?</kbd> | 显示/隐藏帮助面板 |
 
 ### `qssh ps [关键词]`
 
@@ -131,6 +192,24 @@ qssh my-server
 # → 正在连接到 'my-server' (root@192.168.1.100:22) ...
 ```
 
+### `qssh init`
+
+将 Quick-SSH 注册到当前 PowerShell 版本的 `$PROFILE` 中，实现开箱即用。
+
+```powershell
+qssh init
+# → 检测到当前 $PROFILE 路径:
+#   C:\Users\Lenovo\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
+# → ✔ 已写入 ...
+# → ✔ 配置完成！请重启 PowerShell 终端使其生效。
+```
+
+> `$PROFILE` 自动指向当前运行的 PowerShell 版本：
+> - **PowerShell 7** → `...\Documents\PowerShell\Microsoft.PowerShell_profile.ps1`
+> - **Windows PowerShell 5.1** → `...\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1`
+>
+> 如果目录或文件不存在，`qssh init` 会自动创建。
+
 ### `qssh export <文件路径>`
 
 将全部主机配置导出到指定 JSON 文件。
@@ -159,7 +238,7 @@ qssh import D:\backup\ssh-hosts.json
 
 输入 `qssh` 后按 <kbd>Tab</kbd> 键，可自动补全：
 
-- **子命令**：`ps`、`add`、`rm`、`export`、`import`、`help`
+- **子命令**：`ps`、`add`、`rm`、`init`、`export`、`import`、`help`
 - **已保存的主机别名**：快速选择要连接的服务器
 
 ---
@@ -185,6 +264,20 @@ qssh import D:\backup\ssh-hosts.json
     }
 ]
 ```
+
+---
+
+## 近期规划 🗓️
+
+| 功能 | 说明 |
+|------|------|
+| 📂 SFTP 连接 | 基于 SSH 的文件传输，支持上传 / 下载 / 浏览 |
+| 🔔 自动检测更新 | 启动时检查 npm 新版本并提示升级 |
+| 📤 拖拽文件上传 | 在 TUI 界面中拖拽文件直接上传到服务器 |
+| 🔄 批量执行 | 选中多台主机，批量发送同一命令 |
+| 📋 一键保存 Log | 记录每次连接的时间戳与操作日志 |
+| 🪟 新窗口打开 | 连接服务器时自动打开新终端窗口 |
+| 🤖 AI 辅助指令 | 自然语言描述操作意图，AI 生成对应命令 |
 
 ---
 
