@@ -1,4 +1,4 @@
-# Quick-SSH.psm1 - PowerShell SSH Connection Manager (Cross-Platform)
+﻿# Quick-SSH.psm1 - PowerShell SSH Connection Manager (Cross-Platform)
 # 仿 Docker 命令行风格的 SSH 连接管理工具
 # 配置文件路径: ~/.quickssh/hosts.json
 

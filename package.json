@@ -1,6 +1,6 @@
 {
   "name": "quick-ssh",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "🚀 Quick-SSH - 仿 Docker 命令行风格的 PowerShell SSH 连接管理工具",
   "keywords": [
     "ssh",
