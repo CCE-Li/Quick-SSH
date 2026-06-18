@@ -12,7 +12,8 @@
 $Script:UserHome     = if ($env:USERPROFILE) { $env:USERPROFILE } else { $env:HOME }
 $Script:SSHConfigDir = Join-Path $Script:UserHome ".ssh"
 $Script:SSHConfigPath= Join-Path $Script:SSHConfigDir "config"
-$Script:ModuleRoot   = $PSScriptRoot
+# ModuleRoot = src/ (psm1 在 src/win/ 下，$PSScriptRoot 指向 src/win/)
+$Script:ModuleRoot   = Split-Path $PSScriptRoot -Parent
 $Script:TUIScript    = [System.IO.Path]::Combine($Script:ModuleRoot, "tui", "index.js")
 
 # 跨平台 SSH 可执行文件检测
@@ -417,7 +418,7 @@ function Invoke-QuickSSHTUI {
 function Write-QuickSSHProfile {
     param([string]$ProfilePath)
 
-    $modulePath = Join-Path $Script:ModuleRoot "Quick-SSH.psm1"
+    $modulePath = Join-Path $Script:ModuleRoot "win" "Quick-SSH.psm1"
     $importBlock = @"
 # >>> Quick-SSH auto-generated (do not modify) >>>
 # Quick-SSH PowerShell SSH 连接管理工具

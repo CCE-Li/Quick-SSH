@@ -1,25 +1,19 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
- * src/cli.js - Quick-SSH 命令行接口 (Node.js)
+ * src/unix/cli.js - Quick-SSH 命令行接口 (Node.js)
  *
  * 职责:
  *   在 Linux/macOS 上替代 PowerShell 模块，提供完整的 qssh 命令支持。
  *   在 Windows 上也可作为 PowerShell 模块的备选方案。
  *
  * 设计原则:
- *   - 复用 src/tui/data.js 的数据操作（同一份 hosts.json）
+ *   - 复用 src/tui/data.js 的数据操作（同一份 ~/.ssh/config）
  *   - 自身不依赖 PowerShell，只依赖 Node.js + ssh 命令
  *   - 无参数时启动 TUI (blessed)
  *
  * 用法:
- *   node src/cli.js                # 启动 TUI
- *   node src/cli.js ps [关键词]    # 列出连接
- *   node src/cli.js add ...        # 添加连接
- *   node src/cli.js rm <别名>      # 删除连接
- *   node src/cli.js <别名>         # 一键连接
- *   node src/cli.js export <路径>  # 导出配置
- *   node src/cli.js import <路径>  # 导入配置
- *   node src/cli.js help           # 帮助信息
+ *   node src/unix/cli.js           # 启动 TUI
+ *   node src/unix/cli.js ps [...]  # 列出连接
  */
 
 const path    = require("path");
@@ -27,7 +21,7 @@ const fs      = require("fs");
 const { spawn } = require("child_process");
 
 // 复用 TUI 数据层（同一份 ~/.ssh/config）
-const { SSH_CONFIG_PATH, loadHosts, saveHosts } = require("./tui/data");
+const { SSH_CONFIG_PATH, loadHosts, saveHosts } = require("../tui/data");
 
 // ============================================================
 // 颜色工具
@@ -308,7 +302,7 @@ function cmdImport(filePath) {
  * 启动 TUI 界面
  */
 function launchTUI() {
-    const tuiScript = path.join(__dirname, "tui", "index.js");
+    const tuiScript = path.join(__dirname, "..", "tui", "index.js");
     if (!fs.existsSync(tuiScript)) {
         console.error(COLOR.red(`错误：未找到 TUI 脚本: ${tuiScript}`));
         process.exit(1);

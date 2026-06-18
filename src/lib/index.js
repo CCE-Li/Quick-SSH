@@ -9,11 +9,11 @@
  * 工作原理 (按平台):
  *   ┌──────────┬──────────────────────┬──────────────────────────┐
  *   │ 平台     │ 注入方式             │ 运行时后端               │
- *   ├──────────┼──────────────────────┼──────────────────────────┤
- *   │ Windows  │ PowerShell $PROFILE  │ Quick-SSH.psm1 (原生)    │
- *   │ Linux    │ ~/.bashrc / ~/.zshrc │ src/cli.js (Node.js)     │
- *   │ macOS    │ ~/.zshrc / ~/.bashrc │ src/cli.js (Node.js)     │
- *   └──────────┴──────────────────────┴──────────────────────────┘
+ *   ├──────────┼──────────────────────┼──────────────────────────────────┤
+ *   │ Windows  │ PowerShell $PROFILE  │ src/win/Quick-SSH.psm1 (原生)    │
+ *   │ Linux    │ ~/.bashrc / ~/.zshrc │ src/unix/cli.js (Node.js)        │
+ *   │ macOS    │ ~/.zshrc / ~/.bashrc │ src/unix/cli.js (Node.js)        │
+ *   └──────────┴──────────────────────┴──────────────────────────────────┘
  *
  * 生命周期:
  *   postinstall  : 安装后将 shell 包装函数注入配置文件
@@ -185,7 +185,7 @@ function buildPowerShellImportBlock(modulePath) {
  *
  * 原理：
  *   在 bash/zsh 中定义一个 qssh() 函数，通过 Node.js 直接调用
- *   src/cli.js 实现所有功能，完全不需要 PowerShell。
+ *   src/unix/cli.js 实现所有功能，完全不需要 PowerShell。
  *
  *   如果 Node.js 不可用，则跳过定义，不污染 shell 环境。
  */
@@ -207,18 +207,18 @@ function buildShellImportBlock(cliPath) {
 
 /**
  * 获取当前包中 Quick-SSH.psm1 的路径（仅 Windows 使用）
- * 本文件位于 src/lib/ 目录，因此需要上两级到包根目录，再到 src/Quick-SSH.psm1
+ * 本文件位于 src/lib/ 目录，因此需要上两级到包根目录，再到 src/win/Quick-SSH.psm1
  */
 function getModulePath() {
-    return path.join(__dirname, "..", "..", "src", "Quick-SSH.psm1");
+    return path.join(__dirname, "..", "..", "src", "win", "Quick-SSH.psm1");
 }
 
 /**
- * 获取当前包中 src/cli.js 的路径（Linux/macOS 使用）
- * 本文件位于 src/lib/ 目录，因此需要上两级到包根目录，再到 src/cli.js
+ * 获取当前包中 src/unix/cli.js 的路径（Linux/macOS 使用）
+ * 本文件位于 src/lib/ 目录，因此需要上两级到包根目录，再到 src/unix/cli.js
  */
 function getCLIPath() {
-    return path.join(__dirname, "..", "..", "src", "cli.js");
+    return path.join(__dirname, "..", "..", "src", "unix", "cli.js");
 }
 
 // ============================================================
@@ -357,7 +357,7 @@ function runPostInstall() {
         }
     } else {
         // ─── Linux / macOS: 注入 Shell rc 文件 ───
-        // 使用 Node.js CLI (src/cli.js)，不依赖 PowerShell
+        // 使用 Node.js CLI (src/unix/cli.js)，不依赖 PowerShell
         const cliPath = getCLIPath();
         if (!fs.existsSync(cliPath)) {
             console.error(`[Quick-SSH] ❌ 未找到 CLI 脚本: ${cliPath}`);

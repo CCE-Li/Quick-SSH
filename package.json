@@ -26,7 +26,10 @@
     "preuninstall": "node src/lib/index.js preuninstall"
   },
   "files": [
-    "src/"
+    "src/win/",
+    "src/unix/",
+    "src/tui/",
+    "src/lib/"
   ],
   "engines": {
     "node": ">=10.0.0"
