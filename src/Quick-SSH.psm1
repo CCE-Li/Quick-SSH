@@ -57,7 +57,7 @@ function Parse-SSHConfigHosts($content) {
         if ($t -match "^Host\s+(.+)$") {
             if ($current) { $hosts += $current }
             $alias = $matches[1].Trim()
-            $current = @{ alias = $alias; host = ""; user = ""; port = 22; key = "" }
+            $current = [PSCustomObject]@{ alias = $alias; host = ""; user = ""; port = 22; key = "" }
         } elseif ($current) {
             if ($t -match "^HostName\s+(.+)$")      { $current.host = $matches[1].Trim() }
             elseif ($t -match "^User\s+(.+)$")      { $current.user = $matches[1].Trim() }
