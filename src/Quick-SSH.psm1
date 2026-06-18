@@ -1,6 +1,6 @@
 ﻿# Quick-SSH.psm1 - PowerShell SSH Connection Manager (Cross-Platform)
 # 仿 Docker 命令行风格的 SSH 连接管理工具
-# 配置文件路径: ~/.quickssh/hosts.json
+# 数据存储于标准 OpenSSH 配置文件 ~/.ssh/config
 
 # ============================================================
 # 内部函数 - 配置管理
@@ -9,11 +9,11 @@
 # 跨平台用户主目录检测
 #   Windows: $env:USERPROFILE  (C:\Users\xxx)
 #   Linux:   $env:HOME         (/home/xxx)
-$Script:UserHome    = if ($env:USERPROFILE) { $env:USERPROFILE } else { $env:HOME }
-$Script:ConfigDir   = Join-Path $Script:UserHome ".quickssh"
-$Script:ConfigFile  = Join-Path $Script:ConfigDir "hosts.json"
-$Script:ModuleRoot  = $PSScriptRoot
-$Script:TUIScript   = [System.IO.Path]::Combine($Script:ModuleRoot, "tui", "index.js")
+$Script:UserHome     = if ($env:USERPROFILE) { $env:USERPROFILE } else { $env:HOME }
+$Script:SSHConfigDir = Join-Path $Script:UserHome ".ssh"
+$Script:SSHConfigPath= Join-Path $Script:SSHConfigDir "config"
+$Script:ModuleRoot   = $PSScriptRoot
+$Script:TUIScript    = [System.IO.Path]::Combine($Script:ModuleRoot, "tui", "index.js")
 
 # 跨平台 SSH 可执行文件检测
 $Script:SSHExe = if ($IsWindows -or $env:OS -match "Windows") {
@@ -25,34 +25,147 @@ $Script:SSHExe = if ($IsWindows -or $env:OS -match "Windows") {
 # 跨平台判断：是否运行在 Windows 上
 $Script:IsWindows = $IsWindows -or ($env:OS -match "Windows")
 
-# 初始化配置目录和空 JSON 文件
+# 确保 ~/.ssh/config 存在
 function Initialize-QuickSSHConfig {
-    if (-not (Test-Path $Script:ConfigDir)) {
-        New-Item -Path $Script:ConfigDir -ItemType Directory -Force | Out-Null
+    if (-not (Test-Path $Script:SSHConfigDir)) {
+        New-Item -Path $Script:SSHConfigDir -ItemType Directory -Force | Out-Null
     }
-    if (-not (Test-Path $Script:ConfigFile)) {
-        '[]' | Set-Content -Path $Script:ConfigFile -Encoding UTF8 -NoNewline
+    if (-not (Test-Path $Script:SSHConfigPath)) {
+        "" | Set-Content -Path $Script:SSHConfigPath -Encoding UTF8 -NoNewline
     }
 }
 
-# 读取全部主机配置
+# 从 ~/.ssh/config 解析所有 Quick-SSH 管理的 Host 块
 function Get-QuickSSHHosts {
     Initialize-QuickSSHConfig
     try {
-        $raw = Get-Content -Path $Script:ConfigFile -Raw -Encoding UTF8
+        $raw = Get-Content -Path $Script:SSHConfigPath -Raw -Encoding UTF8
         if ([string]::IsNullOrWhiteSpace($raw)) { return @() }
-        $data = $raw | ConvertFrom-Json
-        # 兼容单个对象 { ... } 和数组 [{ ... }, { ... }]
-        if ($data -is [array]) { return $data }
-        return @($data)
+        return Parse-SSHConfigHosts $raw
     } catch {
         return @()
     }
 }
 
-# 保存全部主机配置
+# SSH config 解析器：从文本中提取 Host 块
+function Parse-SSHConfigHosts($content) {
+    $hosts = @()
+    $current = $null
+    foreach ($line in ($content -split "`r`n|`n")) {
+        $t = $line.Trim()
+        if ([string]::IsNullOrWhiteSpace($t) -or $t.StartsWith("#")) { continue }
+        if ($t -match "^Host\s+(.+)$") {
+            if ($current) { $hosts += $current }
+            $alias = $matches[1].Trim()
+            $current = @{ alias = $alias; host = ""; user = ""; port = 22; key = "" }
+        } elseif ($current) {
+            if ($t -match "^HostName\s+(.+)$")      { $current.host = $matches[1].Trim() }
+            elseif ($t -match "^User\s+(.+)$")      { $current.user = $matches[1].Trim() }
+            elseif ($t -match "^Port\s+(\d+)$")     { $current.port = [int]$matches[1] }
+            elseif ($t -match "^IdentityFile\s+(.+)$") { $current.key = $matches[1].Trim() }
+        }
+    }
+    if ($current) { $hosts += $current }
+    # 只返回有效的（有 host 和 user 的）
+    return @($hosts | Where-Object { $_.host -ne "" -and $_.user -ne "" })
+}
+
+# 将 host 对象渲染为 SSH config Host 块文本
+function Render-SSHConfigBlock($h) {
+    $lines = @()
+    $lines += "Host $($h.alias)"
+    if ($h.host) { $lines += "    HostName $($h.host)" }
+    if ($h.user) { $lines += "    User $($h.user)" }
+    $lines += "    Port $(if ($h.port) { $h.port } else { 22 })"
+    if ($h.key)  { $lines += "    IdentityFile $($h.key)" }
+    return $lines -join "`r`n"
+}
+
+# SSH config 块解析器：返回带行号范围的块，用于保存时做替换
+function Parse-SSHConfigBlocks($content) {
+    $blocks = @()
+    $lines = $content -split "`r`n|`n"
+    $i = 0
+    while ($i -lt $lines.Count) {
+        $t = $lines[$i].Trim()
+        if ([string]::IsNullOrWhiteSpace($t) -or $t.StartsWith("#")) { $i++; continue }
+        $m = [regex]::Match($t, "^Host\s+(.+)$")
+        if (-not $m.Success) { $i++; continue }
+        $start = $i
+        $alias = $m.Groups[1].Value.Trim()
+        $i++
+        while ($i -lt $lines.Count) {
+            $n = $lines[$i].Trim()
+            if ([string]::IsNullOrWhiteSpace($n) -or $n.StartsWith("#")) { break }
+            if ($n -match "^Host\s+") { break }
+            $i++
+        }
+        $end = $i
+        $blocks += [PSCustomObject]@{ alias = $alias; start = $start; end = $end }
+    }
+    return $blocks, $lines
+}
+
+# 保存全部主机配置到 ~/.ssh/config（保留非管理的 Host 块和注释）
 function Save-QuickSSHHosts($Hosts) {
-    $Hosts | ConvertTo-Json -Depth 10 | Set-Content -Path $Script:ConfigFile -Encoding UTF8
+    Initialize-QuickSSHConfig
+    $oldContent = Get-Content -Path $Script:SSHConfigPath -Raw -Encoding UTF8
+    if ([string]::IsNullOrWhiteSpace($oldContent)) {
+        # 空文件，直接写入
+        $lines = @()
+        foreach ($h in $Hosts) { $lines += Render-SSHConfigBlock $h; $lines += "" }
+        $output = ($lines -join "`r`n").TrimEnd() + "`r`n"
+        $output | Set-Content -Path $Script:SSHConfigPath -Encoding UTF8 -NoNewline
+        return
+    }
+
+    $blocks, $lines = Parse-SSHConfigBlocks $oldContent
+    $newMap = @{}
+    foreach ($h in $Hosts) { $newMap[$h.alias] = $h }
+
+    $replaced = @{}
+    $result = @()
+    $i = 0
+    while ($i -lt $lines.Count) {
+        $t = $lines[$i].Trim()
+        $m = [regex]::Match($t, "^Host\s+(.+)$")
+        if ($m.Success) {
+            $alias = $m.Groups[1].Value.Trim()
+            if ($newMap.ContainsKey($alias)) {
+                # Quick-SSH 管理的 Host 块 → 替换
+                $blk = $blocks | Where-Object { $_.alias -eq $alias } | Select-Object -First 1
+                if ($blk) { $i = $blk.end }
+                $result += (Render-SSHConfigBlock $newMap[$alias]) -split "`r`n|`n"
+                $result += ""
+                $replaced[$alias] = $true
+            } else {
+                # 非管理的 Host 块 → 原样保留
+                $result += $lines[$i]
+                $i++
+                while ($i -lt $lines.Count) {
+                    $n = $lines[$i].Trim()
+                    if ([string]::IsNullOrWhiteSpace($n)) { $result += $lines[$i]; $i++; break }
+                    if ($n.StartsWith("#")) { $result += $lines[$i]; $i++; continue }
+                    if ($n -match "^Host\s+") { break }
+                    $result += $lines[$i]; $i++
+                }
+            }
+        } else {
+            # 非 Host 行（注释、空行、全局选项）→ 原样保留
+            $result += $lines[$i]; $i++
+        }
+    }
+
+    # 追加全新的 Host 块
+    foreach ($h in $Hosts) {
+        if (-not $replaced.ContainsKey($h.alias)) {
+            $result += (Render-SSHConfigBlock $h) -split "`r`n|`n"
+            $result += ""
+        }
+    }
+
+    $output = ($result -join "`r`n").TrimEnd() + "`r`n"
+    $output | Set-Content -Path $Script:SSHConfigPath -Encoding UTF8 -NoNewline
 }
 
 # ============================================================
@@ -478,15 +591,15 @@ Register-ArgumentCompleter -CommandName "qssh" -ScriptBlock {
 
     $subCommands = @("ps", "add", "rm", "init", "export", "import", "help")
 
-    # 获取已保存的主机别名
+    # 获取已保存的主机别名（从 ~/.ssh/config 解析）
     $aliases = @()
     try {
         $userHome = if ($env:USERPROFILE) { $env:USERPROFILE } else { $env:HOME }
-        $cfg = Join-Path $userHome ".quickssh" "hosts.json"
+        $cfg = Join-Path $userHome ".ssh" "config"
         if (Test-Path $cfg) {
             $raw = Get-Content -Path $cfg -Raw -Encoding UTF8
             if ($raw) {
-                $hosts = $raw | ConvertFrom-Json
+                $hosts = Parse-SSHConfigHosts $raw
                 $aliases = @($hosts | ForEach-Object { $_.alias })
             }
         }
