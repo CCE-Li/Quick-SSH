@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * src/unix/cli.js - Quick-SSH 命令行接口 (Node.js)
  *
