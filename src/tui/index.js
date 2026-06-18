@@ -22,9 +22,10 @@
 const blessed   = require("blessed");
 const path      = require("path");
 const fs        = require("fs");
+const os        = require("os");
 
 const { MODE, MODE_LABELS, MODE_HINTS } = require("./modes");
-const { CONFIG_DIR, CONFIG_FILE, loadHosts, saveHosts } = require("./data");
+const { SSH_CONFIG_PATH, loadHosts, saveHosts } = require("./data");
 const { sshConnect, checkHost } = require("./network");
 
 // ============================================================
@@ -38,7 +39,46 @@ if (blessed.Program) {
         return this;
     };
     if (blessed.Program.prototype.smcup) blessed.Program.prototype.smcup = function () { return this; };
-    if (blessed.Program.prototype.rmcup) blessed.Program.prototype.rmcup = function () { return this; };
+    // rmcup 仍然需要恢复终端状态（退出 raw 模式、显示光标、禁用鼠标追踪等）
+    // 不能设为 no-op，否则 screen.destroy() 无法恢复终端
+    if (blessed.Program.prototype.rmcup) {
+        const origRmcup = blessed.Program.prototype.rmcup;
+        blessed.Program.prototype.rmcup = function () {
+            try { if (process.stdin.isTTY) process.stdin.setRawMode(false); } catch (e) {}
+            process.stdout.write('\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l');
+            process.stdout.write('\x1b[?1049l\x1b[?25h\x1b[0m');
+            return this;
+        };
+    }
+}
+
+/**
+ * 手动恢复终端状态（兜底函数）
+ *
+ * 由于 smcup 被拦截（保留终端透明背景），screen.destroy() 不完全恢复终端。
+ * 此函数确保退出时终端回到可交互的 cooked 模式，在 screen.destroy() 之前调用。
+ */
+function restoreTerminal() {
+    try {
+        if (process.stdin.isTTY) {
+            process.stdin.setRawMode(false);
+        }
+    } catch (e) {
+        // 忽略非 TTY 或已关闭的 stdin
+    }
+    // 禁用鼠标追踪（blessed 启用了 SGR 鼠标模式，退出必须关闭）
+    process.stdout.write('\x1b[?1000l');  // 禁用鼠标按钮事件
+    process.stdout.write('\x1b[?1002l');  // 禁用鼠标移动事件
+    process.stdout.write('\x1b[?1003l');  // 禁用全部鼠标事件（兜底）
+    process.stdout.write('\x1b[?1006l');  // 禁用 SGR 扩展鼠标模式
+    // 退出备用屏幕
+    process.stdout.write('\x1b[?1049l');
+    // 显示光标
+    process.stdout.write('\x1b[?25h');
+    // 重置文本属性（前景色、背景色、加粗等）
+    process.stdout.write('\x1b[0m');
+    // 清屏并复位光标
+    process.stdout.write('\x1b[2J\x1b[H');
 }
 
 // ============================================================
@@ -290,7 +330,8 @@ function handleInputSubmit(value) {
                 break;
             }
 
-            if (!keyPath) keyPath = path.join(process.env.USERPROFILE || "~", ".ssh", "id_rsa");
+            const homeDir = process.env.HOME || process.env.USERPROFILE || os.homedir();
+            if (!keyPath) keyPath = path.join(homeDir, ".ssh", "id_rsa");
 
             if (hosts.find(h => h.alias === alias)) {
                 flashMessage(`别名 '${alias}' 已存在`, "red");
@@ -305,7 +346,7 @@ function handleInputSubmit(value) {
         }
         case MODE.EXPORT: {
             inputBox.hide();
-            const fp = val || path.join(CONFIG_DIR, "export.json");
+            const fp = val || path.join(path.dirname(SSH_CONFIG_PATH), "config.quickssh.bak");
             try {
                 fs.writeFileSync(fp, JSON.stringify(hosts, null, 4), "utf-8");
                 flashMessage(`已导出 ${hosts.length} 个连接到 '${fp}'`, "green");
@@ -497,7 +538,7 @@ function startTUI() {
 
     // ----- 全局键 -----
     screen.key(["C-c"], () => {
-        process.stdout.write("\x1b[2J\x1b[H");
+        restoreTerminal();
         screen.destroy();
         process.exit(0);
     });
@@ -516,7 +557,7 @@ function startTUI() {
     // ----- NORMAL 模式 -----
     screen.key(["q"], () => {
         if (currentMode === MODE.NORMAL) {
-            process.stdout.write("\x1b[2J\x1b[H");
+            restoreTerminal();
             screen.destroy();
             process.exit(0);
         }
@@ -547,7 +588,7 @@ function startTUI() {
     });
 
     screen.key(["e"], () => {
-        if (currentMode === MODE.NORMAL) setMode(MODE.EXPORT, path.join(CONFIG_DIR, "export.json"));
+        if (currentMode === MODE.NORMAL) setMode(MODE.EXPORT, path.join(path.dirname(SSH_CONFIG_PATH), "config.quickssh.bak"));
     });
 
     screen.key(["i"], () => {

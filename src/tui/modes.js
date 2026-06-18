@@ -43,7 +43,7 @@ const MODE_HINTS = {
     [MODE.NORMAL]:  " j/k ↑↓  gg首 G尾  ↵连接  d删除  a添加  /搜索  e导出  i导入  r重命名  p检测  P全检  ?帮助  q退出",
     [MODE.SEARCH]:  " 输入关键词过滤  Enter确认  Esc取消",
     [MODE.ADD]:     " 格式: 别名 用户@主机:端口 [--key 路径]  Enter确认  Esc取消",
-    [MODE.EXPORT]:  " 输入导出文件路径 (默认: ~/.quickssh/export.json)  Enter确认  Esc取消",
+    [MODE.EXPORT]:  " 输入导出文件路径 (默认: ~/.ssh/config.quickssh.bak)  Enter确认  Esc取消",
     [MODE.IMPORT]:  " 输入导入文件路径  Enter确认  Esc取消",
     [MODE.CONFIRM]: " y确认  n取消",
     [MODE.HELP]:    " 按任意键返回",

@@ -1,12 +1,28 @@
 /**
  * src/lib/index.js - Quick-SSH npm 生命周期钩子
  *
- * postinstall : 将 Import-Module 语句写入 PowerShell 配置文件，重启终端自动加载
- * preuninstall: 从 PowerShell 配置文件中移除 Import-Module 语句，保留用户数据
+ * 跨平台 Shell 配置文件注入器：
+ *   - Windows  → 写入 PowerShell $PROFILE (PowerShell 7 / Windows PowerShell 5.1)
+ *   - Linux    → 写入 ~/.bashrc / ~/.zshrc 等 (自动检测 SHELL 环境变量)
+ *   - macOS    → 写入 ~/.zshrc (macOS Catalina+ 默认 shell 为 zsh) / ~/.bashrc
+ *
+ * 工作原理 (按平台):
+ *   ┌──────────┬──────────────────────┬──────────────────────────┐
+ *   │ 平台     │ 注入方式             │ 运行时后端               │
+ *   ├──────────┼──────────────────────┼──────────────────────────┤
+ *   │ Windows  │ PowerShell $PROFILE  │ Quick-SSH.psm1 (原生)    │
+ *   │ Linux    │ ~/.bashrc / ~/.zshrc │ src/cli.js (Node.js)     │
+ *   │ macOS    │ ~/.zshrc / ~/.bashrc │ src/cli.js (Node.js)     │
+ *   └──────────┴──────────────────────┴──────────────────────────┘
+ *
+ * 生命周期:
+ *   postinstall  : 安装后将 shell 包装函数注入配置文件
+ *   preuninstall : 卸载前从配置文件中移除注入的代码块，保留用户数据
  */
 
 const fs   = require("fs");
 const path = require("path");
+const os   = require("os");
 
 // ============================================================
 // 常量定义
@@ -15,12 +31,53 @@ const path = require("path");
 const IMPORT_MARKER_START = "# >>> Quick-SSH auto-generated (do not modify) >>>";
 const IMPORT_MARKER_END   = "# <<< Quick-SSH auto-generated <<<";
 
+// ============================================================
+// 平台 / Shell 检测
+// ============================================================
+
 /**
- * 获取 PowerShell 配置文件路径列表
- *  同时兼容 PowerShell 7+ 和 Windows PowerShell 5.1-
- *
- *  注意：部分用户的 Documents 被重定向到 OneDrive，必须同时检测
- *  OneDrive 目录下的配置文件路径，否则 postinstall 可能写到错误位置。
+ * 检测当前操作系统
+ * @returns {"windows" | "linux" | "macos" | "unknown"}
+ */
+function detectOS() {
+    const p = process.platform;
+    if (p === "win32") return "windows";
+    if (p === "linux") return "linux";
+    if (p === "darwin") return "macos";
+    return "unknown";
+}
+
+/**
+ * 检测当前用户的 Shell 类型
+ * 仅在 Linux/macOS 下有效，Windows 返回 "powershell"
+ * @returns {"bash" | "zsh" | "fish" | "sh" | "powershell" | "unknown"}
+ */
+function detectShell() {
+    if (detectOS() === "windows") return "powershell";
+
+    const shell = (process.env.SHELL || "").toLowerCase().split("/").pop();
+    if (shell.includes("zsh"))      return "zsh";
+    if (shell.includes("bash"))     return "bash";
+    if (shell.includes("fish"))     return "fish";
+    if (shell === "sh")            return "sh";
+    return "unknown";
+}
+
+/**
+ * 获取用户 home 目录（跨平台兼容）
+ */
+function getHomeDir() {
+    return process.env.HOME || process.env.USERPROFILE || os.homedir();
+}
+
+// ============================================================
+// 配置文件路径解析
+// ============================================================
+
+/**
+ * 获取 PowerShell 配置文件路径列表（仅 Windows）
+ * 同时兼容 PowerShell 7+ 和 Windows PowerShell 5.1-
+ * 注意：部分用户的 Documents 被重定向到 OneDrive，必须同时检测
  */
 function getPowerShellProfilePaths() {
     const userProfile = process.env.USERPROFILE;
@@ -60,7 +117,7 @@ function getPowerShellProfilePaths() {
 
 /**
  * 从候选路径列表中筛选出实际存在的配置文件（按 PS7 / Windows PowerShell 分组）
- *  返回 [ps7Paths, winPsPaths]，每组按 "已存在优先" 排序
+ * 返回 [ps7Paths, winPsPaths]，每组按 "已存在优先" 排序
  */
 function resolveProfilePaths(candidates) {
     const ps7     = [];  // PowerShell 7
@@ -89,12 +146,33 @@ function resolveProfilePaths(candidates) {
 }
 
 /**
- * 构建 Import-Module 语句块
+ * 根据 Shell 类型获取对应的 rc 文件路径（Linux/macOS）
+ * @param {"bash"|"zsh"|"fish"|"sh"|"unknown"} shell
+ * @returns {string} 配置文件路径
+ * @returns {null} 不支持的 shell 类型
  */
-function buildImportBlock(modulePath) {
+function getShellProfilePath(shell) {
+    const home = getHomeDir();
+    switch (shell) {
+        case "zsh":  return path.join(home, ".zshrc");
+        case "bash": return path.join(home, ".bashrc");
+        case "fish": return path.join(home, ".config", "fish", "config.fish");
+        case "sh":   return path.join(home, ".profile");
+        default:     return null;
+    }
+}
+
+// ============================================================
+// 注入代码块构建
+// ============================================================
+
+/**
+ * 构建 PowerShell Import-Module 语句块（Windows）
+ */
+function buildPowerShellImportBlock(modulePath) {
     const lines = [
         IMPORT_MARKER_START,
-        `# Quick-SSH PowerShell SSH 连接管理工具`,
+        "# Quick-SSH PowerShell SSH 连接管理工具",
         `# 安装路径: ${modulePath}`,
         `if (Test-Path "${modulePath}") { Import-Module "${modulePath}" -DisableNameChecking }`,
         IMPORT_MARKER_END,
@@ -103,11 +181,121 @@ function buildImportBlock(modulePath) {
 }
 
 /**
- * 获取当前包中 Quick-SSH.psm1 的路径
+ * 构建 Shell 包装函数块（Linux/macOS）
+ *
+ * 原理：
+ *   在 bash/zsh 中定义一个 qssh() 函数，通过 Node.js 直接调用
+ *   src/cli.js 实现所有功能，完全不需要 PowerShell。
+ *
+ *   如果 Node.js 不可用，则跳过定义，不污染 shell 环境。
+ */
+function buildShellImportBlock(cliPath) {
+    const escapedPath = cliPath.replace(/'/g, "'\\''");
+    const lines = [
+        IMPORT_MARKER_START,
+        "# Quick-SSH SSH 连接管理工具 (Node.js CLI)",
+        `# 安装路径: ${escapedPath}`,
+        `if command -v node &> /dev/null && [ -f '${escapedPath}' ]; then`,
+        `    qssh() {`,
+        `        node "${escapedPath}" "$@"`,
+        `    }`,
+        `fi`,
+        IMPORT_MARKER_END,
+    ];
+    return lines.join("\n");
+}
+
+/**
+ * 获取当前包中 Quick-SSH.psm1 的路径（仅 Windows 使用）
  * 本文件位于 src/lib/ 目录，因此需要上两级到包根目录，再到 src/Quick-SSH.psm1
  */
 function getModulePath() {
     return path.join(__dirname, "..", "..", "src", "Quick-SSH.psm1");
+}
+
+/**
+ * 获取当前包中 src/cli.js 的路径（Linux/macOS 使用）
+ * 本文件位于 src/lib/ 目录，因此需要上两级到包根目录，再到 src/cli.js
+ */
+function getCLIPath() {
+    return path.join(__dirname, "..", "..", "src", "cli.js");
+}
+
+// ============================================================
+// 配置文件读写工具
+// ============================================================
+
+/**
+ * 通用：将注入块写入单个配置文件
+ * @param {string} profilePath - 配置文件路径
+ * @param {string} importBlock - 要写入的代码块
+ * @param {string} platform    - "windows" | "unix" (影响换行符)
+ */
+function writeImportBlock(profilePath, importBlock, platform) {
+    const eol = platform === "windows" ? "\r\n" : "\n";
+
+    // 确保目录存在
+    const profileDir = path.dirname(profilePath);
+    if (!fs.existsSync(profileDir)) {
+        fs.mkdirSync(profileDir, { recursive: true });
+        console.log(`[Quick-SSH] ✔ 已创建目录: ${profileDir}`);
+    }
+
+    // 读取现有内容（文件可能不存在）
+    let content = "";
+    if (fs.existsSync(profilePath)) {
+        content = fs.readFileSync(profilePath, "utf-8");
+    }
+
+    const markerStart = IMPORT_MARKER_START;
+
+    // 检查是否已注册，去重处理
+    if (content.includes(markerStart)) {
+        // 已存在则替换旧块
+        const regex = new RegExp(
+            `${escapeRegExp(markerStart)}[\\s\\S]*?${escapeRegExp(IMPORT_MARKER_END)}`,
+            "g"
+        );
+        content = content.replace(regex, importBlock);
+        console.log(`[Quick-SSH] 🔄 已更新: ${profilePath}`);
+    } else {
+        // 追加到文件末尾
+        content = content.trimEnd() + eol + eol + importBlock + eol;
+        console.log(`[Quick-SSH] ➕ 已写入: ${profilePath}`);
+    }
+
+    fs.writeFileSync(profilePath, content, "utf-8");
+}
+
+/**
+ * 通用：从配置文件中移除 Quick-SSH 注入块
+ * @param {string} profilePath
+ * @returns {boolean} true=有改动, false=无改动
+ */
+function removeImportBlock(profilePath) {
+    if (!fs.existsSync(profilePath)) {
+        console.log(`[Quick-SSH] - 跳过(不存在): ${profilePath}`);
+        return false;
+    }
+
+    const regex = new RegExp(
+        `\\s*${escapeRegExp(IMPORT_MARKER_START)}[\\s\\S]*?${escapeRegExp(IMPORT_MARKER_END)}\\s*`,
+        "g"
+    );
+
+    let content = fs.readFileSync(profilePath, "utf-8");
+
+    if (regex.test(content)) {
+        content = content.replace(regex, "");
+        // 清理多余空行
+        content = content.replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
+        fs.writeFileSync(profilePath, content, "utf-8");
+        console.log(`[Quick-SSH] ✔ 已清理: ${profilePath}`);
+        return true;
+    }
+
+    console.log(`[Quick-SSH] - 无配置: ${profilePath}`);
+    return false;
 }
 
 // ============================================================
@@ -115,83 +303,88 @@ function getModulePath() {
 // ============================================================
 
 function runPostInstall() {
-    console.log("[Quick-SSH] 正在配置 PowerShell 自动加载...");
+    const osType = detectOS();
+    console.log(`[Quick-SSH] 检测到操作系统: ${osType}`);
 
-    // 收集所有候选路径并按 "已存在优先" 排序
-    const candidates  = getPowerShellProfilePaths();
-    if (candidates.length === 0) {
-        console.error("[Quick-SSH] ❌ 无法定位 PowerShell 配置文件。");
-        process.exit(1);
-    }
+    if (osType === "windows") {
+        // ─── Windows: 注入 PowerShell $PROFILE ───
+        const modulePath = getModulePath();
+        if (!fs.existsSync(modulePath)) {
+            console.error(`[Quick-SSH] ❌ 未找到模块文件: ${modulePath}`);
+            process.exit(1);
+        }
+        console.log(`[Quick-SSH] 模块路径: ${modulePath}`);
+        console.log("[Quick-SSH] 正在配置 PowerShell 自动加载...");
 
-    const [ps7Paths, winPsPaths] = resolveProfilePaths(candidates);
-
-    // 各取第一个（即已存在的路径优先，不存在则退回到标准路径）
-    const profilePaths = [];
-    if (ps7Paths.length > 0)   profilePaths.push(ps7Paths[0]);
-    if (winPsPaths.length > 0) profilePaths.push(winPsPaths[0]);
-
-    const modulePath  = getModulePath();
-    if (!fs.existsSync(modulePath)) {
-        console.error(`[Quick-SSH] ❌ 未找到模块文件: ${modulePath}`);
-        process.exit(1);
-    }
-
-    const importBlock = buildImportBlock(modulePath);
-
-    for (const profilePath of profilePaths) {
-        let content = "";
-
-        // 读取现有配置
-        if (fs.existsSync(profilePath)) {
-            content = fs.readFileSync(profilePath, "utf-8");
+        const candidates  = getPowerShellProfilePaths();
+        if (candidates.length === 0) {
+            console.error("[Quick-SSH] ❌ 无法定位 PowerShell 配置文件。");
+            process.exit(1);
         }
 
-        // 检查是否已注册，避免重复插入
-        if (content.includes(IMPORT_MARKER_START)) {
-            // 已存在则替换旧块
-            const regex = new RegExp(
-                `${escapeRegExp(IMPORT_MARKER_START)}[\\s\\S]*?${escapeRegExp(IMPORT_MARKER_END)}`,
-                "g"
-            );
-            if (regex.test(content)) {
-                content = content.replace(regex, importBlock);
-                console.log(`[Quick-SSH] 🔄 已更新: ${profilePath}`);
+        const [ps7Paths, winPsPaths] = resolveProfilePaths(candidates);
+
+        // 各取第一个（即已存在的路径优先，不存在则退回到标准路径）
+        const profilePaths = [];
+        if (ps7Paths.length > 0)   profilePaths.push(ps7Paths[0]);
+        if (winPsPaths.length > 0) profilePaths.push(winPsPaths[0]);
+
+        const importBlock = buildPowerShellImportBlock(modulePath);
+
+        for (const profilePath of profilePaths) {
+            writeImportBlock(profilePath, importBlock, "windows");
+        }
+
+        // 打印友好的提示信息
+        const relPath = (idx) => {
+            const p = profilePaths[idx];
+            if (!p) return "";
+            const parts = p.split(path.sep);
+            const docsIdx = parts.findIndex(s => /^documents$/i.test(s));
+            if (docsIdx !== -1 && docsIdx + 2 < parts.length) {
+                return "..." + path.sep + parts.slice(docsIdx).join(path.sep);
             }
-        } else {
-            // 追加到文件末尾
-            content = content.trimEnd() + "\n\n" + importBlock + "\n";
-            console.log(`[Quick-SSH] ➕ 已写入: ${profilePath}`);
+            return p;
+        };
+
+        console.log("[Quick-SSH] ✔ 安装完成！请重启 PowerShell 终端或执行:");
+        if (ps7Paths.length > 0) {
+            console.log(`[Quick-SSH]    PowerShell 7:   & (Get-Content "${relPath(0)}" -Raw) | Invoke-Expression`);
+        }
+        if (winPsPaths.length > 0) {
+            const idx = ps7Paths.length > 0 ? 1 : 0;
+            console.log(`[Quick-SSH]    Windows PowerShell: & (Get-Content "${relPath(idx)}" -Raw) | Invoke-Expression`);
+        }
+    } else {
+        // ─── Linux / macOS: 注入 Shell rc 文件 ───
+        // 使用 Node.js CLI (src/cli.js)，不依赖 PowerShell
+        const cliPath = getCLIPath();
+        if (!fs.existsSync(cliPath)) {
+            console.error(`[Quick-SSH] ❌ 未找到 CLI 脚本: ${cliPath}`);
+            process.exit(1);
+        }
+        console.log(`[Quick-SSH] CLI 路径: ${cliPath}`);
+
+        const shell = detectShell();
+        console.log(`[Quick-SSH] 检测到 Shell: ${shell}`);
+
+        const profilePath = getShellProfilePath(shell);
+        if (!profilePath) {
+            console.error(`[Quick-SSH] ❌ 不支持的 Shell 类型: "${shell}"。`);
+            console.error(`[Quick-SSH]    当前 SHELL=${process.env.SHELL || "(未设置)"}`);
+            console.error(`[Quick-SSH]    请手动将以下内容添加到您的 Shell 配置文件中:`);
+            console.error("");
+            console.error(buildShellImportBlock(cliPath));
+            process.exit(1);
         }
 
-        // 确保目录存在
-        const dir = path.dirname(profilePath);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
+        console.log(`[Quick-SSH] 配置文件路径: ${profilePath}`);
 
-        fs.writeFileSync(profilePath, content, "utf-8");
-    }
+        const importBlock = buildShellImportBlock(cliPath);
+        writeImportBlock(profilePath, importBlock, "unix");
 
-    // 打印友好的提示信息
-    const relPath = (idx) => {
-        const p = profilePaths[idx];
-        if (!p) return "";
-        const parts = p.split(path.sep);
-        const docsIdx = parts.findIndex(s => /^documents$/i.test(s));
-        if (docsIdx !== -1 && docsIdx + 2 < parts.length) {
-            return "..." + path.sep + parts.slice(docsIdx).join(path.sep);
-        }
-        return p;
-    };
-
-    console.log("[Quick-SSH] ✔ 安装完成！请重启 PowerShell 终端或执行:");
-    if (ps7Paths.length > 0) {
-        console.log(`[Quick-SSH]    PowerShell 7:   & (Get-Content "${relPath(0)}" -Raw) | Invoke-Expression`);
-    }
-    if (winPsPaths.length > 0) {
-        const idx = ps7Paths.length > 0 ? 1 : 0;
-        console.log(`[Quick-SSH]    Windows PowerShell: & (Get-Content "${relPath(idx)}" -Raw) | Invoke-Expression`);
+        console.log("[Quick-SSH] ✔ 安装完成！请重启终端或执行:");
+        console.log(`[Quick-SSH]    source ${profilePath}`);
     }
 }
 
@@ -200,39 +393,50 @@ function runPostInstall() {
 // ============================================================
 
 function runPreUninstall() {
-    console.log("[Quick-SSH] 正在清理 PowerShell 配置文件...");
+    const osType = detectOS();
+    console.log(`[Quick-SSH] 检测到操作系统: ${osType}`);
+    console.log("[Quick-SSH] 正在清理配置文件...");
 
-    const profilePaths = getPowerShellProfilePaths();
-    if (profilePaths.length === 0) {
-        console.log("[Quick-SSH] ✔ 未找到 PowerShell 配置文件，无需清理。");
-        return;
-    }
-
-    const regex = new RegExp(
-        `\\s*${escapeRegExp(IMPORT_MARKER_START)}[\\s\\S]*?${escapeRegExp(IMPORT_MARKER_END)}\\s*`,
-        "g"
-    );
-
-    for (const profilePath of profilePaths) {
-        if (!fs.existsSync(profilePath)) {
-            console.log(`[Quick-SSH] - 跳过(不存在): ${profilePath}`);
-            continue;
+    if (osType === "windows") {
+        // ─── Windows: 清理 PowerShell $PROFILE ───
+        const profilePaths = getPowerShellProfilePaths();
+        if (profilePaths.length === 0) {
+            console.log("[Quick-SSH] ✔ 未找到 PowerShell 配置文件，无需清理。");
+            return;
         }
 
-        let content = fs.readFileSync(profilePath, "utf-8");
+        for (const profilePath of profilePaths) {
+            removeImportBlock(profilePath);
+        }
+    } else {
+        // ─── Linux / macOS: 清理 Shell rc 文件 ───
+        const shell = detectShell();
+        const profilePath = getShellProfilePath(shell);
 
-        if (regex.test(content)) {
-            content = content.replace(regex, "");
-            // 清理多余空行
-            content = content.replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
-            fs.writeFileSync(profilePath, content, "utf-8");
-            console.log(`[Quick-SSH] ✔ 已清理: ${profilePath}`);
+        if (profilePath) {
+            removeImportBlock(profilePath);
         } else {
-            console.log(`[Quick-SSH] - 无配置: ${profilePath}`);
+            console.log(`[Quick-SSH] - 无法确定 Shell 配置文件路径 (SHELL=${process.env.SHELL || "未设置"})`);
+        }
+
+        // 同时也清扫一下其他常见的 rc 文件，防止用户切换 Shell 后残留
+        const home = getHomeDir();
+        const extraPaths = [
+            path.join(home, ".bashrc"),
+            path.join(home, ".zshrc"),
+            path.join(home, ".profile"),
+            path.join(home, ".bash_profile"),
+            path.join(home, ".zprofile"),
+            path.join(home, ".config", "fish", "config.fish"),
+        ];
+        for (const extraPath of extraPaths) {
+            if (extraPath !== profilePath) {
+                removeImportBlock(extraPath);
+            }
         }
     }
 
-    console.log("[Quick-SSH] ✔ 清理完成！用户配置数据已保留 (%USERPROFILE%\\.quickssh\\hosts.json)。");
+    console.log("[Quick-SSH] ✔ 清理完成！用户配置数据已保留 (~/.ssh/config)。");
 }
 
 // ============================================================

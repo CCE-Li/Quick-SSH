@@ -1,15 +1,29 @@
-﻿# Quick-SSH.psm1 - PowerShell SSH Connection Manager
+# Quick-SSH.psm1 - PowerShell SSH Connection Manager (Cross-Platform)
 # 仿 Docker 命令行风格的 SSH 连接管理工具
-# 配置文件路径: %USERPROFILE%\.quickssh\hosts.json
+# 配置文件路径: ~/.quickssh/hosts.json
 
 # ============================================================
 # 内部函数 - 配置管理
 # ============================================================
 
-$Script:ConfigDir   = Join-Path $env:USERPROFILE ".quickssh"
+# 跨平台用户主目录检测
+#   Windows: $env:USERPROFILE  (C:\Users\xxx)
+#   Linux:   $env:HOME         (/home/xxx)
+$Script:UserHome    = if ($env:USERPROFILE) { $env:USERPROFILE } else { $env:HOME }
+$Script:ConfigDir   = Join-Path $Script:UserHome ".quickssh"
 $Script:ConfigFile  = Join-Path $Script:ConfigDir "hosts.json"
 $Script:ModuleRoot  = $PSScriptRoot
 $Script:TUIScript   = [System.IO.Path]::Combine($Script:ModuleRoot, "tui", "index.js")
+
+# 跨平台 SSH 可执行文件检测
+$Script:SSHExe = if ($IsWindows -or $env:OS -match "Windows") {
+    if (Get-Command "ssh.exe" -ErrorAction SilentlyContinue) { "ssh.exe" } else { "ssh" }
+} else {
+    if (Get-Command "ssh" -ErrorAction SilentlyContinue) { "ssh" } else { "ssh" }
+}
+
+# 跨平台判断：是否运行在 Windows 上
+$Script:IsWindows = $IsWindows -or ($env:OS -match "Windows")
 
 # 初始化配置目录和空 JSON 文件
 function Initialize-QuickSSHConfig {
@@ -116,7 +130,7 @@ function Invoke-QuickSSHAdd {
     }
 
     if (-not $KeyPath) {
-        $KeyPath = Join-Path $env:USERPROFILE ".ssh" "id_rsa"
+        $KeyPath = Join-Path $Script:UserHome ".ssh" "id_rsa"
     }
 
     # 检查别名重复
@@ -178,16 +192,22 @@ function Invoke-QuickSSHConnect {
         return
     }
 
-    $sshExe = if (Get-Command "ssh.exe" -ErrorAction SilentlyContinue) { "ssh.exe" } else { "ssh" }
-
-    $cmd = "$sshExe -i `"$($target.key)`" -p $($target.port) -o HostKeyAlgorithms=+ssh-rsa $($target.user)@$($target.host)"
+    $sshExe = $Script:SSHExe
 
     Write-QSSuccess "正在连接到 '$Alias' ($($target.user)@$($target.host):$($target.port)) ..."
     Write-Host ""
 
-    # 使用 cmd /c 避免 PowerShell 拦截 SSH 交互
-    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
-    cmd /c "powershell -NoProfile -EncodedCommand $encoded"
+    if ($Script:IsWindows) {
+        # Windows: 使用 cmd /c 避免 PowerShell 拦截 SSH 交互
+        # 将完整命令行编码后通过 cmd 启动，确保 SSH 获得原始 stdin 交互能力
+        $cmd = "$sshExe -i `"$($target.key)`" -p $($target.port) -o HostKeyAlgorithms=+ssh-rsa $($target.user)@$($target.host)"
+        $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
+        cmd /c "powershell -NoProfile -EncodedCommand $encoded"
+    } else {
+        # Linux/macOS: 使用 & 调用运算符传参（避免字符串拼接的转义问题）
+        # pwsh 原生支持交互式子进程，无需 cmd 中转
+        & $sshExe -i $target.key -p $target.port -o HostKeyAlgorithms=+ssh-rsa "$($target.user)@$($target.host)"
+    }
 }
 
 # qssh export [文件路径] - 导出全部主机配置到 JSON 文件
@@ -371,12 +391,12 @@ function Show-QuickSSHHelp {
     Write-Host "  qssh                         # 启动 TUI 界面"
     Write-Host "  qssh ps"
     Write-Host "  qssh ps 生产"
-    Write-Host "  qssh add my-server root@192.168.1.100:22 --key D:\.ssh\id_rsa"
+    Write-Host "  qssh add my-server root@192.168.1.100:22 --key ~/.ssh/id_rsa"
     Write-Host "  qssh add my-vm admin@10.0.0.5"
     Write-Host "  qssh my-server"
     Write-Host "  qssh rm my-vm"
-    Write-Host "  qssh export D:\backup\hosts.json"
-    Write-Host "  qssh import D:\backup\hosts.json"
+    Write-Host "  qssh export ~/backup/hosts.json"
+    Write-Host "  qssh import ~/backup/hosts.json"
     Write-Host ""
 }
 
@@ -461,7 +481,8 @@ Register-ArgumentCompleter -CommandName "qssh" -ScriptBlock {
     # 获取已保存的主机别名
     $aliases = @()
     try {
-        $cfg = Join-Path $env:USERPROFILE ".quickssh" "hosts.json"
+        $userHome = if ($env:USERPROFILE) { $env:USERPROFILE } else { $env:HOME }
+        $cfg = Join-Path $userHome ".quickssh" "hosts.json"
         if (Test-Path $cfg) {
             $raw = Get-Content -Path $cfg -Raw -Encoding UTF8
             if ($raw) {

@@ -1,8 +1,8 @@
 ![Quick-SSH](doc/images/poster.png)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Platform](https://img.shields.io/badge/platform-Windows-blue)
-![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
+![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B%20%7C%20pwsh-blue)
 
 ---
 
@@ -281,6 +281,61 @@ qssh import D:\backup\ssh-hosts.json
 
 ---
 
+## 跨平台支持
+
+Quick-SSH 支持 **Windows / Linux / macOS** 三大主流操作系统。
+
+### 架构概览
+
+Quick-SSH 根据操作系统选择不同的后端：
+
+```
+                        npm install -g quick-ssh
+                                │
+                                ▼
+                         detectOS()
+                        ┌────┴────┐
+                        │         │
+                     Windows    Linux / macOS
+                        │         │
+                        ▼         ▼
+                  PowerShell    Node.js CLI
+                  模块 (.psm1)   (src/cli.js)
+                        │         │
+                        ▼         ▼
+                  PowerShell    ~/.bashrc
+                  $PROFILE      ~/.zshrc
+                  (Import-      (qssh() 函数
+                   Module)      调用 node)
+
+  Windows 运行时:  PowerShell → Import-Module → qssh 命令
+  Linux 运行时:    bash/zsh → qssh() → node src/cli.js → ssh
+```
+
+### 系统检测与配置注入
+
+| 操作系统 | 检测机制 | 配置文件 | 注入内容 | 运行时后端 |
+|----------|----------|----------|----------|------------|
+| **Windows** | `process.platform === "win32"` | PowerShell `$PROFILE` (PS7 / WinPS 5.1) | `Import-Module` 语句 | PowerShell 模块 (`Quick-SSH.psm1`) |
+| **Linux** | `process.platform === "linux"` | `~/.bashrc` / `~/.zshrc` / `~/.profile` (自动检测 `$SHELL`) | `qssh()` → `node cli.js "$@"` | Node.js CLI ([`src/cli.js`](src/cli.js)) |
+| **macOS** | `process.platform === "darwin"` | `~/.zshrc` / `~/.bashrc` (自动检测 `$SHELL`) | `qssh()` → `node cli.js "$@"` | Node.js CLI ([`src/cli.js`](src/cli.js)) |
+
+> **Linux/macOS 无 PowerShell 依赖**：`qssh` 命令通过 `node src/cli.js` 直接运行，不需要安装 PowerShell Core。所有功能（添加/删除/列出/连接/导入/导出/TUI）均由 Node.js 原生实现。
+
+### 代码变更一览
+
+所有跨平台检测集中在以下模块中:
+
+| 文件 | 作用 |
+|------|------|
+| [`src/lib/index.js`](src/lib/index.js) | `detectOS()` → `Windows`(注入 PowerShell `$PROFILE`) / `Linux`(注入 `~/.bashrc` 调用 `node cli.js`) |
+| [`src/cli.js`](src/cli.js) | **Linux/macOS 后端** — Node.js CLI，实现所有 `qssh` 命令（复用 `data.js` 数据层） |
+| [`src/Quick-SSH.psm1`](src/Quick-SSH.psm1) | **Windows 后端** — 跨平台兼容的 PowerShell 模块（`$HOME`/`$env:USERPROFILE` 双兼容） |
+| [`src/tui/data.js`](src/tui/data.js) | 共享数据层 — `getHomeDir()` 兼容 `$HOME` / `%USERPROFILE%` |
+| [`src/tui/network.js`](src/tui/network.js) | `getSSHExe()` → `ssh.exe` (Windows) / `ssh` (Linux/macOS) |
+
+---
+
 ## 卸载
 
 ```powershell
@@ -288,8 +343,9 @@ npm uninstall -g quick-ssh
 ```
 
 卸载时：
-- ✅ 自动从 `$PROFILE` 中移除 `Import-Module` 配置
-- ✅ **保留** `%USERPROFILE%\.quickssh\hosts.json` 用户配置数据
+- ✅ **Windows**: 自动从 PowerShell `$PROFILE` 中移除 `Import-Module` 配置
+- ✅ **Linux/macOS**: 自动从 `~/.bashrc` / `~/.zshrc` 等文件中移除 `qssh()` 包装函数
+- ✅ **保留** `~/.quickssh/hosts.json` 用户配置数据
 
 ---
 
@@ -298,14 +354,15 @@ npm uninstall -g quick-ssh
 ```
 quick-ssh/
 ├── src/
-│   ├── Quick-SSH.psm1          # 核心 PowerShell 模块
+│   ├── Quick-SSH.psm1          # PowerShell 模块（Windows 后端）
+│   ├── cli.js                  # Node.js CLI（Linux/macOS 后端）
 │   ├── lib/
-│   │   └── index.js             # npm 生命周期钩子（安装/卸载自动配置）
+│   │   └── index.js            # npm 生命周期钩子（安装/卸载自动配置）
 │   └── tui/
-│       ├── index.js             # TUI 主入口（Blessed 界面 + 键位绑定）
-│       ├── modes.js             # 模式常量/标签/提示（易于扩展）
-│       ├── data.js              # 数据层（配置读写）
-│       └── network.js           # 网络层（SSH 连接 + 在线检测）
+│       ├── index.js            # TUI 主入口（Blessed 界面 + 键位绑定）
+│       ├── modes.js            # 模式常量/标签/提示（易于扩展）
+│       ├── data.js             # 数据层（配置读写，CLI 和 TUI 共用）
+│       └── network.js          # 网络层（SSH 连接 + 在线检测）
 ├── doc/
 │   └── images/                  # 截图展示
 ├── package.json                 # npm 包配置
