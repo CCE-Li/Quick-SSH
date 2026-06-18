@@ -127,6 +127,10 @@ function cmdAdd(alias, userAtHost, keyPath) {
 
     if (!keyPath) {
         keyPath = path.join(path.dirname(SSH_CONFIG_PATH), "id_rsa");
+        // 非 Windows 平台：确保路径使用正斜线
+        if (process.platform !== "win32") {
+            keyPath = keyPath.replace(/\\/g, "/");
+        }
     }
 
     const hosts = loadHosts();

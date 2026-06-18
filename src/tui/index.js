@@ -39,7 +39,7 @@ if (blessed.Program) {
         return this;
     };
     if (blessed.Program.prototype.smcup) blessed.Program.prototype.smcup = function () { return this; };
-    // rmcup 仍然需要恢复终端状态（退出 raw 模式、显示光标、禁用鼠标追踪等）
+    // rmcup 仍然需要恢复终端状态：已经修复鼠标移到导致输出乱码的错误
     // 不能设为 no-op，否则 screen.destroy() 无法恢复终端
     if (blessed.Program.prototype.rmcup) {
         const origRmcup = blessed.Program.prototype.rmcup;
@@ -331,7 +331,13 @@ function handleInputSubmit(value) {
             }
 
             const homeDir = process.env.HOME || process.env.USERPROFILE || os.homedir();
-            if (!keyPath) keyPath = path.join(homeDir, ".ssh", "id_rsa");
+            if (!keyPath) {
+                keyPath = path.join(homeDir, ".ssh", "id_rsa");
+                // 非 Windows 平台：确保路径使用正斜线
+                if (process.platform !== "win32") {
+                    keyPath = keyPath.replace(/\\/g, "/");
+                }
+            }
 
             if (hosts.find(h => h.alias === alias)) {
                 flashMessage(`别名 '${alias}' 已存在`, "red");

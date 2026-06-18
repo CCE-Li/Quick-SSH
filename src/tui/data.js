@@ -33,6 +33,20 @@ function getHomeDir() {
 /** SSH 配置文件路径（Win/Linux/macOS 统一） */
 const SSH_CONFIG_PATH = path.join(getHomeDir(), ".ssh", "config");
 
+/** 平台是否为 Windows */
+const IS_WIN = process.platform === "win32";
+
+/**
+ * 路径分隔符归一化：非 Windows 平台将反斜线替换为正斜线
+ * 防止从 Windows 共享的 ~/.ssh/config 中遗留反斜线路径
+ * @param {string} p
+ * @returns {string}
+ */
+function normalizePath(p) {
+    if (!p || IS_WIN) return p;
+    return p.replace(/\\/g, "/");
+}
+
 // ============================================================
 // SSH config 解析/生成
 // ============================================================
@@ -80,7 +94,7 @@ function parseHostBlocks(content) {
                 if (k === "hostname")      entry.host = v;
                 else if (k === "user")     entry.user = v;
                 else if (k === "port")     entry.port = parseInt(v, 10) || 22;
-                else if (k === "identityfile") entry.key = v;
+                else if (k === "identityfile") entry.key = normalizePath(v);
             }
             i++;
         }
@@ -105,7 +119,7 @@ function renderHostBlock(h) {
     if (h.host) lines.push(`    HostName ${h.host}`);
     if (h.user) lines.push(`    User ${h.user}`);
     lines.push(`    Port ${h.port || 22}`);
-    if (h.key)  lines.push(`    IdentityFile ${h.key}`);
+    if (h.key)  lines.push(`    IdentityFile ${normalizePath(h.key)}`);
     return lines.join("\n");
 }
 
