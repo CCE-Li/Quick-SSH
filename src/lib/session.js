@@ -83,6 +83,18 @@ function encodeUploadPayload(target, files, remotePath, config) {
     return Buffer.from(JSON.stringify({ target, files, remotePath, config }), "utf8").toString("base64");
 }
 
+function hasDisplayServer() {
+    return !!(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
+}
+
+function isWSL() {
+    return process.platform === "linux" && (
+        !!process.env.WSL_DISTRO_NAME ||
+        /microsoft/i.test(os.release()) ||
+        /microsoft/i.test(process.env.OSTYPE || "")
+    );
+}
+
 function spawnDetached(command, args, options = {}) {
     return new Promise((resolve) => {
         let settled = false;
@@ -114,6 +126,7 @@ function spawnDetached(command, args, options = {}) {
 async function openUploadTerminal(target, files, remotePath) {
     const runnerScript = path.join(__dirname, "upload_runner.js");
     const payload = encodeUploadPayload(target, files, remotePath, readQsshConfig());
+    const nodeExe = process.execPath;
 
     if (process.platform === "win32") {
         const escapedRunner = runnerScript.replace(/'/g, "''");
@@ -138,28 +151,72 @@ async function openUploadTerminal(target, files, remotePath) {
             `"${title}"`,
             "powershell.exe",
             "-Command",
-            `node "${runnerScript}" "${payload}"`,
+            `"${nodeExe}" "${runnerScript}" "${payload}"`,
         ], { detached: false, windowsVerbatimArguments: true });
+    }
+
+    if (isWSL()) {
+        const distro = process.env.WSL_DISTRO_NAME || "";
+        const escapedRunner = runnerScript.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        const escapedPayload = payload.replace(/"/g, '\\"');
+        const escapedDistro = distro.replace(/"/g, '\\"');
+        const wslCommand = `wsl.exe${distro ? ` -d "${escapedDistro}"` : ""} node "${escapedRunner}" "${escapedPayload}"`;
+
+        if (await spawnDetached("wt.exe", [
+            "new-tab",
+            "powershell.exe",
+            "-NoExit",
+            "-Command",
+            wslCommand,
+        ], { detached: false })) {
+            return true;
+        }
+
+        return spawnDetached("powershell.exe", [
+            "-NoProfile",
+            "-Command",
+            `Start-Process powershell -ArgumentList @('-Command','${wslCommand.replace(/'/g, "''")}')`,
+        ], { detached: false });
     }
 
     if (process.platform === "darwin") {
         const escapedRunner = runnerScript.replace(/"/g, '\\"');
         const escapedPayload = payload.replace(/"/g, '\\"');
-        const script = `tell application "Terminal" to do script "node \\"${escapedRunner}\\" \\"${escapedPayload}\\""`;
+        const script = `tell application "Terminal" to do script "${nodeExe} \\"${escapedRunner}\\" \\"${escapedPayload}\\""`;
         return spawnDetached("osascript", ["-e", script]);
     }
 
-    const candidates = [
-        { cmd: "x-terminal-emulator", args: ["-e", "node", runnerScript, payload] },
-        { cmd: "gnome-terminal", args: ["--", "node", runnerScript, payload] },
-        { cmd: "konsole", args: ["-e", "node", runnerScript, payload] },
-        { cmd: "xfce4-terminal", args: ["--command", `node "${runnerScript}" "${payload}"`] },
-        { cmd: "xterm", args: ["-e", "node", runnerScript, payload] },
-    ];
+    if (process.platform === "linux") {
+        if (hasDisplayServer()) {
+            const candidates = [
+                { cmd: "x-terminal-emulator", args: ["-e", nodeExe, runnerScript, payload] },
+                { cmd: "gnome-terminal", args: ["--", nodeExe, runnerScript, payload] },
+                { cmd: "konsole", args: ["-e", nodeExe, runnerScript, payload] },
+                { cmd: "xfce4-terminal", args: ["--command", `${nodeExe} "${runnerScript}" "${payload}"`] },
+                { cmd: "xterm", args: ["-e", nodeExe, runnerScript, payload] },
+            ];
 
-    for (const candidate of candidates) {
-        if (await spawnDetached(candidate.cmd, candidate.args)) {
-            return true;
+            for (const candidate of candidates) {
+                if (await spawnDetached(candidate.cmd, candidate.args)) {
+                    return true;
+                }
+            }
+        }
+
+        if (process.env.TMUX) {
+            return spawnDetached("tmux", [
+                "split-window",
+                "-v",
+                `${nodeExe} "${runnerScript}" "${payload}"`,
+            ], { detached: false });
+        }
+
+        if (process.env.STY) {
+            return spawnDetached("screen", [
+                "-X",
+                "screen",
+                `${nodeExe} "${runnerScript}" "${payload}"`,
+            ], { detached: false });
         }
     }
     return false;

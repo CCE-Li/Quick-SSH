@@ -238,6 +238,12 @@ UploadConcurrency=3
 - 原 SSH 会话不会被上传任务占用，你可以继续操作
 - 该功能依赖本机可用的 `ssh`，上传窗口内部使用 `ssh2`/SFTP
 
+平台策略：
+
+- GUI Linux：优先检测并打开图形终端窗口
+- 纯终端 Linux：优先复用 `tmux` pane，其次尝试 `screen` 新窗口
+- WSL：优先打开 Windows Terminal / PowerShell 窗口，再进入 WSL 运行上传界面
+
 ---
 
 ## 近期规划 🗓️
