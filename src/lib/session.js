@@ -333,10 +333,15 @@ function parseUnixDrag(text) {
 
     const files = [];
     for (const token of tokens) {
-        if (!token.startsWith("/") || !isRegularOrDirectory(token)) {
+        let normalized = token;
+        if (isWSL() && /^[A-Za-z]:\\/.test(token)) {
+            const drive = token[0].toLowerCase();
+            normalized = `/mnt/${drive}/${token.slice(3).replace(/\\/g, "/")}`;
+        }
+        if (!normalized.startsWith("/") || !isRegularOrDirectory(normalized)) {
             return { prefix: false, files: null };
         }
-        files.push(token);
+        files.push(normalized);
     }
     return { prefix: true, files };
 }
