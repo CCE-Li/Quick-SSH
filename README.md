@@ -406,6 +406,35 @@ quick-ssh/
 ├── LICENSE                      # MIT 许可证
 └── .gitignore
 ```
+---
+
+
+<details>
+<summary>☕ Support Quick-SSH</summary>
+
+<br>
+
+如果 Quick-SSH 帮你节省了时间，欢迎请开发者喝杯咖啡 ☕
+
+<table>
+<tr>
+<td align="center">
+<b>微信支付</b><br>
+<img src="doc\images\wechat-pay.jpg" width="250">
+</td>
+
+<td align="center">
+<b>支付宝</b><br>
+<img src="doc\images\alipay.jpg" width="250">
+</td>
+</tr>
+</table>
+
+感谢每一位支持 Quick-SSH 的朋友 ❤️
+
+</details>
+
+
 
 ---
 
