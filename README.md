@@ -23,9 +23,66 @@
 
 ---
 
+## 跨平台支持
+
+Quick-SSH 支持 **Windows / Linux / macOS** 三大主流操作系统。
+
+### 架构概览
+
+Quick-SSH 根据操作系统选择不同的后端：
+
+```
+                        npm install -g quick-ssh
+                                │
+                                ▼
+                         detectOS()
+                        ┌────┴────┐
+                        │         │
+                     Windows    Linux / macOS
+                        │         │
+                        ▼         ▼
+                  PowerShell    Node.js CLI
+                  模块 (.psm1)   (src/unix/cli.js)
+                        │         │
+                        ▼         ▼
+                  PowerShell    ~/.bashrc
+                  $PROFILE      ~/.zshrc
+                  (Import-      (qssh() 函数
+                   Module)      调用 node)
+
+  Windows 运行时:  PowerShell → Import-Module → qssh 命令
+  Linux 运行时:    bash/zsh → qssh() → node src/unix/cli.js → ssh
+```
+
+### 系统检测与配置注入
+
+| 操作系统 | 检测机制 | 配置文件 | 注入内容 | 运行时后端 |
+|----------|----------|----------|----------|------------|
+| **Windows** | `process.platform === "win32"` | PowerShell `$PROFILE` (PS7 / WinPS 5.1) | `Import-Module` 语句 | PowerShell 模块 ([`src/win/Quick-SSH.psm1`](src/win/Quick-SSH.psm1)) |
+| **Linux** | `process.platform === "linux"` | `~/.bashrc` / `~/.zshrc` / `~/.profile` (自动检测 `$SHELL`) | `qssh()` → `node src/unix/cli.js "$@"` | Node.js CLI ([`src/unix/cli.js`](src/unix/cli.js)) |
+| **macOS** | `process.platform === "darwin"` | `~/.zshrc` / `~/.bashrc` (自动检测 `$SHELL`) | `qssh()` → `node src/unix/cli.js "$@"` | Node.js CLI ([`src/unix/cli.js`](src/unix/cli.js)) |
+
+> **Linux/macOS 无 PowerShell 依赖**：`qssh` 命令通过 `node src/unix/cli.js` 直接运行，不需要安装 PowerShell Core。所有功能（添加/删除/列出/连接/导入/导出/TUI）均由 Node.js 原生实现。
+>
+> **💡 WSL 用户注意**：在 WSL 中，Quick-SSH 使用 **Node.js CLI 后端**（与原生 Linux 相同），而不是 Windows PowerShell 后端。请确保 WSL 中已安装 `node` 和 `npm`。如果你的 `~/.ssh/config` 是从 Windows 侧共享的（如通过 `/mnt/c/` 挂载的符号链接），密钥路径中的反斜线会被 Quick-SSH 自动归一化为正斜线。
+
+### 核心模块
+
+| 文件 | 作用 |
+|------|------|
+| [`src/lib/index.js`](src/lib/index.js) | `detectOS()` → Windows(注入 `$PROFILE`) / Linux/macOS(注入 `~/.bashrc`/`~/.zshrc`) |
+| [`src/win/Quick-SSH.psm1`](src/win/Quick-SSH.psm1) | **Windows 后端** — PowerShell 模块，实现所有 `qssh` 命令 |
+| [`src/unix/cli.js`](src/unix/cli.js) | **Linux/macOS 后端** — Node.js CLI，实现所有 `qssh` 命令（复用 `data.js` 数据层） |
+| [`src/tui/data.js`](src/tui/data.js) | 共享数据层 — 读写 `~/.ssh/config`，路径归一化跨平台兼容 |
+| [`src/tui/network.js`](src/tui/network.js) | `getSSHExe()` → `ssh.exe` (Windows) / `ssh` (Linux/macOS) |
+| [`src/tui/index.js`](src/tui/index.js) | TUI 界面 — blessed 终端 UI，跨平台按键绑定 |
+
+
+---
+
 ## 安装前注意 ⚠️
 
-Quick-SSH 依赖 PowerShell 执行策略运行脚本。安装前请先检查：
+1. Quick-SSH 依赖 PowerShell 执行策略运行脚本。安装前请先检查：
 
 ```powershell
 Get-ExecutionPolicy
@@ -47,6 +104,8 @@ Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 > 如果希望更宽松（不推荐），可设为 `Unrestricted`。
 
 修改完成后执行 `Get-ExecutionPolicy` 确认已生效，即可继续安装。
+
+2. `.ssh/`文件夹的权限记得开够~
 
 ---
 
@@ -309,62 +368,6 @@ Host my-server
 
 ---
 
-## 跨平台支持
-
-Quick-SSH 支持 **Windows / Linux / macOS** 三大主流操作系统。
-
-### 架构概览
-
-Quick-SSH 根据操作系统选择不同的后端：
-
-```
-                        npm install -g quick-ssh
-                                │
-                                ▼
-                         detectOS()
-                        ┌────┴────┐
-                        │         │
-                     Windows    Linux / macOS
-                        │         │
-                        ▼         ▼
-                  PowerShell    Node.js CLI
-                  模块 (.psm1)   (src/unix/cli.js)
-                        │         │
-                        ▼         ▼
-                  PowerShell    ~/.bashrc
-                  $PROFILE      ~/.zshrc
-                  (Import-      (qssh() 函数
-                   Module)      调用 node)
-
-  Windows 运行时:  PowerShell → Import-Module → qssh 命令
-  Linux 运行时:    bash/zsh → qssh() → node src/unix/cli.js → ssh
-```
-
-### 系统检测与配置注入
-
-| 操作系统 | 检测机制 | 配置文件 | 注入内容 | 运行时后端 |
-|----------|----------|----------|----------|------------|
-| **Windows** | `process.platform === "win32"` | PowerShell `$PROFILE` (PS7 / WinPS 5.1) | `Import-Module` 语句 | PowerShell 模块 ([`src/win/Quick-SSH.psm1`](src/win/Quick-SSH.psm1)) |
-| **Linux** | `process.platform === "linux"` | `~/.bashrc` / `~/.zshrc` / `~/.profile` (自动检测 `$SHELL`) | `qssh()` → `node src/unix/cli.js "$@"` | Node.js CLI ([`src/unix/cli.js`](src/unix/cli.js)) |
-| **macOS** | `process.platform === "darwin"` | `~/.zshrc` / `~/.bashrc` (自动检测 `$SHELL`) | `qssh()` → `node src/unix/cli.js "$@"` | Node.js CLI ([`src/unix/cli.js`](src/unix/cli.js)) |
-
-> **Linux/macOS 无 PowerShell 依赖**：`qssh` 命令通过 `node src/unix/cli.js` 直接运行，不需要安装 PowerShell Core。所有功能（添加/删除/列出/连接/导入/导出/TUI）均由 Node.js 原生实现。
->
-> **💡 WSL 用户注意**：在 WSL 中，Quick-SSH 使用 **Node.js CLI 后端**（与原生 Linux 相同），而不是 Windows PowerShell 后端。请确保 WSL 中已安装 `node` 和 `npm`。如果你的 `~/.ssh/config` 是从 Windows 侧共享的（如通过 `/mnt/c/` 挂载的符号链接），密钥路径中的反斜线会被 Quick-SSH 自动归一化为正斜线。
-
-### 核心模块
-
-| 文件 | 作用 |
-|------|------|
-| [`src/lib/index.js`](src/lib/index.js) | `detectOS()` → Windows(注入 `$PROFILE`) / Linux/macOS(注入 `~/.bashrc`/`~/.zshrc`) |
-| [`src/win/Quick-SSH.psm1`](src/win/Quick-SSH.psm1) | **Windows 后端** — PowerShell 模块，实现所有 `qssh` 命令 |
-| [`src/unix/cli.js`](src/unix/cli.js) | **Linux/macOS 后端** — Node.js CLI，实现所有 `qssh` 命令（复用 `data.js` 数据层） |
-| [`src/tui/data.js`](src/tui/data.js) | 共享数据层 — 读写 `~/.ssh/config`，路径归一化跨平台兼容 |
-| [`src/tui/network.js`](src/tui/network.js) | `getSSHExe()` → `ssh.exe` (Windows) / `ssh` (Linux/macOS) |
-| [`src/tui/index.js`](src/tui/index.js) | TUI 界面 — blessed 终端 UI，跨平台按键绑定 |
-
----
-
 ## 卸载
 
 ```bash
@@ -375,142 +378,6 @@ npm uninstall -g quick-ssh
 - ✅ **Windows**: 自动从 PowerShell `$PROFILE` 中移除 `Import-Module` 配置
 - ✅ **Linux/macOS**: 自动从 `~/.bashrc` / `~/.zshrc` 等文件中移除 `qssh()` 包装函数
 - ✅ **保留** `~/.ssh/config` 用户配置数据（不会在卸载时删除）
-
----
-
-## WSL / Linux 使用教程
-
-> WSL (Windows Subsystem for Linux) 用户可以像在原生 Linux 上一样使用 Quick-SSH 的 Node.js CLI 后端。
-
-### 第一步：安装 Node.js（如未安装）
-
-```bash
-# Debian / Ubuntu / WSL (Ubuntu)
-sudo apt update && sudo apt install -y nodejs npm
-
-# 或使用 nvm 管理版本（推荐）
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-source ~/.bashrc
-nvm install --lts
-```
-
-### 第二步：全局安装 Quick-SSH
-
-```bash
-npm install -g quick-ssh
-```
-
-安装时，脚本会自动检测你的 Shell 类型（bash / zsh），并将 `qssh()` 包装函数写入对应的配置文件。
-
-### 第三步：刷新 Shell 配置
-
-```bash
-source ~/.bashrc    # bash 用户
-# 或
-source ~/.zshrc     # zsh 用户
-```
-
-### 第四步：验证安装
-
-```bash
-qssh help
-```
-
-### 第五步（可选）：配置 SSH 密钥
-
-如果尚未生成 SSH 密钥：
-
-```bash
-ssh-keygen -t rsa -b 4096 -C "your-email@example.com"
-# 一路回车使用默认路径 ~/.ssh/id_rsa
-
-# 复制公钥到服务器
-ssh-copy-id -i ~/.ssh/id_rsa.pub root@192.168.1.100
-```
-
-> **权限注意**：`~/.ssh/id_rsa` 私钥文件权限必须为 `600`，否则 SSH 会拒绝使用。详见 [FAQ - SSH 私钥权限错误](doc/FAQ.md#1-ssh-私钥权限错误)。
-
-### 日常使用
-
-```bash
-# 启动 TUI 界面
-qssh
-
-# 添加服务器
-qssh add my-server root@192.168.1.100
-
-# 直接连接
-qssh my-server
-
-# 查看已保存的服务器
-qssh ps
-```
-
----
-
-## ~/.ssh/config 配置说明
-
-Quick-SSH 的所有连接数据均存储在 `~/.ssh/config` 文件中，该文件是 **OpenSSH 标准配置文件**，不仅 Quick-SSH 可以读写，原生 `ssh` 命令也直接使用它。
-
-### 基本格式
-
-```
-Host <别名>                    # 连接的自定义名称
-    HostName <IP 或域名>       # 服务器地址
-    User <用户名>              # 登录用户名
-    Port <端口号>              # SSH 端口（默认 22）
-    IdentityFile <密钥路径>    # 私钥文件路径
-```
-
-### 完整示例
-
-```
-# ============================================
-# Quick-SSH 管理的连接
-# ============================================
-
-Host my-server
-    HostName 192.168.1.100
-    User root
-    Port 22
-    IdentityFile ~/.ssh/id_rsa
-
-Host prod
-    HostName prod.example.com
-    User deploy
-    Port 2222
-    IdentityFile ~/.ssh/prod_rsa
-
-# ============================================
-# 全局配置（对所有连接生效）
-# ============================================
-
-Host *
-    ServerAliveInterval 60
-    ServerAliveCountMax 3
-    StrictHostKeyChecking ask
-```
-
-### 常用配置项说明
-
-| 配置项 | 含义 | 示例 |
-|--------|------|------|
-| `Host` | 连接别名（`ssh <别名>` 使用） | `Host my-server` |
-| `HostName` | 目标服务器地址 | `HostName 192.168.1.100` |
-| `User` | 登录用户名 | `User root` |
-| `Port` | SSH 端口（默认 22） | `Port 2222` |
-| `IdentityFile` | 私钥路径 | `IdentityFile ~/.ssh/id_rsa` |
-| `ServerAliveInterval` | 保活心跳间隔（秒） | `ServerAliveInterval 60` |
-| `StrictHostKeyChecking` | 主机密钥检查策略 | `StrictHostKeyChecking no` |
-
-### 手动编辑的注意事项
-
-1. **路径分隔符**：Linux/WSL 上始终使用**正斜线** `/`，如 `~/.ssh/id_rsa`
-2. **缩进**：每个 Host 块的属性行建议缩进 4 个空格
-3. **全局配置**：`Host *` 字段对所有连接生效，通常放在文件末尾
-4. **注释**：以 `#` 开头的行会被忽略，可用于分类和组织
-
-> Quick-SSH 在读取和写入时会自动保留文件中**非自己管理**的 Host 块、注释和全局配置，你可以放心地手动编辑 `~/.ssh/config`。
 
 ---
 
