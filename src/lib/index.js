@@ -79,6 +79,7 @@ function getHomeDir() {
  * 同时兼容 PowerShell 7+ 和 Windows PowerShell 5.1-
  * 注意：部分用户的 Documents 被重定向到 OneDrive，必须同时检测
  */
+// TODO: OneDrive用户暂未测试成功
 function getPowerShellProfilePaths() {
     const userProfile = process.env.USERPROFILE;
     if (!userProfile) {
@@ -165,6 +166,8 @@ function getShellProfilePath(shell) {
 // ============================================================
 // 注入代码块构建
 // ============================================================
+// TODO: 目前只能依靠注入实现，先办法写到环境变量中？
+
 
 /**
  * 构建 PowerShell Import-Module 语句块（Windows）
@@ -391,7 +394,7 @@ function runPostInstall() {
 // ============================================================
 // preuninstall - 卸载前清理注册（保留用户数据）
 // ============================================================
-
+// TODO: 卸载时没有完全删除$PROFILE、$Shell中的Quick-SSH相关配置
 function runPreUninstall() {
     const osType = detectOS();
     console.log(`[Quick-SSH] 检测到操作系统: ${osType}`);

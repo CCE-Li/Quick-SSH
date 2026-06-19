@@ -58,6 +58,7 @@ function normalizePath(p) {
  * @returns {Array<{ alias, host, user, port, key, _start, _end }>}
  *   每个对象包含 host 字段和该块在原文中的行范围 (_start/_end)
  */
+// TODO: 未省略#后的注释内容
 function parseHostBlocks(content) {
     const hosts = [];
     const lines = content.split("\n");
