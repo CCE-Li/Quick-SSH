@@ -22,6 +22,7 @@ const { spawn } = require("child_process");
 
 // 复用 TUI 数据层（同一份 ~/.ssh/config）
 const { SSH_CONFIG_PATH, loadHosts, saveHosts } = require("../tui/data");
+const { startInteractiveSession } = require("../lib/session");
 
 // ============================================================
 // 颜色工具
@@ -34,14 +35,6 @@ const COLOR = {
     cyan:   (s) => `\x1b[36m${s}\x1b[0m`,
     bold:   (s) => `\x1b[1m${s}\x1b[0m`,
 };
-
-// ============================================================
-// 跨平台 SSH 可执行文件
-// ============================================================
-
-function getSSHExe() {
-    return process.platform === "win32" ? "ssh.exe" : "ssh";
-}
 
 // ============================================================
 // 命令实现
@@ -183,20 +176,15 @@ function cmdConnect(alias) {
         process.exit(1);
     }
 
-    const sshExe = getSSHExe();
-    const args = [
-        "-i", target.key,
-        "-p", String(target.port),
-        "-o", "HostKeyAlgorithms=+ssh-rsa",
-        `${target.user}@${target.host}`,
-    ];
-
     console.log(COLOR.green(`正在连接到 '${alias}' (${target.user}@${target.host}:${target.port}) ...`));
     console.log("");
 
-    const child = spawn(sshExe, args, { stdio: "inherit" });
-    child.on("exit", (code) => {
-        process.exit(code != null ? code : 0);
+    startInteractiveSession(target, {
+        onExit: (code) => {
+            process.exit(code != null ? code : 0);
+        },
+    }).on("error", () => {
+        process.exit(1);
     });
 }
 
@@ -413,7 +401,7 @@ function main() {
         case "init": {
             // 重新运行 postinstall 逻辑，重新注入 shell 配置文件
             console.log(COLOR.cyan("[Quick-SSH] 正在重新注册到 Shell 配置文件..."));
-            const postinstall = path.join(__dirname, "lib", "index.js");
+            const postinstall = path.join(__dirname, "..", "lib", "index.js");
             if (fs.existsSync(postinstall)) {
                 const child = spawn(process.execPath, [postinstall, "postinstall"], {
                     stdio: "inherit",

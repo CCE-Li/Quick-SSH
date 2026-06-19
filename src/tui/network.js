@@ -6,26 +6,8 @@
  */
 
 const net       = require("net");
-const { spawn } = require("child_process");
 const os       = require("os");
-
-// ============================================================
-// 跨平台 SSH 可执行文件检测
-// ============================================================
-
-/**
- * 获取当前平台的 SSH 可执行文件名
- *  - Windows: ssh.exe
- *  - Linux/macOS: ssh
- */
-function getSSHExe() {
-    const platform = process.platform;
-    return platform === "win32" ? "ssh.exe" : "ssh";
-}
-
-// ============================================================
-// SSH 连接
-// ============================================================
+const { startInteractiveSession } = require("../lib/session");
 
 /**
  * 发起 SSH 连接会话
@@ -34,14 +16,6 @@ function getSSHExe() {
  * @param {Function} cbReturn  - 会话结束后回调，重新进入 TUI
  */
 function sshConnect(host, screen, cbReturn) {
-    const sshExe = getSSHExe();
-    const args = [
-        "-i", host.key,
-        "-p", String(host.port),
-        "-o", "HostKeyAlgorithms=+ssh-rsa",
-        `${host.user}@${host.host}`,
-    ];
-
     screen.destroy();
 
     // 手动恢复终端状态（rmcup 被拦截，screen.destroy() 无法完全恢复）
@@ -53,23 +27,25 @@ function sshConnect(host, screen, cbReturn) {
     process.stdout.write('\x1b[?1049l');
     process.stdout.write('\x1b[?25h');
     process.stdout.write('\x1b[0m');
+    // 清屏：清除 TUI 残留内容（smcup 被禁用后 TUI 直接绘制在主缓冲区上）
+    process.stdout.write('\x1b[2J\x1b[H');
 
     process.stdin.removeAllListeners("data");
 
     process.stdout.write(`\n\x1b[32m正在连接到 '${host.alias}' (${host.user}@${host.host}:${host.port}) ...\x1b[0m\n\n`);
 
-    const child = spawn(sshExe, args, {
-        stdio: "inherit",
-        shell: true,
-    });
-
-    child.on("exit", (code) => {
-        process.stdout.write(`\n\x1b[33mSSH 会话已结束 (退出码: ${code})\x1b[0m\n`);
+    startInteractiveSession(host, {
+        onExit: (code) => {
+            process.stdout.write(`\n\x1b[33mSSH 会话已结束 (退出码: ${code})\x1b[0m\n`);
+            process.stdout.write(`\x1b[32m按 Enter 键返回 Quick-SSH TUI...\x1b[0m`);
+            try {
+                if (process.stdin.isTTY) process.stdin.setRawMode(false);
+            } catch (e) {}
+            process.stdin.once("data", () => cbReturn());
+        },
+    }).on("error", () => {
+        process.stdout.write(`\n\x1b[31mQuick-SSH 无法启动 SSH 会话。\x1b[0m\n`);
         process.stdout.write(`\x1b[32m按 Enter 键返回 Quick-SSH TUI...\x1b[0m`);
-        // SSH 退出后确保终端处于 cooked 模式
-        try {
-            if (process.stdin.isTTY) process.stdin.setRawMode(false);
-        } catch (e) {}
         process.stdin.once("data", () => cbReturn());
     });
 }

@@ -15,6 +15,7 @@ $Script:SSHConfigPath= Join-Path $Script:SSHConfigDir "config"
 # ModuleRoot = src/ (psm1 在 src/win/ 下，$PSScriptRoot 指向 src/win/)
 $Script:ModuleRoot   = Split-Path $PSScriptRoot -Parent
 $Script:TUIScript    = [System.IO.Path]::Combine($Script:ModuleRoot, "tui", "index.js")
+$Script:UnixCliScript= [System.IO.Path]::Combine($Script:ModuleRoot, "unix", "cli.js")
 
 # 跨平台 SSH 可执行文件检测
 $Script:SSHExe = if ($IsWindows -or $env:OS -match "Windows") {
@@ -306,22 +307,20 @@ function Invoke-QuickSSHConnect {
         return
     }
 
-    $sshExe = $Script:SSHExe
-
     Write-QSSuccess "正在连接到 '$Alias' ($($target.user)@$($target.host):$($target.port)) ..."
     Write-Host ""
 
-    if ($Script:IsWindows) {
-        # Windows: 使用 cmd /c 避免 PowerShell 拦截 SSH 交互
-        # 将完整命令行编码后通过 cmd 启动，确保 SSH 获得原始 stdin 交互能力
-        $cmd = "$sshExe -i `"$($target.key)`" -p $($target.port) -o HostKeyAlgorithms=+ssh-rsa $($target.user)@$($target.host)"
-        $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
-        cmd /c "powershell -NoProfile -EncodedCommand $encoded"
-    } else {
-        # Linux/macOS: 使用 & 调用运算符传参（避免字符串拼接的转义问题）
-        # pwsh 原生支持交互式子进程，无需 cmd 中转
-        & $sshExe -i $target.key -p $target.port -o HostKeyAlgorithms=+ssh-rsa "$($target.user)@$($target.host)"
+    $nodePath = (Get-Command "node" -ErrorAction SilentlyContinue).Source
+    if (-not $nodePath) {
+        Write-QSError "错误：启用拖拽上传需要 Node.js，请先安装 Node.js。"
+        return
     }
+    if (-not (Test-Path $Script:UnixCliScript)) {
+        Write-QSError "错误：未找到 CLI 脚本: $Script:UnixCliScript"
+        return
+    }
+
+    & $nodePath $Script:UnixCliScript $Alias
 }
 
 # qssh export [文件路径] - 导出全部主机配置到 JSON 文件

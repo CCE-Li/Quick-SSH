@@ -41,6 +41,7 @@
   ],
   "private": false,
   "dependencies": {
-    "blessed": "^0.1.81"
+    "blessed": "^0.1.81",
+    "ssh2": "^1.17.0"
   }
 }
