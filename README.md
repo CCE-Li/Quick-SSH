@@ -106,7 +106,7 @@ Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 修改完成后执行 `Get-ExecutionPolicy` 确认已生效，即可继续安装。
 
-2. `.ssh/`文件夹的权限记得开够(记得没错的话应该是777)~
+2. `.ssh/`文件夹的权限记得开够
 
 ---
 
