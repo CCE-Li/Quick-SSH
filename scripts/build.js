@@ -2,11 +2,11 @@
 /**
  * scripts/build.js - Quick-SSH 二进制构建脚本
  *
- * 使用 Node.js SEA (Single Executable Application) 将应用编译为原生可执行文件。
+ * 使用 Node.js SEA (Single Executable Application) + @vercel/ncc 打包。
  * 需要 Node.js >= 20.11.0
  *
  * 原理:
- *   1. 用 esbuild 将应用及其纯 JS 依赖打包为单个 JS 文件
+ *   1. 用 @vercel/ncc 将应用及其依赖打包为单个 JS 文件（支持动态 require）
  *   2. 使用 node --experimental-sea-config 生成 SEA 数据 blob
  *   3. 复制 node.exe 并通过 postject 注入 blob
  *
@@ -72,33 +72,14 @@ function checkSeaSupport() {
         error(`Node.js >= 20.11.0 是 SEA 所必需的，当前版本: ${process.version}`);
         process.exit(1);
     }
-    // Node.js 20.11.0+ 支持 SEA
     info(`Node.js ${process.version} - SEA 支持确认`);
 }
 
 /**
- * 检查必要工具
+ * 步骤 1: 使用 @vercel/ncc 将应用打包为单个 JS 文件
+ * ncc 基于 webpack，可以处理 blessed 的动态 require('./widgets/' + name)
  */
-function checkTools() {
-    try {
-        require("esbuild");
-    } catch {
-        warn("esbuild 未安装，尝试安装...");
-        execSync("npm install -D esbuild", { cwd: __dirname, stdio: "inherit" });
-    }
-
-    try {
-        require("postject");
-    } catch {
-        warn("postject 未安装，尝试安装...");
-        execSync("npm install -D postject", { cwd: __dirname, stdio: "inherit" });
-    }
-}
-
-/**
- * 步骤 1: 使用 esbuild 将应用打包为单个 JS 文件
- */
-function bundleApp() {
+async function bundleApp() {
     const distDir = path.join(__dirname, "..", "dist");
     if (!fs.existsSync(distDir)) {
         fs.mkdirSync(distDir, { recursive: true });
@@ -110,37 +91,63 @@ function bundleApp() {
         process.exit(1);
     }
 
-    info("打包应用及依赖...");
+    info("使用 @vercel/ncc 打包应用及依赖...");
 
-    // 使用 esbuild 打包，将 blessed 和 ssh2 等依赖内联
-    // ssh2 的 cpu-features 和 nan 是 optionalDependencies，不影响核心功能
-    const esbuild = require("esbuild");
-    esbuild.buildSync({
-        entryPoints: [entryPath],
-        bundle: true,
-        platform: "node",
-        target: `node${process.version.slice(1).split(".")[0]}`,
-        outfile: path.join(distDir, BUNDLE_OUT),
-        format: "cjs",
-        // 注入编译时常量：标记为 SEA 二进制版本
-        define: {
-            "globalThis.__IS_BINARY__": "true",
-        },
-        // 排除无法打包的原生模块和 blessed 未使用的可选依赖
-        external: [
-            "cpu-features",  // ssh2 的可选原生依赖
-            "nan",            // ssh2 的可选原生依赖
-            "term.js",        // blessed 终端组件（未使用）
-            "pty.js",         // blessed 终端组件（未使用）
-        ],
-        // 让 blessed 可以正确工作
-        mainFields: ["main", "browser"],
-        resolveExtensions: [".js", ".json", ".node"],
+    // 创建包装入口文件，注入编译时常量
+    const wrapPath = path.join(distDir, ".sea-entry-wrap.js");
+    const wrapContent = `
+// Quick-SSH SEA 包装入口
+// 编译时常量注入
+globalThis.__IS_BINARY__ = true;
+
+// 加载主入口
+require(${JSON.stringify(entryPath.replace(/\\/g, "/"))});
+`;
+    fs.writeFileSync(wrapPath, wrapContent, "utf-8");
+
+    const ncc = require("@vercel/ncc");
+    const result = await ncc(wrapPath, {
+        minify: false,
+        sourceMap: false,
+        sourceMapRegister: false,
+        assetBuilds: false,
     });
 
-    const stats = fs.statSync(path.join(distDir, BUNDLE_OUT));
+    const outPath = path.join(distDir, BUNDLE_OUT);
+    fs.writeFileSync(outPath, result.code, "utf-8");
+
+    const stats = fs.statSync(outPath);
     const sizeKB = (stats.size / 1024).toFixed(2);
     ok(`打包完成: ${BUNDLE_OUT} (${sizeKB} KB)`);
+
+    // 复制 blessed 的 terminfo 文件到 dist/usr/
+    // blessed 需要这些文件来检测终端能力
+    const blessedUsr = path.join(__dirname, "..", "node_modules", "blessed", "usr");
+    const distUsr = path.join(distDir, "usr");
+    if (fs.existsSync(blessedUsr)) {
+        info("复制 terminfo 文件...");
+        if (!fs.existsSync(distUsr)) {
+            fs.mkdirSync(distUsr, { recursive: true });
+        }
+        // 递归复制
+        function copyDir(src, dest) {
+            const entries = fs.readdirSync(src, { withFileTypes: true });
+            for (const entry of entries) {
+                const srcPath = path.join(src, entry.name);
+                const destPath = path.join(dest, entry.name);
+                if (entry.isDirectory()) {
+                    if (!fs.existsSync(destPath)) {
+                        fs.mkdirSync(destPath, { recursive: true });
+                    }
+                    copyDir(srcPath, destPath);
+                } else {
+                    fs.copyFileSync(srcPath, destPath);
+                }
+            }
+        }
+        copyDir(blessedUsr, distUsr);
+        ok("terminfo 文件复制完成");
+    }
 }
 
 /**
@@ -149,7 +156,7 @@ function bundleApp() {
 function createSeaBlob() {
     const distDir = path.join(__dirname, "..", "dist");
 
-    // 创建 SEA 配置
+    // 创建 SEA 配置（必须使用绝对路径，正斜杠）
     const seaConfig = {
         main: path.join(distDir, BUNDLE_OUT).replace(/\\/g, "/"),
         output: path.join(distDir, SEA_BLOB).replace(/\\/g, "/"),
@@ -197,7 +204,6 @@ function injectBlob(platform) {
         // Windows: 需要先移除签名
         info("移除 Windows 数字签名...");
         try {
-            // 使用 signtool 或 powershell 移除签名
             execSync(
                 `powershell -Command "& {Set-Content -Path '${outPath}' -Value (Get-Content '${outPath}' -ReadCount 0) -AsByteStream}"`,
                 { stdio: "pipe", timeout: 30000 }
@@ -229,11 +235,107 @@ function injectBlob(platform) {
 }
 
 /**
+ * 步骤 4: 使用 UPX 压缩二进制文件
+ * UPX 可大幅减小文件体积（约 90 MB → 25-30 MB），对功能无影响。
+ * 首次启动时略有解压开销。
+ */
+function ensureUpx() {
+    const toolsDir = path.join(__dirname, "tools");
+    const upxPath = path.join(toolsDir, "upx.exe");
+
+    if (fs.existsSync(upxPath)) {
+        return upxPath;
+    }
+
+    info("UPX 未找到，正在自动下载...");
+    if (!fs.existsSync(toolsDir)) {
+        fs.mkdirSync(toolsDir, { recursive: true });
+    }
+
+    const zipUrl = "https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-win64.zip";
+    const zipPath = path.join(toolsDir, "upx.zip");
+
+    try {
+        execSync(
+            `powershell -Command "& {Invoke-WebRequest -Uri '${zipUrl}' -OutFile '${zipPath}'}"`,
+            { stdio: "pipe", timeout: 60000 }
+        );
+        execSync(
+            `powershell -Command "& {Expand-Archive -Path '${zipPath}' -DestinationPath '${toolsDir}' -Force}"`,
+            { stdio: "pipe", timeout: 30000 }
+        );
+        // upx.exe is inside a subfolder after extraction
+        const extractedDirs = fs.readdirSync(toolsDir).filter(d =>
+            d.startsWith("upx-") && fs.statSync(path.join(toolsDir, d)).isDirectory()
+        );
+        if (extractedDirs.length > 0) {
+            const exeSrc = path.join(toolsDir, extractedDirs[0], "upx.exe");
+            if (fs.existsSync(exeSrc)) {
+                fs.copyFileSync(exeSrc, upxPath);
+            }
+        }
+        // cleanup
+        if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+        extractedDirs.forEach(d => {
+            const dirPath = path.join(toolsDir, d);
+            if (fs.existsSync(dirPath)) {
+                fs.rmSync(dirPath, { recursive: true, force: true });
+            }
+        });
+
+        if (fs.existsSync(upxPath)) {
+            ok("UPX 下载完成");
+            return upxPath;
+        }
+    } catch (e) {
+        warn(`UPX 自动下载失败: ${e.message}`);
+    }
+
+    return null;
+}
+
+function compressWithUpx(platform) {
+    const config = PLATFORM_CONFIG[platform];
+    const distDir = path.join(__dirname, "..", "dist");
+    const outPath = path.join(distDir, config.output);
+
+    if (!fs.existsSync(outPath)) {
+        warn(`二进制文件不存在，跳过 UPX 压缩: ${outPath}`);
+        return;
+    }
+
+    const upxPath = ensureUpx();
+    if (!upxPath) {
+        warn("UPX 不可用，跳过压缩");
+        return;
+    }
+
+    const beforeSize = fs.statSync(outPath).size;
+    info(`UPX 压缩: ${config.output} (${(beforeSize / (1024 * 1024)).toFixed(2)} MB)...`);
+
+    try {
+        execSync(`"${upxPath}" -7 --no-color "${outPath}"`, {
+            cwd: distDir,
+            stdio: "pipe",
+            timeout: 180000,
+        });
+    } catch (e) {
+        // UPX 对某些文件返回非零退出码但仍成功压缩，检查结果
+        warn(`UPX 压缩警告: ${e.message}`);
+    }
+
+    const afterSize = fs.statSync(outPath).size;
+    const savedMB = ((beforeSize - afterSize) / (1024 * 1024)).toFixed(2);
+    const ratio = ((afterSize / beforeSize) * 100).toFixed(1);
+    ok(`UPX 压缩完成: ${(afterSize / (1024 * 1024)).toFixed(2)} MB (节省 ${savedMB} MB, ${ratio}%)`);
+}
+
+/**
  * 清理临时文件
  */
 function cleanup() {
     const distDir = path.join(__dirname, "..", "dist");
-    const files = [BUNDLE_OUT, SEA_CONFIG, SEA_BLOB];
+    const files = [BUNDLE_OUT, SEA_CONFIG, SEA_BLOB, ".sea-entry-wrap.js"];
     for (const f of files) {
         const fp = path.join(distDir, f);
         if (fs.existsSync(fp)) {
@@ -248,7 +350,7 @@ function cleanup() {
 // 构建函数
 // ============================================================
 
-function buildTarget(platform) {
+async function buildTarget(platform) {
     const config = PLATFORM_CONFIG[platform];
     if (!config) {
         error(`不支持的平台: ${platform}`);
@@ -260,13 +362,16 @@ function buildTarget(platform) {
     info(`构建目标: ${platform} → ${config.output}`);
 
     // 步骤 1: 打包
-    bundleApp();
+    await bundleApp();
 
     // 步骤 2: 生成 SEA blob
     createSeaBlob();
 
     // 步骤 3: 注入
     injectBlob(platform);
+
+    // 步骤 4: UPX 压缩（缩小二进制体积）
+    compressWithUpx(platform);
 
     // 清理
     cleanup();
@@ -276,12 +381,11 @@ function buildTarget(platform) {
 // 主入口
 // ============================================================
 
-function main() {
+async function main() {
     const args = process.argv.slice(2);
 
     // 检查环境
     checkSeaSupport();
-    checkTools();
 
     const buildAll    = args.includes("--all");
     const platformIdx = args.indexOf("--platform");
@@ -294,21 +398,24 @@ function main() {
     if (buildAll) {
         info("构建所有平台...");
         for (const p of Object.keys(PLATFORM_CONFIG)) {
-            buildTarget(p);
+            await buildTarget(p);
         }
         ok("所有平台构建完成！");
         return;
     }
 
     if (platform) {
-        buildTarget(platform);
+        await buildTarget(platform);
         return;
     }
 
     // 默认：构建当前平台
     const currentPlatform = process.platform;
     info(`检测到当前平台: ${currentPlatform}`);
-    buildTarget(currentPlatform);
+    await buildTarget(currentPlatform);
 }
 
-main();
+main().catch((e) => {
+    error(`构建失败: ${e.message}`);
+    process.exit(1);
+});

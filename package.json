@@ -62,6 +62,7 @@
     "ssh2": "^1.17.0"
   },
   "devDependencies": {
+    "@vercel/ncc": "^0.44.0",
     "esbuild": "^0.28.1",
     "postject": "^1.0.0-alpha.6"
   }
