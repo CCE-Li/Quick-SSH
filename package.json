@@ -1,7 +1,7 @@
 {
   "name": "quick-ssh",
   "version": "1.1.0",
-  "description": "🚀 Quick-SSH - 仿 Docker 命令行风格的 PowerShell SSH 连接管理工具",
+  "description": "🚀 Quick-SSH - 仿 Docker 命令行风格的 SSH 连接管理工具（二进制版本）",
   "keywords": [
     "ssh",
     "powershell",
@@ -20,23 +20,33 @@
   },
   "license": "MIT",
   "author": "CCE-Li",
-  "main": "src/lib/index.js",
+  "bin": {
+    "qssh": "dist/qssh.exe"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/CCE-Li/quick-ssh.git"
   },
   "scripts": {
     "postinstall": "node src/lib/index.js postinstall",
-    "preuninstall": "node src/lib/index.js preuninstall"
+    "preuninstall": "node src/lib/index.js preuninstall",
+    "build": "node scripts/build.js",
+    "build:all": "node scripts/build.js --all",
+    "build:win": "node scripts/build.js --platform win32",
+    "build:linux": "node scripts/build.js --platform linux",
+    "build:mac": "node scripts/build.js --platform darwin",
+    "prepublishOnly": "node scripts/build.js --platform win32"
   },
   "files": [
+    "dist/",
     "src/win/",
     "src/unix/",
     "src/tui/",
-    "src/lib/"
+    "src/lib/",
+    "scripts/"
   ],
   "engines": {
-    "node": ">=10.0.0"
+    "node": ">=18.0.0"
   },
   "os": [
     "win32",
@@ -47,8 +57,26 @@
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
+  "pkg": {
+    "assets": [
+      "src/tui/**/*",
+      "src/lib/**/*",
+      "src/unix/**/*",
+      "node_modules/blessed/**/*",
+      "node_modules/ssh2/**/*"
+    ],
+    "targets": [
+      "node18-win-x64",
+      "node18-linux-x64",
+      "node18-macos-x64"
+    ],
+    "outputPath": "dist"
+  },
   "dependencies": {
     "blessed": "^0.1.81",
     "ssh2": "^1.17.0"
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "^5.12.0"
   }
 }
