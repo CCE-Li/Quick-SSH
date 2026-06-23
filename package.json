@@ -57,26 +57,12 @@
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
-  "pkg": {
-    "assets": [
-      "src/tui/**/*",
-      "src/lib/**/*",
-      "src/unix/**/*",
-      "node_modules/blessed/**/*",
-      "node_modules/ssh2/**/*"
-    ],
-    "targets": [
-      "node18-win-x64",
-      "node18-linux-x64",
-      "node18-macos-x64"
-    ],
-    "outputPath": "dist"
-  },
   "dependencies": {
     "blessed": "^0.1.81",
     "ssh2": "^1.17.0"
   },
   "devDependencies": {
-    "@yao-pkg/pkg": "^5.12.0"
+    "esbuild": "^0.28.1",
+    "postject": "^1.0.0-alpha.6"
   }
 }

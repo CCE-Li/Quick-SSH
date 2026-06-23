@@ -34,8 +34,12 @@ const { startInteractiveSession } = require("../lib/session");
 // 运行环境检测
 // ============================================================
 
-/** 判断是否运行在 pkg 编译的二进制中 */
-const IS_PKG_BINARY = typeof process.pkg !== "undefined";
+/**
+ * 判断是否运行在编译后的二进制中（支持 pkg/nexe 和 SEA 两种方式）
+ * - pkg/nexe: process.pkg 存在
+ * - SEA:      esbuild 注入 globalThis.__IS_BINARY__ = true
+ */
+const IS_BINARY = typeof process.pkg !== "undefined" || typeof globalThis.__IS_BINARY__ !== "undefined";
 
 // ============================================================
 // 颜色工具
@@ -205,7 +209,7 @@ function cmdConnect(alias) {
  *   - 开发模式: spawn 子进程运行 TUI 脚本
  */
 function launchTUI() {
-    if (IS_PKG_BINARY) {
+    if (IS_BINARY) {
         // pkg 二进制模式 → 直接加载 TUI（所有文件已打包在二进制中）
         try {
             require("../tui/index");
@@ -337,7 +341,7 @@ function cmdImport(filePath) {
 function cmdHelp() {
     console.log("");
     console.log(COLOR.cyan("Quick-SSH - SSH 连接管理工具"));
-    console.log(COLOR.cyan(IS_PKG_BINARY ? "  原生二进制版本 (无需 Node.js)" : "  Node.js CLI 版本"));
+    console.log(COLOR.cyan(IS_BINARY ? "  原生二进制版本 (无需 Node.js)" : "  Node.js CLI 版本"));
     console.log("");
     console.log(COLOR.yellow("用法:"));
     console.log("  qssh                   启动 TUI 终端界面（推荐）");
@@ -423,7 +427,7 @@ function main() {
         case "init": {
             // 重新运行 postinstall 逻辑
             console.log(COLOR.cyan("[Quick-SSH] 正在重新注册到 Shell 配置文件..."));
-            if (IS_PKG_BINARY) {
+            if (IS_BINARY) {
                 // 二进制模式下直接调用内部的 postinstall 逻辑
                 try {
                     require("../lib/index");
