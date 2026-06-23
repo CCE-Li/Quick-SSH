@@ -225,6 +225,40 @@ function getCLIPath() {
 }
 
 // ============================================================
+// .qsshrc 默认配置生成
+// ============================================================
+
+/**
+ * 确保 ~/.qsshrc 存在（已存在则不覆盖）
+ * 用于拖拽上传的自定义配置
+ */
+function ensureQsshrc() {
+    const configPath = path.join(getHomeDir(), ".qsshrc");
+    if (fs.existsSync(configPath)) {
+        console.log(`[Quick-SSH] - 已存在，跳过: ${configPath}`);
+        return;
+    }
+
+    const defaultContent = [
+        "# Quick-SSH 配置文件",
+        "#",
+        "# UploadConcurrency: 拖拽上传的并发数（默认: 3，必须为大于 0 的整数）",
+        "# UploadInNewWindow:  是否在新窗口打开上传窗口（默认: true）",
+        "#",
+        "UploadConcurrency=3",
+        "UploadInNewWindow=true",
+        "",
+    ].join("\n");
+
+    try {
+        fs.writeFileSync(configPath, defaultContent, "utf-8");
+        console.log(`[Quick-SSH] ✔ 已创建默认配置文件: ${configPath}`);
+    } catch (err) {
+        console.error(`[Quick-SSH] ⚠ 创建配置文件失败: ${configPath}`, err.message);
+    }
+}
+
+// ============================================================
 // 配置文件读写工具
 // ============================================================
 
@@ -308,6 +342,9 @@ function removeImportBlock(profilePath) {
 function runPostInstall() {
     const osType = detectOS();
     console.log(`[Quick-SSH] 检测到操作系统: ${osType}`);
+
+    // 确保 ~/.qsshrc 存在（已存在则不覆盖）
+    ensureQsshrc();
 
     if (osType === "windows") {
         // ─── Windows: 注入 PowerShell $PROFILE ───

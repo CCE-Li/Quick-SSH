@@ -27,13 +27,31 @@ $Script:SSHExe = if ($IsWindows -or $env:OS -match "Windows") {
 # 跨平台判断：是否运行在 Windows 上
 $Script:IsWindows = $IsWindows -or ($env:OS -match "Windows")
 
-# 确保 ~/.ssh/config 存在
+# 确保 ~/.ssh/config 和 ~/.qsshrc 存在
 function Initialize-QuickSSHConfig {
+    # ─── ~/.ssh/config ───
     if (-not (Test-Path $Script:SSHConfigDir)) {
         New-Item -Path $Script:SSHConfigDir -ItemType Directory -Force | Out-Null
     }
     if (-not (Test-Path $Script:SSHConfigPath)) {
         "" | Set-Content -Path $Script:SSHConfigPath -Encoding UTF8 -NoNewline
+    }
+
+    # ─── ~/.qsshrc（已存在则不覆盖） ───
+    $qsshrcPath = Join-Path $Script:UserHome ".qsshrc"
+    if (-not (Test-Path $qsshrcPath)) {
+        $defaultContent = @(
+            "# Quick-SSH 配置文件",
+            "#",
+            "# UploadConcurrency:   拖拽上传的并发数（默认: 3，必须为大于 0 的整数）",
+            "# UploadInNewWindow:   是否在新窗口打开上传窗口（默认: true）",
+            "#",
+            "UploadConcurrency=3",
+            "UploadInNewWindow=true",
+            ""
+        ) -join "`r`n"
+        $defaultContent | Set-Content -Path $qsshrcPath -Encoding UTF8 -NoNewline
+        Write-QSSuccess "✔ 已创建默认配置文件: $qsshrcPath"
     }
 }
 

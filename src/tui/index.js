@@ -103,6 +103,7 @@ let hosts        = [];
 let filteredHosts = [];
 let filterText   = "";
 let currentMode  = MODE.NORMAL;
+const selectedAliases = new Set();
 
 // ============================================================
 // UI 更新函数
@@ -141,6 +142,11 @@ function setMode(mode, inputValue) {
  */
 function refreshList(keepSelection) {
     hosts = loadHosts();
+    const validAliases = new Set(hosts.map(h => h.alias));
+    for (const alias of [...selectedAliases]) {
+        if (!validAliases.has(alias)) selectedAliases.delete(alias);
+    }
+
     filteredHosts = filterText
         ? hosts.filter(h =>
             h.alias.toLowerCase().includes(filterText.toLowerCase()) ||
@@ -158,7 +164,8 @@ function refreshList(keepSelection) {
     listBox.setItems(filteredHosts.map(h => {
         const sta = hostStatus[h.alias] || "unknown";
         const ind = indicators[sta] || indicators.unknown;
-        return `${ind} ${h.alias.padEnd(14)} ${h.user}@${h.host}:${h.port}`;
+        const mark = selectedAliases.has(h.alias) ? "▌" : " ";
+        return `${mark} ${ind} ${h.alias.padEnd(14)} ${h.user}@${h.host}:${h.port}`;
     }));
 
     if (keepSelection && prevIdx < filteredHosts.length) {
@@ -171,7 +178,7 @@ function refreshList(keepSelection) {
 
     updateDetail();
     headerBar.setContent(
-        `{bold} Quick-SSH {/bold}(${filteredHosts.length}/${hosts.length})`
+        `{bold} Quick-SSH {/bold}(${filteredHosts.length}/${hosts.length})  {cyan-fg}已选:${selectedAliases.size}{/cyan-fg}`
     );
     screen.render();
 }
@@ -203,10 +210,11 @@ function updateDetail() {
   {bold}端口:{/bold}     ${h.port}
   {bold}私钥:{/bold}     ${h.key || "(默认)"}
   {bold}状态:{/bold}     ${statusMap[sta]}
+  {bold}已选:{/bold}     ${selectedAliases.has(h.alias) ? "{green-fg}是{/green-fg}" : "否"}
 
   {blue-fg}─────────────────────{/blue-fg}
   {green-fg} Enter → 连接{/green-fg}     {red-fg} d → 删除{/red-fg}
-  {yellow-fg} p → 检测在线{/yellow-fg}
+  {yellow-fg} Space → 选择{/yellow-fg}    {yellow-fg} P → 批量检测{/yellow-fg}
 `);
     screen.render();
 }
@@ -233,12 +241,39 @@ function connectSelected() {
     sshConnect(filteredHosts[idx], screen, startTUI);
 }
 
-function deleteSelected() {
+function getActionHosts() {
+    const selected = filteredHosts.filter(h => selectedAliases.has(h.alias));
+    if (selected.length > 0) return selected;
+
+    const idx = listBox.selected;
+    if (idx < 0 || idx >= filteredHosts.length) return [];
+    return [filteredHosts[idx]];
+}
+
+function toggleCurrentSelection() {
     const idx = listBox.selected;
     if (idx < 0 || idx >= filteredHosts.length) return;
-    const h = filteredHosts[idx];
+
+    const alias = filteredHosts[idx].alias;
+    if (selectedAliases.has(alias)) {
+        selectedAliases.delete(alias);
+        refreshList(true);
+        flashMessage(`已取消选择 '${alias}'`, "yellow");
+    } else {
+        selectedAliases.add(alias);
+        refreshList(true);
+        flashMessage(`已选择 '${alias}'`, "green");
+    }
+}
+
+function deleteSelected() {
+    const targets = getActionHosts();
+    if (targets.length === 0) return;
+
     confirmBox.setContent(
-        `{center}{red-fg}确认删除连接 '${h.alias}'？ (y/n){/red-fg}{/center}`
+        targets.length === 1
+            ? `{center}{red-fg}确认删除连接 '${targets[0].alias}'？ (y/n){/red-fg}{/center}`
+            : `{center}{red-fg}确认删除已选 ${targets.length} 个连接？ (y/n){/red-fg}{/center}`
     );
     setMode(MODE.CONFIRM);
 }
@@ -246,12 +281,18 @@ function deleteSelected() {
 function confirmDelete(confirmed) {
     confirmBox.hide();
     if (confirmed) {
-        const idx = listBox.selected;
-        const h = filteredHosts[idx];
-        hosts = hosts.filter(item => item.alias !== h.alias);
+        const targets = getActionHosts();
+        const targetAliases = new Set(targets.map(h => h.alias));
+        hosts = hosts.filter(item => !targetAliases.has(item.alias));
         saveHosts(hosts);
+        for (const alias of targetAliases) selectedAliases.delete(alias);
         refreshList();
-        flashMessage(`已删除连接 '${h.alias}'`, "green");
+        flashMessage(
+            targets.length === 1
+                ? `已删除连接 '${targets[0].alias}'`
+                : `已删除 ${targets.length} 个连接`,
+            "green"
+        );
     }
     setMode(MODE.NORMAL);
 }
@@ -271,12 +312,16 @@ function checkSelectedHost() {
 }
 
 function checkAllHosts() {
-    const list = filteredHosts.length > 0 ? filteredHosts : hosts;
+    const selected = filteredHosts.filter(h => selectedAliases.has(h.alias));
+    const list = selected.length > 0 ? selected : (filteredHosts.length > 0 ? filteredHosts : hosts);
     if (list.length === 0) {
         flashMessage("没有可检测的服务器", "red");
         return;
     }
-    flashMessage(`正在检测 ${list.length} 台服务器 ...`, "yellow");
+    flashMessage(
+        `正在检测 ${list.length} 台服务器${selected.length > 0 ? "（已选）" : ""} ...`,
+        "yellow"
+    );
     let done = 0;
     for (const h of list) {
         checkHost(h.alias, hosts, hostStatus, () => refreshList(true)).then(() => {
@@ -430,7 +475,7 @@ function startTUI() {
     screen = blessed.screen({
         smartCSR: true,
         title: "Quick-SSH",
-        cursor: { artificial: true, shape: "underline" },
+        cursor: { artificial: true, shape: "block" },
         dockBorders: true,
         fullUnicode: true,
     });
@@ -508,6 +553,7 @@ function startTUI() {
 
 {cyan-fg}━━━━━━━━━ 操作 ━━━━━━━━━{/cyan-fg}
   {green-fg}Enter{/green-fg}        连接选中的服务器
+  {green-fg}Space{/green-fg}        选择/取消当前连接
   {green-fg}d{/green-fg}            删除选中的连接
   {green-fg}a{/green-fg}            添加新连接
   {green-fg}r{/green-fg}            重命名连接
@@ -516,7 +562,7 @@ function startTUI() {
 
 {cyan-fg}━━━━━━━━━ 在线检测 ━━━━━━━━━{/cyan-fg}
   {green-fg}p{/green-fg}            检测选中服务器是否在线
-  {green-fg}P{/green-fg} / {green-fg}C-p{/green-fg}  检测全部服务器
+  {green-fg}P{/green-fg} / {green-fg}C-p{/green-fg}  检测已选服务器 / 全部服务器
 
 {cyan-fg}━━━━━━━━━ 导入导出 ━━━━━━━━━{/cyan-fg}
   {green-fg}e{/green-fg}            导出全部配置
@@ -591,6 +637,10 @@ function startTUI() {
 
     screen.key(["enter"], () => {
         if (currentMode === MODE.NORMAL) connectSelected();
+    });
+
+    screen.key(["space"], () => {
+        if (currentMode === MODE.NORMAL) toggleCurrentSelection();
     });
 
     screen.key(["e"], () => {

@@ -17,6 +17,23 @@ if ! command -v node &>/dev/null; then
     exit 1
 fi
 
+# ─── 确保 ~/.qsshrc 存在（已存在则不覆盖） ───
+QSSHRC="$HOME/.qsshrc"
+if [ -f "$QSSHRC" ]; then
+    echo "✔ 已存在，跳过: $QSSHRC"
+else
+    cat > "$QSSHRC" << 'EOF'
+# Quick-SSH 配置文件
+#
+# UploadConcurrency:   拖拽上传的并发数（默认: 3，必须为大于 0 的整数）
+# UploadInNewWindow:   是否在新窗口打开上传窗口（默认: true）
+#
+UploadConcurrency=3
+UploadInNewWindow=true
+EOF
+    echo "✔ 已创建默认配置文件: $QSSHRC"
+fi
+
 detect_shell_rc() {
     if [ -n "$ZSH_VERSION" ]; then
         echo "$HOME/.zshrc"

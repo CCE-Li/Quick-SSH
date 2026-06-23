@@ -55,7 +55,10 @@ function parsePositiveInt(value, fallback) {
 
 function readQsshConfig() {
     const configPath = path.join(os.homedir(), ".qsshrc");
-    const config = { uploadConcurrency: 3 };
+    const config = {
+        uploadConcurrency: 3,
+        uploadInNewWindow: true,
+    };
 
     try {
         const content = fs.readFileSync(configPath, "utf8");
@@ -72,6 +75,8 @@ function readQsshConfig() {
             const value = line.slice(idx + 1).trim();
             if (key === "uploadconcurrency") {
                 config.uploadConcurrency = parsePositiveInt(value, 3);
+            } else if (key === "uploadinnewwindow") {
+                config.uploadInNewWindow = value.toLowerCase() !== "false";
             }
         }
     } catch {}
@@ -471,16 +476,25 @@ function startInteractiveSession(target, options = {}) {
         }
 
         uploading = true;
-        const opened = await openUploadTerminal(target, files, remotePath);
-        uploading = false;
+        const config = readQsshConfig();
 
-        if (opened) {
-            writeStatus(`\n\x1b[36m[Quick-SSH] 已在新终端中启动上传任务，目标目录: ${remotePath}\x1b[0m\n`);
+        if (config.uploadInNewWindow) {
+            const opened = await openUploadTerminal(target, files, remotePath);
+            uploading = false;
+
+            if (opened) {
+                writeStatus(`\n\x1b[36m[Quick-SSH] 已在新终端中启动上传任务，目标目录: ${remotePath}\x1b[0m\n`);
+                forwardInput(Buffer.from("\n"));
+                return;
+            }
+
+            writeStatus(`\n\x1b[31m[Quick-SSH] 无法打开新的终端窗口，请检查本机终端程序配置。\x1b[0m\n`);
+        } else {
+            // 在当前终端中直接上传（不打开新窗口）
+            uploading = false;
+            writeStatus(`\n\x1b[33m[Quick-SSH] 开始上传到 ${remotePath} ...\x1b[0m\n`);
             forwardInput(Buffer.from("\n"));
-            return;
         }
-
-        writeStatus(`\n\x1b[31m[Quick-SSH] 无法打开新的终端窗口，请检查本机终端程序配置。\x1b[0m\n`);
     }
 
     const detector = createDragDetector(triggerUpload, (text) => forwardInput(Buffer.from(text, "utf8")));
@@ -561,4 +575,5 @@ function startInteractiveSession(target, options = {}) {
 module.exports = {
     getSSHExe,
     startInteractiveSession,
+    readQsshConfig,
 };
