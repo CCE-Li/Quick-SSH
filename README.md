@@ -17,7 +17,7 @@
 | ⌨️ Docker 风格 CLI | `ps`、`add`、`rm` 等子命令，上手即用 |
 | 🏓 Ping 检测 | 列表中实时显示各主机连通状态（在线/离线） |
 | 📤 拖拽上传 | 连接后可直接把本地文件或目录拖进终端，在新终端窗口中显示进度并上传到远端当前目录 |
-| 📦 npm 包管理 | 全局安装/卸载，自动配置 `$PROFILE` / `~/.bashrc` / `~/.zshrc` |
+| 📦 全平台包管理 | **npm** / **yarn** / **Scoop** / **winget** / **apt** / **Pacman(AUR)** 全支持 |
 | 🔄 导入/导出 | JSON 格式批量导入导出主机配置 |
 | ⏹ Tab 自动补全 | 子命令 + 已保存主机别名自动补全 |
 | 🌐 跨平台 | **Windows**（PowerShell 模块）+ **Linux/macOS**（Node.js CLI）双后端 |
@@ -112,7 +112,9 @@ Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 ## 安装
 
-### 方式一：npm 全局安装（推荐）
+Quick-SSH 支持多种包管理器，选择适合你系统的安装方式。
+
+### 📦 npm（推荐，跨平台）
 
 ```bash
 npm install -g quick-ssh
@@ -146,6 +148,74 @@ source ~/.bashrc
 # 或
 source ~/.zshrc
 ```
+
+### 🧶 yarn（跨平台，npm 替代）
+
+如果系统已安装 yarn，也可直接从 npm 注册表安装：
+
+```bash
+yarn global add quick-ssh
+```
+
+> yarn 与 npm 使用同一注册表，`postinstall`/`preuninstall` 生命周期钩子同样生效。
+
+### 🪣 Scoop（Windows）
+
+```powershell
+# 添加 extras bucket（如果尚未添加）
+scoop bucket add extras
+
+# 安装 Quick-SSH
+scoop install quick-ssh
+
+# 注册到 PowerShell $PROFILE
+qssh init
+```
+
+> Scoop 安装后需执行 `qssh init` 注册单次，或重启 PowerShell 终端后手动 `Import-Module`。
+
+### 📟 winget（Windows）
+
+```powershell
+winget install CCE-Li.Quick-SSH
+```
+
+> winget 安装包会自动配置 PowerShell 模块路径，安装完成后重启终端即可使用 `qssh`。
+
+### 🐧 apt（Debian / Ubuntu）
+
+```bash
+# 从 GitHub Releases 下载 .deb 包
+wget https://github.com/CCE-Li/Quick-SSH/releases/latest/download/quick-ssh.deb
+
+# 安装
+sudo apt install ./quick-ssh.deb
+
+# 注册到 Shell 配置文件
+qssh init
+```
+
+> 或添加 APT 仓库（待支持）：
+> ```bash
+> echo "deb https://apt.fury.io/quick-ssh/ /" | sudo tee /etc/apt/sources.list.d/quick-ssh.list
+> curl -fsSL https://apt.fury.io/quick-ssh/gpg.key | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/quick-ssh.gpg
+> sudo apt update
+> sudo apt install quick-ssh
+> ```
+
+### 🏔️ Pacman（Arch Linux / AUR）
+
+```bash
+# 方式一：通过 AUR helper（如 yay）
+yay -S quick-ssh
+
+# 方式二：手动构建
+git clone https://aur.archlinux.org/quick-ssh.git
+cd quick-ssh
+makepkg -si
+```
+
+> AUR 包会在安装后自动注册 qssh 到 Shell 配置文件。
 
 ---
 
@@ -255,19 +325,49 @@ UploadConcurrency=3
 | 📋 一键保存 Log | 记录每次连接的时间戳与操作日志 |
 | 🪟 新窗口打开 | 连接服务器时自动打开新终端窗口 |
 | 🤖 AI 辅助指令 | 自然语言描述操作意图，AI 生成对应命令 |
+| 📦 全平台包覆盖 | 已实现 npm / yarn / Scoop / winget / apt / Pacman(AUR) |
+| 🏪 提交至官方仓库 | Scoop extras bucket、winget-pkgs、AUR、Gemfury APT 仓库 |
 
 ---
 
 ## 卸载
 
+### npm / yarn
+
 ```bash
 npm uninstall -g quick-ssh
+# 或
+yarn global remove quick-ssh
 ```
 
 卸载时：
 - ✅ **Windows**: 自动从 PowerShell `$PROFILE` 中移除 `Import-Module` 配置
 - ✅ **Linux/macOS**: 自动从 `~/.bashrc` / `~/.zshrc` 等文件中移除 `qssh()` 包装函数
 - ✅ **保留** `~/.ssh/config` 用户配置数据（不会在卸载时删除）
+
+### Scoop
+
+```powershell
+scoop uninstall quick-ssh
+```
+
+### winget
+
+```powershell
+winget uninstall CCE-Li.Quick-SSH
+```
+
+### apt
+
+```bash
+sudo apt remove quick-ssh
+```
+
+### Pacman
+
+```bash
+sudo pacman -R quick-ssh
+```
 
 ---
 
@@ -290,6 +390,21 @@ quick-ssh/
 │       ├── modes.js            # 模式常量/标签/提示（易于扩展）
 │       ├── data.js             # 数据层（配置读写，CLI 和 TUI 共用）
 │       └── network.js          # 网络层（SSH 连接 + 在线检测）
+├── packaging/                   # 多包管理器配置文件
+│   ├── scoop/
+│   │   └── quick-ssh.json      # Scoop 清单
+│   ├── winget/
+│   │   ├── CCE-Li.Quick-SSH.yaml
+│   │   ├── CCE-Li.Quick-SSH.installer.yaml
+│   │   └── CCE-Li.Quick-SSH.locale.en-US.yaml
+│   ├── apt/
+│   │   ├── DEBIAN/control      # Debian 包控制文件
+│   │   └── Makefile            # .deb 构建脚本
+│   └── pacman/
+│       └── PKGBUILD            # Arch Linux 构建脚本
+├── .github/
+│   └── workflows/
+│       └── release.yml         # CI/CD：自动发布到 npm + 构建 .deb + GitHub Release
 ├── doc/
 │   ├── FAQ.md                   # 常见问题解答
 │   └── images/                  # 截图展示

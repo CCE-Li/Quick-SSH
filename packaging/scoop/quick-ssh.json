@@ -1,0 +1,47 @@
+{
+  "version": "1.1.0",
+  "description": "🚀 Quick-SSH - 仿 Docker 命令行风格的 SSH 连接管理工具",
+  "homepage": "https://github.com/CCE-Li/Quick-SSH",
+  "license": "MIT",
+  "notes": [
+    "安装后请执行以下命令注册到 PowerShell $PROFILE：",
+    "  qssh init",
+    "",
+    "或重启 PowerShell 终端后手动执行：",
+    "  Import-Module \"$(scoop prefix quick-ssh)\\src\\win\\Quick-SSH.psm1\"",
+    "",
+    "依赖：Node.js (https://nodejs.org)"
+  ],
+  "depends": "nodejs",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/CCE-Li/Quick-SSH/archive/refs/tags/v1.1.0.zip",
+      "hash": ""
+    }
+  },
+  "extract_dir": "Quick-SSH-1.1.0",
+  "bin": [
+    ["node", "qssh", ["src\\unix\\cli.js"]]
+  ],
+  "psmodule": {
+    "name": "Quick-SSH"
+  },
+  "post_install": [
+    "Remove-Item \"$dir\\src\\win\\Quick-SSH.psm1\" -ErrorAction SilentlyContinue",
+    "Copy-Item \"$dir\\src\\win\\Quick-SSH.psm1\" \"$dir\\Quick-SSH.psm1\"",
+    "Write-Host '✔ Quick-SSH 安装完成！' -ForegroundColor Green",
+    "Write-Host '执行 qssh init 注册到 $PROFILE，或手动 Import-Module' -ForegroundColor Yellow"
+  ],
+  "post_uninstall": [
+    "Write-Host '✔ Quick-SSH 已卸载。' -ForegroundColor Green"
+  ],
+  "checkver": "github",
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/CCE-Li/Quick-SSH/archive/refs/tags/v$version.zip"
+      }
+    },
+    "extract_dir": "Quick-SSH-$version"
+  }
+}

@@ -1,0 +1,19 @@
+Package: quick-ssh
+Version: 1.1.0
+Section: net
+Priority: optional
+Architecture: all
+Depends: nodejs (>= 10.0.0), openssh-client
+Maintainer: CCE-Li <cce.li@example.com>
+Description: 🚀 Quick-SSH - Docker-style SSH connection manager
+ Quick-SSH is a cross-platform SSH connection manager with a Docker-like
+ command-line interface and a TUI (Terminal User Interface).
+ .
+ Features:
+  * One-key SSH connect to saved servers
+  * TUI visual interface with vim-like keybindings
+  * Docker-style CLI: ps, add, rm, export, import
+  * Ping status detection (online/offline)
+  * Drag-and-drop file upload via SFTP
+  * Cross-platform: Windows/Linux/macOS
+Homepage: https://github.com/CCE-Li/Quick-SSH

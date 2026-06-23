@@ -1,0 +1,41 @@
+# winget manifest for Quick-SSH
+# https://github.com/microsoft/winget-pkgs
+# Submit to: https://github.com/microsoft/winget-pkgs/tree/master/manifests/c/CCE-Li/Quick-SSH
+
+PackageIdentifier: CCE-Li.Quick-SSH
+PackageVersion: 1.1.0
+PackageLocale: en-US
+Publisher: CCE-Li
+PublisherUrl: https://github.com/CCE-Li
+PublisherSupportUrl: https://github.com/CCE-Li/Quick-SSH/issues
+Author: CCE-Li
+PackageName: Quick-SSH
+PackageUrl: https://github.com/CCE-Li/Quick-SSH
+License: MIT
+LicenseUrl: https://github.com/CCE-Li/Quick-SSH/blob/main/LICENSE
+ShortDescription: 🚀 Quick-SSH - Docker-style SSH connection manager with TUI
+Description: Quick-SSH is a cross-platform SSH connection manager with a Docker-like command-line interface and a TUI (Terminal User Interface). Supports Windows, Linux and macOS.
+Tags:
+  - ssh
+  - connection-manager
+  - powershell
+  - terminal
+  - tui
+  - quick-ssh
+  - qssh
+Installers:
+  - Architecture: x64
+    InstallerType: zip
+    InstallerUrl: https://github.com/CCE-Li/Quick-SSH/archive/refs/tags/v1.1.0.zip
+    InstallerSha256: ""
+    NestedInstallerType: portable
+    NestedInstallerFiles:
+      - RelativeFilePath: Quick-SSH-1.1.0/src/win/Quick-SSH.psm1
+        PortableCommandAlias: qssh
+    Commands:
+      - qssh
+    Dependencies:
+      PackageDependencies:
+        - PackageIdentifier: OpenJS.NodeJS
+ManifestType: installer
+ManifestVersion: 1.6.0

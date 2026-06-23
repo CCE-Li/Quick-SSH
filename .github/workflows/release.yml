@@ -1,0 +1,94 @@
+# GitHub Actions: 自动构建并发布 Quick-SSH 到多个包管理器
+# 触发方式: 推送 tag v* (如 v1.1.0)
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  # ─── 1. npm 发布 ────────────────────────────────────────
+  npm-publish:
+    name: 📦 Publish to npm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+      - run: npm ci
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ─── 2. 构建 .deb 包 (apt) ──────────────────────────────
+  deb-build:
+    name: 📦 Build .deb package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build .deb
+        run: |
+          cd packaging/apt
+          make deb
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: quick-ssh-deb
+          path: packaging/apt/build/*.deb
+
+  # ─── 3. 创建 GitHub Release ─────────────────────────────
+  github-release:
+    name: 🚀 Create GitHub Release
+    needs: [npm-publish, deb-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Generate release notes
+        id: changelog
+        run: |
+          echo "## Quick-SSH ${{ github.ref_name }}" > release-notes.md
+          echo "" >> release-notes.md
+          echo "### 安装方式" >> release-notes.md
+          echo "" >> release-notes.md
+          echo "**npm (推荐):**" >> release-notes.md
+          echo '```bash' >> release-notes.md
+          echo "npm install -g quick-ssh" >> release-notes.md
+          echo '```' >> release-notes.md
+          echo "" >> release-notes.md
+          echo "**Scoop (Windows):**" >> release-notes.md
+          echo '```powershell' >> release-notes.md
+          echo 'scoop bucket add extras' >> release-notes.md
+          echo 'scoop install quick-ssh' >> release-notes.md
+          echo '```' >> release-notes.md
+          echo "" >> release-notes.md
+          echo "**winget (Windows):**" >> release-notes.md
+          echo '```powershell' >> release-notes.md
+          echo 'winget install CCE-Li.Quick-SSH' >> release-notes.md
+          echo '```' >> release-notes.md
+          echo "" >> release-notes.md
+          echo "**apt (Debian/Ubuntu):**" >> release-notes.md
+          echo '```bash' >> release-notes.md
+          echo 'sudo apt install ./quick-ssh_*.deb' >> release-notes.md
+          echo '```' >> release-notes.md
+          echo "" >> release-notes.md
+          echo "**Pacman/AUR (Arch Linux):**" >> release-notes.md
+          echo '```bash' >> release-notes.md
+          echo 'yay -S quick-ssh' >> release-notes.md
+          echo '```' >> release-notes.md
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          files: |
+            *.deb

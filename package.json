@@ -8,7 +8,11 @@
     "quick-ssh",
     "qssh",
     "connection-manager",
-    "windows"
+    "windows",
+    "scoop",
+    "winget",
+    "apt",
+    "pacman"
   ],
   "homepage": "https://github.com/CCE-Li/quick-ssh#readme",
   "bugs": {
@@ -40,6 +44,9 @@
     "darwin"
   ],
   "private": false,
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
   "dependencies": {
     "blessed": "^0.1.81",
     "ssh2": "^1.17.0"
