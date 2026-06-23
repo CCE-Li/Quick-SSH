@@ -37,15 +37,15 @@ const SEA_BLOB    = ".sea-prep.blob";
 
 const PLATFORM_CONFIG = {
     win32:  {
-        output:  "qssh.exe",
+        output:  path.join("bin", "qssh-win.exe"),
         nodeExe: process.execPath,        // 使用当前 node.exe
     },
     linux:  {
-        output:  "qssh",
+        output:  path.join("bin", "qssh-linux"),
         nodeExe: process.execPath,        // 交叉构建时需要替换
     },
     darwin: {
-        output:  "qssh",
+        output:  path.join("bin", "qssh-darwin"),
         nodeExe: process.execPath,
     },
 };
@@ -194,6 +194,12 @@ function injectBlob(platform) {
     if (!fs.existsSync(nodeExe)) {
         error(`Node.js 二进制文件不存在: ${nodeExe}`);
         process.exit(1);
+    }
+
+    // 确保输出目录存在
+    const outDir = path.dirname(outPath);
+    if (!fs.existsSync(outDir)) {
+        fs.mkdirSync(outDir, { recursive: true });
     }
 
     // 复制 Node.js 二进制文件

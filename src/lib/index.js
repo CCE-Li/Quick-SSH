@@ -82,15 +82,25 @@ function getHomeDir() {
  */
 function getBinaryInfo() {
     const osType = detectOS();
-    const binName = osType === "windows" ? "qssh.exe" : "qssh";
+
+    // 平台区分二进制名称（与 build.js PLATFORM_CONFIG 一致）
+    const platformMap = {
+        windows: "qssh-win.exe",
+        linux:   "qssh-linux",
+        macos:   "qssh-darwin",
+    };
+    const binName = platformMap[osType] || "qssh";
 
     // 候选路径列表
     const candidates = [];
 
-    // 1) 本地源码 dist/ 目录
+    // 1) dist/bin/（发布包的二进制目录，优先）
+    candidates.push(path.join(__dirname, "..", "..", "dist", "bin"));
+
+    // 2) 本地源码 dist/ 目录（旧版兼容）
     candidates.push(path.join(__dirname, "..", "..", "dist"));
 
-    // 2) 全局 node_modules 下
+    // 3) 全局 node_modules 下
     const npmPrefix = process.env.NPM_CONFIG_PREFIX
         || (osType === "windows"
             ? path.join(process.env.APPDATA || "", "npm")

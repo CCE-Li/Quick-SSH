@@ -1,7 +1,7 @@
 {
   "name": "quick-ssh",
   "version": "1.1.0",
-  "description": "🚀 Quick-SSH - 仿 Docker 命令行风格的 SSH 连接管理工具（二进制版本）",
+  "description": "🚀 Quick-SSH - 仿 Docker 命令行风格的 SSH 连接管理工具（原生二进制版本，无需 Node.js）",
   "keywords": [
     "ssh",
     "powershell",
@@ -21,7 +21,7 @@
   "license": "MIT",
   "author": "CCE-Li",
   "bin": {
-    "qssh": "dist/qssh.exe"
+    "qssh": "scripts/qssh.js"
   },
   "repository": {
     "type": "git",
@@ -35,15 +35,14 @@
     "build:win": "node scripts/build.js --platform win32",
     "build:linux": "node scripts/build.js --platform linux",
     "build:mac": "node scripts/build.js --platform darwin",
-    "prepublishOnly": "node scripts/build.js --platform win32"
+    "prepublishOnly": "node scripts/build.js --all",
+    "pack:dry": "npm pack --dry-run"
   },
   "files": [
-    "dist/",
-    "src/win/",
-    "src/unix/",
-    "src/tui/",
+    "dist/bin/",
+    "dist/usr/",
     "src/lib/",
-    "scripts/"
+    "scripts/qssh.js"
   ],
   "engines": {
     "node": ">=18.0.0"
@@ -57,13 +56,10 @@
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
-  "dependencies": {
-    "blessed": "^0.1.81",
-    "ssh2": "^1.17.0"
-  },
   "devDependencies": {
     "@vercel/ncc": "^0.44.0",
-    "esbuild": "^0.28.1",
-    "postject": "^1.0.0-alpha.6"
+    "blessed": "^0.1.81",
+    "postject": "^1.0.0-alpha.6",
+    "ssh2": "^1.17.0"
   }
 }
