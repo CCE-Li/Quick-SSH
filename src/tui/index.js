@@ -476,7 +476,7 @@ function startTUI() {
         smartCSR: true,
         title: "Quick-SSH",
         cursor: { artificial: true, shape: "block" },
-        dockBorders: false,
+        dockBorders: true,
         fullUnicode: true,
     });
 

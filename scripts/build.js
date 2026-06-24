@@ -236,6 +236,13 @@ function injectBlob(platform) {
         } catch {
             warn("签名移除失败（可能无签名），继续...");
         }
+    } else {
+        // Linux/macOS: 确保可执行权限
+        try {
+            fs.chmodSync(outPath, 0o755);
+        } catch (e) {
+            warn(`设置执行权限失败: ${e.message}`);
+        }
     }
 
     // 注入 blob
@@ -266,7 +273,11 @@ function injectBlob(platform) {
  */
 function ensureUpx() {
     const toolsDir = path.join(__dirname, "tools");
-    const upxPath = path.join(toolsDir, "upx.exe");
+
+    // 根据平台选择 UPX 二进制名称和下载包
+    const isWin = process.platform === "win32";
+    const upxName = isWin ? "upx.exe" : "upx";
+    const upxPath = path.join(toolsDir, upxName);
 
     if (fs.existsSync(upxPath)) {
         return upxPath;
@@ -277,30 +288,57 @@ function ensureUpx() {
         fs.mkdirSync(toolsDir, { recursive: true });
     }
 
-    const zipUrl = "https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-win64.zip";
-    const zipPath = path.join(toolsDir, "upx.zip");
+    // UPX 发布包命名规则：upx-{version}-{arch}{suffix}.{ext}
+    const upxVersion = "5.0.0";
+    const platformMap = {
+        win32:  { pkg: `upx-${upxVersion}-win64.zip`,               extract: "powershell" },
+        linux:  { pkg: `upx-${upxVersion}-linux_amd64.tar.xz`,       extract: "tar" },
+        darwin: { pkg: `upx-${upxVersion}-macos_arm64.tar.xz`,       extract: "tar" },
+    };
+    const info = platformMap[process.platform];
+    if (!info) {
+        warn(`当前平台 ${process.platform} 不支持 UPX 自动下载，跳过压缩`);
+        return null;
+    }
+
+    const pkgUrl = `https://github.com/upx/upx/releases/download/v${upxVersion}/${info.pkg}`;
+    const pkgPath = path.join(toolsDir, info.pkg);
 
     try {
-        execSync(
-            `powershell -Command "& {Invoke-WebRequest -Uri '${zipUrl}' -OutFile '${zipPath}'}"`,
-            { stdio: "pipe", timeout: 60000 }
-        );
-        execSync(
-            `powershell -Command "& {Expand-Archive -Path '${zipPath}' -DestinationPath '${toolsDir}' -Force}"`,
-            { stdio: "pipe", timeout: 30000 }
-        );
-        // upx.exe is inside a subfolder after extraction
+        if (process.platform === "win32") {
+            execSync(
+                `powershell -Command "& {Invoke-WebRequest -Uri '${pkgUrl}' -OutFile '${pkgPath}'}"`,
+                { stdio: "pipe", timeout: 60000 }
+            );
+            execSync(
+                `powershell -Command "& {Expand-Archive -Path '${pkgPath}' -DestinationPath '${toolsDir}' -Force}"`,
+                { stdio: "pipe", timeout: 30000 }
+            );
+        } else {
+            execSync(`curl -sL "${pkgUrl}" -o "${pkgPath}"`, {
+                stdio: "pipe", timeout: 60000
+            });
+            // tar.xz: extract into subfolder
+            execSync(
+                `tar -xJf "${pkgPath}" -C "${toolsDir}" --strip-components=1 "*/${upxName}"`,
+                { stdio: "pipe", timeout: 30000 }
+            );
+        }
+
+        // upx binary is in a subfolder after extraction
         const extractedDirs = fs.readdirSync(toolsDir).filter(d =>
             d.startsWith("upx-") && fs.statSync(path.join(toolsDir, d)).isDirectory()
         );
         if (extractedDirs.length > 0) {
-            const exeSrc = path.join(toolsDir, extractedDirs[0], "upx.exe");
-            if (fs.existsSync(exeSrc)) {
-                fs.copyFileSync(exeSrc, upxPath);
+            const srcPath = path.join(toolsDir, extractedDirs[0], upxName);
+            if (fs.existsSync(srcPath)) {
+                fs.copyFileSync(srcPath, upxPath);
+                if (!isWin) fs.chmodSync(upxPath, 0o755);
             }
         }
+
         // cleanup
-        if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+        if (fs.existsSync(pkgPath)) fs.unlinkSync(pkgPath);
         extractedDirs.forEach(d => {
             const dirPath = path.join(toolsDir, d);
             if (fs.existsSync(dirPath)) {
@@ -309,7 +347,7 @@ function ensureUpx() {
         });
 
         if (fs.existsSync(upxPath)) {
-            ok("UPX 下载完成");
+            ok(`UPX 下载完成: ${upxPath}`);
             return upxPath;
         }
     } catch (e) {
