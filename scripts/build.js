@@ -295,14 +295,14 @@ function ensureUpx() {
         linux:  { pkg: `upx-${upxVersion}-linux_amd64.tar.xz`,       extract: "tar" },
         darwin: { pkg: `upx-${upxVersion}-macos_arm64.tar.xz`,       extract: "tar" },
     };
-    const info = platformMap[process.platform];
-    if (!info) {
+    const platformInfo = platformMap[process.platform];
+    if (!platformInfo) {
         warn(`当前平台 ${process.platform} 不支持 UPX 自动下载，跳过压缩`);
         return null;
     }
 
-    const pkgUrl = `https://github.com/upx/upx/releases/download/v${upxVersion}/${info.pkg}`;
-    const pkgPath = path.join(toolsDir, info.pkg);
+    const pkgUrl = `https://github.com/upx/upx/releases/download/v${upxVersion}/${platformInfo.pkg}`;
+    const pkgPath = path.join(toolsDir, platformInfo.pkg);
 
     try {
         if (process.platform === "win32") {
