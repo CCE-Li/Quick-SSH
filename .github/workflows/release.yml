@@ -42,7 +42,7 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Build binary
         run: node scripts/build.js --platform ${{ matrix.platform }}
