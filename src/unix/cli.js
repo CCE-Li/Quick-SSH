@@ -212,16 +212,10 @@ function launchTUI() {
     if (IS_BINARY) {
         // SEA 二进制模式 → 直接加载 TUI（所有文件已打包在二进制中）
         //
-        // 修复 terminfo 路径：ncc 打包后 blessed/tput.js 中的 __dirname
-        // 被编译为构建时的绝对路径（如 D:\...\node_modules\blessed\lib），
-        // 导致 SEA 二进制在运行时找不到 terminfo 文件。
-        // 通过设置 TERMINFO 环境变量指向 dist/usr/ 目录来解决。
-        const usrDir = path.resolve(
-            path.dirname(process.execPath), "..", "usr"
-        );
-        if (fs.existsSync(usrDir)) {
-            process.env.TERMINFO = usrDir;
-        }
+        // 注意: 不再通过 TERMINFO 环境变量指向 bundled terminfo，
+        // 因为 blessed 在二进制模式下会使用内置的 terminfo 兜底逻辑，
+        // 且系统 terminfo 通常比 bundled 版本更完整。
+        // 设置 TERMINFO 可能导致终端能力检测异常（如左边框定位错误）。
         try {
             require("../tui/index");
         } catch (err) {
