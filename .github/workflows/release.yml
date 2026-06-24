@@ -1,5 +1,5 @@
-# GitHub Actions: 自动构建并发布 Quick-SSH 到多个包管理器
-# 触发方式: 推送 tag v* (如 v1.1.0)
+# GitHub Actions: build native binaries and publish Quick-SSH
+# Trigger: push a tag like v1.1.0
 
 name: Release
 
@@ -12,83 +12,205 @@ permissions:
   contents: write
 
 jobs:
-  # ─── 1. npm 发布 ────────────────────────────────────────
-  npm-publish:
-    name: 📦 Publish to npm
-    runs-on: ubuntu-latest
+  build-binaries:
+    name: Build binary (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: win-x64
+            runner: windows-latest
+            platform: win32
+            artifact: qssh-win
+            binary: qssh-win.exe
+          - target: linux-x64
+            runner: ubuntu-latest
+            platform: linux
+            artifact: qssh-linux
+            binary: qssh-linux
+          - target: macos-x64
+            runner: macos-15-intel
+            platform: darwin
+            artifact: qssh-darwin
+            binary: qssh-darwin
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: "https://registry.npmjs.org"
-      - run: npm ci
-      - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  # ─── 2. 构建 .deb 包 (apt) ──────────────────────────────
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build binary
+        run: node scripts/build.js --platform ${{ matrix.platform }}
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/bin/${{ matrix.binary }}
+          if-no-files-found: error
+
+      - name: Upload runtime assets
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-assets
+          path: dist/usr/**
+          if-no-files-found: error
+
   deb-build:
-    name: 📦 Build .deb package
+    name: Build .deb package
+    needs: build-binaries
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download Linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: qssh-linux
+          path: packaging/apt/
+
       - name: Build .deb
         run: |
+          mv packaging/apt/qssh-linux packaging/apt/qssh-linux-x64
+          chmod +x packaging/apt/qssh-linux-x64
           cd packaging/apt
           make deb
+
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v4
         with:
           name: quick-ssh-deb
           path: packaging/apt/build/*.deb
+          if-no-files-found: error
 
-  # ─── 3. 创建 GitHub Release ─────────────────────────────
-  github-release:
-    name: 🚀 Create GitHub Release
-    needs: [npm-publish, deb-build]
+  npm-publish:
+    name: Publish to npm
+    needs: build-binaries
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Download artifacts
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Download npm package binaries
         uses: actions/download-artifact@v4
         with:
+          pattern: qssh-*
+          path: dist/bin
           merge-multiple: true
-      - name: Generate release notes
-        id: changelog
+
+      - name: Download npm package runtime assets
+        uses: actions/download-artifact@v4
+        with:
+          name: runtime-assets
+          path: dist/usr
+
+      - name: Verify npm package binaries
         run: |
-          echo "## Quick-SSH ${{ github.ref_name }}" > release-notes.md
+          chmod +x dist/bin/qssh-linux dist/bin/qssh-darwin
+          node scripts/verify-package-binaries.js
+
+      - name: Publish npm package
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  github-release:
+    name: Create GitHub Release
+    needs: [build-binaries, deb-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts/all
+          merge-multiple: true
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-artifacts/assets
+          cp release-artifacts/all/qssh-win.exe release-artifacts/assets/qssh-win-x64.exe
+          cp release-artifacts/all/qssh-linux release-artifacts/assets/qssh-linux-x64
+          cp release-artifacts/all/qssh-darwin release-artifacts/assets/qssh-macos-x64
+          chmod +x release-artifacts/assets/qssh-linux-x64 release-artifacts/assets/qssh-macos-x64
+          for deb in release-artifacts/all/*.deb; do
+            cp "$deb" release-artifacts/assets/
+          done
+
+      - name: Generate release notes
+        run: |
+          cat > release-notes.md << 'EORELEASE'
+          ## Quick-SSH ${{ github.ref_name }}
+
+          ### Native binary release
+
+          This release provides native binaries that can run without a local Node.js runtime.
+
+          ### Installation
+
+          **Direct binary download:**
+
+          | Platform | Download |
+          |------|------|
+          | Windows | `qssh-win-x64.exe` |
+          | Linux | `qssh-linux-x64` |
+          | macOS | `qssh-macos-x64` |
+
+          After downloading, put the file in a PATH directory and rename it to `qssh` if needed.
+
+          **Scoop (Windows):**
+          ```powershell
+          scoop bucket add extras
+          scoop install quick-ssh
+          ```
+
+          **winget (Windows):**
+          ```powershell
+          winget install CCE-Li.Quick-SSH
+          ```
+
+          **apt (Debian/Ubuntu):**
+          ```bash
+          sudo apt install ./quick-ssh_*.deb
+          ```
+
+          **Pacman/AUR (Arch Linux):**
+          ```bash
+          yay -S quick-ssh
+          ```
+
+          **npm:**
+          ```bash
+          npm install -g quick-ssh
+          ```
+          EORELEASE
+
           echo "" >> release-notes.md
-          echo "### 安装方式" >> release-notes.md
+          echo "### Quick usage" >> release-notes.md
           echo "" >> release-notes.md
-          echo "**npm (推荐):**" >> release-notes.md
           echo '```bash' >> release-notes.md
-          echo "npm install -g quick-ssh" >> release-notes.md
+          echo 'qssh                              # Start TUI' >> release-notes.md
+          echo 'qssh add my-server root@192.168.1.100:22' >> release-notes.md
+          echo 'qssh my-server                    # Connect' >> release-notes.md
+          echo 'qssh ps                           # List connections' >> release-notes.md
           echo '```' >> release-notes.md
-          echo "" >> release-notes.md
-          echo "**Scoop (Windows):**" >> release-notes.md
-          echo '```powershell' >> release-notes.md
-          echo 'scoop bucket add extras' >> release-notes.md
-          echo 'scoop install quick-ssh' >> release-notes.md
-          echo '```' >> release-notes.md
-          echo "" >> release-notes.md
-          echo "**winget (Windows):**" >> release-notes.md
-          echo '```powershell' >> release-notes.md
-          echo 'winget install CCE-Li.Quick-SSH' >> release-notes.md
-          echo '```' >> release-notes.md
-          echo "" >> release-notes.md
-          echo "**apt (Debian/Ubuntu):**" >> release-notes.md
-          echo '```bash' >> release-notes.md
-          echo 'sudo apt install ./quick-ssh_*.deb' >> release-notes.md
-          echo '```' >> release-notes.md
-          echo "" >> release-notes.md
-          echo "**Pacman/AUR (Arch Linux):**" >> release-notes.md
-          echo '```bash' >> release-notes.md
-          echo 'yay -S quick-ssh' >> release-notes.md
-          echo '```' >> release-notes.md
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           body_path: release-notes.md
-          files: |
-            *.deb
+          files: release-artifacts/assets/*

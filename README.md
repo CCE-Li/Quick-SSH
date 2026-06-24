@@ -2,7 +2,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
-![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B%20%7C%20pwsh-blue)
+![Binary](https://img.shields.io/badge/Binary-%E2%9C%93-orange)
 
 > 💡 **遇到问题？** 请查阅 [常见问题 (FAQ)](doc/FAQ.md)，其中收录了密钥权限、终端恢复、编码错误等常见问题的解决方案。
 
@@ -17,10 +17,11 @@
 | ⌨️ Docker 风格 CLI | `ps`、`add`、`rm` 等子命令，上手即用 |
 | 🏓 Ping 检测 | 列表中实时显示各主机连通状态（在线/离线） |
 | 📤 拖拽上传 | 连接后可直接把本地文件或目录拖进终端，在新终端窗口中显示进度并上传到远端当前目录 |
-| 📦 全平台包管理 | **npm** / **yarn** / **Scoop** / **winget** / **apt** / **Pacman(AUR)** 全支持 |
+| 📦 原生二进制 | **预编译可执行文件**，无需 Node.js 运行时，即下即用 |
+| 🎯 全平台包管理 | **npm** / **yarn** / **Scoop** / **winget** / **apt** / **Pacman(AUR)** 全支持 |
 | 🔄 导入/导出 | JSON 格式批量导入导出主机配置 |
 | ⏹ Tab 自动补全 | 子命令 + 已保存主机别名自动补全 |
-| 🌐 跨平台 | **Windows**（PowerShell 模块）+ **Linux/macOS**（Node.js CLI）双后端 |
+| 🌐 跨平台 | **Windows / Linux / macOS** 统一二进制，无需运行时依赖 |
 
 ---
 
@@ -30,157 +31,126 @@ Quick-SSH 支持 **Windows / Linux / macOS** 三大主流操作系统。
 
 ### 架构概览
 
-Quick-SSH 根据操作系统选择不同的后端：
+Quick-SSH 使用 **pkg** 将 Node.js 源码编译为 **原生二进制可执行文件**，直接运行，无需解释器。
 
 ```
-                        npm install -g quick-ssh
-                                │
-                                ▼
-                         detectOS()
-                        ┌────┴────┐
-                        │         │
-                     Windows    Linux / macOS
-                        │         │
-                        ▼         ▼
-                  PowerShell    Node.js CLI
-                  模块 (.psm1)   (src/unix/cli.js)
-                        │         │
-                        ▼         ▼
-                  PowerShell    ~/.bashrc
-                  $PROFILE      ~/.zshrc
-                  (Import-      (qssh() 函数
-                   Module)      调用 node)
-
-  Windows 运行时:  PowerShell → Import-Module → qssh 命令
-  Linux 运行时:    bash/zsh → qssh() → node src/unix/cli.js → ssh
+                        快速开始:
+                        ┌─────────────────┐
+                        │  下载二进制文件    │
+                        │  放入 PATH 目录   │
+                        └────────┬────────┘
+                                 │
+                        ┌────────▼────────┐
+                        │  qssh 命令       │
+                        │  (原生二进制)      │
+                        └────────┬────────┘
+                                 │
+                    ┌────────────┼────────────┐
+                    ▼            ▼            ▼
+               Windows       Linux        macOS
+               qssh.exe    qssh          qssh
+                    │            │            │
+                    ▼            ▼            ▼
+               ~/.ssh/config (跨平台统一数据存储)
+                    │            │            │
+                    ▼            ▼            ▼
+                SSH / SFTP 连接管理
 ```
 
-### 系统检测与配置注入
+> 💡 **不再需要 Node.js 运行时**：二进制文件内嵌了 Node.js 运行时和应用代码，`qssh` 直接执行，启动更快、分发更简单。
 
-| 操作系统 | 检测机制 | 配置文件 | 注入内容 | 运行时后端 |
-|----------|----------|----------|----------|------------|
-| **Windows** | `process.platform === "win32"` | PowerShell `$PROFILE` (PS7 / WinPS 5.1) | `Import-Module` 语句 | PowerShell 模块 ([`src/win/Quick-SSH.psm1`](src/win/Quick-SSH.psm1)) |
-| **Linux** | `process.platform === "linux"` | `~/.bashrc` / `~/.zshrc` / `~/.profile` (自动检测 `$SHELL`) | `qssh()` → `node src/unix/cli.js "$@"` | Node.js CLI ([`src/unix/cli.js`](src/unix/cli.js)) |
-| **macOS** | `process.platform === "darwin"` | `~/.zshrc` / `~/.bashrc` (自动检测 `$SHELL`) | `qssh()` → `node src/unix/cli.js "$@"` | Node.js CLI ([`src/unix/cli.js`](src/unix/cli.js)) |
+> 💡 **旧版兼容**：如果您更偏好通过 npm 安装源码版本，仍可使用 `npm install -g quick-ssh`。
 
-> **Linux/macOS 无 PowerShell 依赖**：`qssh` 命令通过 `node src/unix/cli.js` 直接运行，不需要安装 PowerShell Core。所有功能（添加/删除/列出/连接/导入/导出/TUI）均由 Node.js 原生实现。
->
-> **💡 WSL 用户注意**：在 WSL 中，Quick-SSH 使用 **Node.js CLI 后端**（与原生 Linux 相同），而不是 Windows PowerShell 后端。请确保 WSL 中已安装 `node` 和 `npm`。如果你的 `~/.ssh/config` 是从 Windows 侧共享的（如通过 `/mnt/c/` 挂载的符号链接），密钥路径中的反斜线会被 Quick-SSH 自动归一化为正斜线。
+### 安装方式与配置注入
+
+| 安装方式 | 平台 | 运行时 | 配置文件注入 |
+|----------|------|--------|-------------|
+| **二进制发布包** | Win/Linux/macOS | 原生可执行文件（内嵌 Node.js） | 自动将二进制路径添加到 `PATH` 环境变量 |
+| **npm 全局安装** | Win/Linux/macOS | 需要 Node.js 运行时 | `postinstall` 自动将 `dist/` 目录添加到 PATH |
+| **Scoop / winget** | Windows | 原生 `qssh.exe` | Scoop/winget 自动处理 PATH |
+| **apt / Pacman** | Linux | 原生 `qssh` | 安装到 `/usr/bin/`，自动在 PATH 中 |
+
+> **二进制版本**：通过 [`@yao-pkg/pkg`](https://github.com/yao-pkg/pkg) 将 Node.js 源码 + 运行时编译为单文件可执行程序，启动速度更快，分发更简单。
 
 ### 核心模块
 
 | 文件 | 作用 |
 |------|------|
-| [`src/lib/index.js`](src/lib/index.js) | `detectOS()` → Windows(注入 `$PROFILE`) / Linux/macOS(注入 `~/.bashrc`/`~/.zshrc`) |
-| [`src/win/Quick-SSH.psm1`](src/win/Quick-SSH.psm1) | **Windows 后端** — PowerShell 模块，实现所有 `qssh` 命令 |
-| [`src/unix/cli.js`](src/unix/cli.js) | **Linux/macOS 后端** — Node.js CLI，实现所有 `qssh` 命令（复用 `data.js` 数据层） |
+| [`scripts/build.js`](scripts/build.js) | **构建脚本** — 使用 `pkg` 将 Node.js 源码编译为原生二进制 |
+| [`src/unix/cli.js`](src/unix/cli.js) | **统一 CLI 入口** — 所有平台共用，编译为二进制后直接执行 |
+| [`src/lib/index.js`](src/lib/index.js) | **安装/卸载钩子** — 将二进制路径添加到 `PATH` 环境变量 |
 | [`src/tui/data.js`](src/tui/data.js) | 共享数据层 — 读写 `~/.ssh/config`，路径归一化跨平台兼容 |
 | [`src/tui/network.js`](src/tui/network.js) | `getSSHExe()` → `ssh.exe` (Windows) / `ssh` (Linux/macOS) |
 | [`src/tui/index.js`](src/tui/index.js) | TUI 界面 — blessed 终端 UI，跨平台按键绑定 |
+| [`src/tui/modes.js`](src/tui/modes.js) | 模式常量/标签/提示 |
+| [`src/lib/session.js`](src/lib/session.js) | SSH 会话代理（拖拽检测 + scp 上传） |
+| [`src/lib/upload_runner.js`](src/lib/upload_runner.js) | 独立上传窗口脚本（scp 进度 + 结果汇总） |
 
 
 ---
 
-## 安装前注意 ⚠️
+## 安装前准备 ⚠️
 
-1. Quick-SSH 依赖 PowerShell 执行策略运行脚本。安装前请先检查：
-
-```powershell
-Get-ExecutionPolicy
-```
-
-| 返回值 | 说明 | 操作 |
-|--------|------|------|
-| `RemoteSigned` 或 `Unrestricted` | ✅ 正常 | 直接安装即可 |
-| `Restricted` | ❌ 无法运行脚本 | 需以管理员身份修改执行策略 |
-
-**如果当前为 `Restricted`，请以管理员身份打开 PowerShell 并执行：**
-
-```powershell
-Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-
-> 选择 `RemoteSigned` 表示仅信任来自互联网的脚本需要签名，本地脚本可直接运行，兼顾安全性与便利性。
->
-> 如果希望更宽松（不推荐），可设为 `Unrestricted`。
-
-修改完成后执行 `Get-ExecutionPolicy` 确认已生效，即可继续安装。
-
-2. `.ssh/`文件夹的权限记得开够
+1. **确保已安装 SSH 客户端**（Windows 10+ / Linux / macOS 通常自带）
+2. **确保 `~/.ssh/` 目录权限正确**（Linux/macOS: `chmod 700 ~/.ssh`）
+3. **Windows 二进制版本无需 PowerShell 执行策略修改**
 
 ---
 
 ## 安装
 
-Quick-SSH 支持多种包管理器，选择适合你系统的安装方式。
+Quick-SSH 提供 **原生二进制** 和 **npm 源码** 两种安装方式。
 
-### 📦 npm（推荐，跨平台）
+### 🏆 方式一：直接下载二进制（推荐，无需 Node.js）
+
+从 [GitHub Releases](https://github.com/CCE-Li/Quick-SSH/releases) 下载对应平台的二进制文件：
+
+| 平台 | 文件名 | 操作 |
+|------|--------|------|
+| **Windows** | `qssh-win-x64.exe` | 放入 PATH 目录（如 `C:\Windows\System32\`）或任意位置后加到 PATH |
+| **Linux** | `qssh-linux-x64` | `chmod +x qssh-linux-x64 && sudo mv qssh-linux-x64 /usr/local/bin/qssh` |
+| **macOS** | `qssh-macos-x64` | `chmod +x qssh-macos-x64 && sudo mv qssh-macos-x64 /usr/local/bin/qssh` |
+
+下载完成并放入 PATH 后，打开新终端即可使用 `qssh` 命令。
+
+```bash
+qssh  # 启动 TUI 界面
+```
+
+> 无需安装 Node.js、Python 或任何运行时。单个文件，即下即用。
+
+### 📦 方式二：npm 全局安装（需要 Node.js）
 
 ```bash
 npm install -g quick-ssh
 ```
 
-安装脚本会自动检测你的操作系统并写入对应的配置文件：
+安装后会自动将二进制所在目录添加到 PATH，重启终端即可使用。
 
-| 操作系统 | 配置文件 | 注册方式 | 运行时后端 |
-|----------|----------|----------|------------|
-| **Windows** | PowerShell `$PROFILE` | `Import-Module` | PowerShell 模块 |
-| **Linux** | `~/.bashrc` / `~/.zshrc` | `qssh()` 函数包装 | Node.js CLI |
-| **macOS** | `~/.zshrc` / `~/.bashrc` | `qssh()` 函数包装 | Node.js CLI |
+> npm 包中同时包含了源码和预编译二进制，`postinstall` 脚本自动执行 PATH 注册。
 
-安装完成后：
-
-- **Windows** → **重启 PowerShell 终端**，即可使用 `qssh` 命令
-- **Linux/macOS** → 执行 `source ~/.bashrc`（或 `source ~/.zshrc`），即可使用 `qssh` 命令
-
-> **对 Linux/macOS 用户**：Quick-SSH **不依赖 PowerShell**，所有功能通过 Node.js 原生实现。只需要系统已安装 `node`、`npm` 和 `ssh` 客户端即可。
-
-如果希望在当前会话中立即加载（免重启）：
-
-**Windows PowerShell：**
-```powershell
-& (Get-Content $PROFILE -Raw) | Invoke-Expression
-```
-
-**Linux/macOS bash/zsh：**
-```bash
-source ~/.bashrc
-# 或
-source ~/.zshrc
-```
-
-### 🧶 yarn（跨平台，npm 替代）
-
-如果系统已安装 yarn，也可直接从 npm 注册表安装：
+### 🧶 yarn
 
 ```bash
 yarn global add quick-ssh
 ```
 
-> yarn 与 npm 使用同一注册表，`postinstall`/`preuninstall` 生命周期钩子同样生效。
-
-### 🪣 Scoop（Windows）
+### 🪣 Scoop（Windows，原生二进制）
 
 ```powershell
-# 添加 extras bucket（如果尚未添加）
 scoop bucket add extras
-
-# 安装 Quick-SSH
 scoop install quick-ssh
-
-# 注册到 PowerShell $PROFILE
-qssh init
 ```
 
-> Scoop 安装后需执行 `qssh init` 注册单次，或重启 PowerShell 终端后手动 `Import-Module`。
+> Scoop 安装的是预编译的 `qssh.exe`，无需 Node.js。
 
-### 📟 winget（Windows）
+### 📟 winget（Windows，原生二进制）
 
 ```powershell
 winget install CCE-Li.Quick-SSH
 ```
 
-> winget 安装包会自动配置 PowerShell 模块路径，安装完成后重启终端即可使用 `qssh`。
+> winget 安装的是预编译的 `qssh.exe`，自动处理 PATH。
 
 ### 🐧 apt（Debian / Ubuntu）
 
@@ -341,8 +311,7 @@ yarn global remove quick-ssh
 ```
 
 卸载时：
-- ✅ **Windows**: 自动从 PowerShell `$PROFILE` 中移除 `Import-Module` 配置
-- ✅ **Linux/macOS**: 自动从 `~/.bashrc` / `~/.zshrc` 等文件中移除 `qssh()` 包装函数
+- ✅ **自动清理 PATH**: `preuninstall` 从 Shell 配置文件中移除二进制路径
 - ✅ **保留** `~/.ssh/config` 用户配置数据（不会在卸载时删除）
 
 ### Scoop
@@ -375,28 +344,25 @@ sudo pacman -R quick-ssh
 
 ```
 quick-ssh/
-├── src/
-│   ├── win/
-│   │   └── Quick-SSH.psm1      # PowerShell 模块（Windows 后端）
+├── src/                          # 源码目录
 │   ├── unix/
-│   │   ├── cli.js              # Node.js CLI（Linux/macOS 后端）
-│   │   └── install.sh          # Shell 配置文件注入脚本
+│   │   └── cli.js              # 统一 CLI 入口（编译为二进制）
 │   ├── lib/
-│   │   ├── index.js            # npm 生命周期钩子（安装/卸载自动配置）
+│   │   ├── index.js            # npm 生命周期钩子（将二进制路径写入 PATH）
 │   │   ├── session.js          # SSH 会话代理（拖拽检测 + scp 上传）
 │   │   └── upload_runner.js    # 独立上传窗口脚本（scp 进度 + 结果汇总）
 │   └── tui/
 │       ├── index.js            # TUI 主入口（Blessed 界面 + 键位绑定）
-│       ├── modes.js            # 模式常量/标签/提示（易于扩展）
+│       ├── modes.js            # 模式常量/标签/提示
 │       ├── data.js             # 数据层（配置读写，CLI 和 TUI 共用）
 │       └── network.js          # 网络层（SSH 连接 + 在线检测）
+├── scripts/
+│   └── build.js                # 构建脚本（pkg 编译为原生二进制）
 ├── packaging/                   # 多包管理器配置文件
 │   ├── scoop/
-│   │   └── quick-ssh.json      # Scoop 清单
+│   │   └── quick-ssh.json      # Scoop 清单（分发 .exe）
 │   ├── winget/
-│   │   ├── CCE-Li.Quick-SSH.yaml
-│   │   ├── CCE-Li.Quick-SSH.installer.yaml
-│   │   └── CCE-Li.Quick-SSH.locale.en-US.yaml
+│   │   └── CCE-Li.Quick-SSH.*.yaml  # winget 清单（分发 .exe）
 │   ├── apt/
 │   │   ├── DEBIAN/control      # Debian 包控制文件
 │   │   └── Makefile            # .deb 构建脚本
@@ -404,13 +370,12 @@ quick-ssh/
 │       └── PKGBUILD            # Arch Linux 构建脚本
 ├── .github/
 │   └── workflows/
-│       └── release.yml         # CI/CD：自动发布到 npm + 构建 .deb + GitHub Release
-├── doc/
-│   ├── FAQ.md                   # 常见问题解答
-│   └── images/                  # 截图展示
-├── package.json                 # npm 包配置
-├── README.md                    # 本文档
-├── LICENSE                      # MIT 许可证
+│       └── release.yml         # CI/CD：构建二进制 → 发布 Release + npm
+├── dist/                        # 编译产物（gitignored）
+├── doc/                         # 文档
+├── package.json                 # npm 包配置 + pkg 构建配置
+├── README.md
+├── LICENSE
 └── .gitignore
 ```
 ---

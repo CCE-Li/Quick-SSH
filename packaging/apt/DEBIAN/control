@@ -2,12 +2,14 @@ Package: quick-ssh
 Version: 1.1.0
 Section: net
 Priority: optional
-Architecture: all
-Depends: nodejs (>= 10.0.0), openssh-client
+Architecture: amd64
+Depends: libc6 (>= 2.17), openssh-client
 Maintainer: CCE-Li <cce.li@example.com>
-Description: 🚀 Quick-SSH - Docker-style SSH connection manager
+Description: 🚀 Quick-SSH - Docker-style SSH connection manager (native binary)
  Quick-SSH is a cross-platform SSH connection manager with a Docker-like
  command-line interface and a TUI (Terminal User Interface).
+ .
+ This package contains the pre-compiled native binary - no Node.js needed.
  .
  Features:
   * One-key SSH connect to saved servers

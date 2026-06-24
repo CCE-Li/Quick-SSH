@@ -2,18 +2,24 @@
 /**
  * src/unix/cli.js - Quick-SSH 命令行接口 (Node.js)
  *
- * 职责:
- *   在 Linux/macOS 上替代 PowerShell 模块，提供完整的 qssh 命令支持。
- *   在 Windows 上也可作为 PowerShell 模块的备选方案。
+ * 双重运行模式:
+ *   1. 开发模式: node src/unix/cli.js (需要 Node.js)
+ *   2. 生产模式: qssh.exe / qssh (通过 pkg 编译为原生二进制，无需 Node.js)
  *
- * 设计原则:
- *   - 复用 src/tui/data.js 的数据操作（同一份 ~/.ssh/config）
- *   - 自身不依赖 PowerShell，只依赖 Node.js + ssh 命令
- *   - 无参数时启动 TUI (blessed)
+ * 职责:
+ *   在 Linux/macOS/Windows 上提供完整的 qssh 命令支持。
+ *   复用 src/tui/data.js 的数据操作（同一份 ~/.ssh/config）。
  *
  * 用法:
- *   node src/unix/cli.js           # 启动 TUI
- *   node src/unix/cli.js ps [...]  # 列出连接
+ *   qssh                    # 启动 TUI
+ *   qssh ps [keyword]      # 列出连接
+ *   qssh add <别名> <用户@主机:端口> [--key <路径>]
+ *   qssh rm <别名>         # 删除连接
+ *   qssh <别名>            # 一键连接
+ *   qssh export <文件>     # 导出配置
+ *   qssh import <文件>     # 导入配置
+ *   qssh init              # 重新注册到 Shell 配置文件
+ *   qssh help              # 显示帮助
  */
 
 const path    = require("path");
@@ -23,6 +29,17 @@ const { spawn } = require("child_process");
 // 复用 TUI 数据层（同一份 ~/.ssh/config）
 const { SSH_CONFIG_PATH, loadHosts, saveHosts } = require("../tui/data");
 const { startInteractiveSession } = require("../lib/session");
+
+// ============================================================
+// 运行环境检测
+// ============================================================
+
+/**
+ * 判断是否运行在编译后的二进制中（支持 pkg/nexe 和 SEA 两种方式）
+ * - pkg/nexe: process.pkg 存在
+ * - SEA:      esbuild 注入 globalThis.__IS_BINARY__ = true
+ */
+const IS_BINARY = typeof process.pkg !== "undefined" || typeof globalThis.__IS_BINARY__ !== "undefined";
 
 // ============================================================
 // 颜色工具
@@ -64,7 +81,6 @@ function cmdPs(keyword) {
         }
     }
 
-    // 计算列宽
     const aliasLen  = Math.max(6, ...filtered.map(h => (h.alias || "").length));
     const hostLen   = Math.max(10, ...filtered.map(h => (h.host || "").length));
     const userLen   = Math.max(6, ...filtered.map(h => (h.user || "").length));
@@ -102,7 +118,6 @@ function cmdAdd(alias, userAtHost, keyPath) {
         process.exit(1);
     }
 
-    // 解析 user@host:port
     let user = "", hostname = "", port = 22;
     const m1 = userAtHost.match(/^(.+)@(.+):(\d+)$/);
     const m2 = userAtHost.match(/^(.+)@(.+)$/);
@@ -120,7 +135,6 @@ function cmdAdd(alias, userAtHost, keyPath) {
 
     if (!keyPath) {
         keyPath = path.join(path.dirname(SSH_CONFIG_PATH), "id_rsa");
-        // 非 Windows 平台：确保路径使用正斜线
         if (process.platform !== "win32") {
             keyPath = keyPath.replace(/\\/g, "/");
         }
@@ -164,7 +178,6 @@ function cmdRm(alias) {
  */
 function cmdConnect(alias) {
     if (!alias) {
-        // 无参数 → 启动 TUI
         launchTUI();
         return;
     }
@@ -189,7 +202,62 @@ function cmdConnect(alias) {
 }
 
 /**
- * qssh export <file> - 导出配置为标准 SSH config 格式
+ * 启动 TUI 界面
+ *
+ * 两种模式:
+ *   - pkg 二进制模式: 直接 require TUI 模块（同一进程）
+ *   - 开发模式: spawn 子进程运行 TUI 脚本
+ */
+function launchTUI() {
+    if (IS_BINARY) {
+        // SEA 二进制模式 → 直接加载 TUI（所有文件已打包在二进制中）
+        //
+        // 修复 WSL 下 terminfo 路径问题：
+        // ncc 在构建时将 blessed 内的 __dirname 解析为构建机上的 Windows 绝对路径，
+        // 当二进制在 WSL 中运行时，这些路径不指向任何有效文件。
+        // 这里将 bundled terminfo 目录（dist/usr/）注册到 blessed 的搜索路径。
+        try {
+            // process.execPath 在 SEA 二进制中指向二进制本身的实际运行时路径
+            const binaryDir = path.dirname(process.execPath);
+            // 二进制位于 dist/bin/，terminfo 位于 dist/usr/
+            const bundledTerminfo = path.resolve(binaryDir, "..", "usr");
+
+            // blessed 在 require 时就会读取 process.env.TERMINFO 初始化搜索路径，
+            // 所以必须在加载 blessed 之前设置。
+            if (fs.existsSync(bundledTerminfo)) {
+                process.env.TERMINFO = bundledTerminfo;
+            }
+
+            const blessed = require("blessed");
+            if (blessed.Tput && Array.isArray(blessed.Tput.ipaths)) {
+                blessed.Tput.ipaths.unshift(bundledTerminfo);
+            }
+
+            require("../tui/index");
+        } catch (err) {
+            console.error(COLOR.red(`错误：无法加载 TUI 界面: ${err.message}`));
+            process.exit(1);
+        }
+    } else {
+        // 开发模式 → spawn 子进程
+        const tuiScript = path.join(__dirname, "..", "tui", "index.js");
+        if (!fs.existsSync(tuiScript)) {
+            console.error(COLOR.red(`错误：未找到 TUI 脚本: ${tuiScript}`));
+            process.exit(1);
+        }
+
+        const child = spawn(process.execPath, [tuiScript], {
+            stdio: "inherit",
+            env: { ...process.env },
+        });
+        child.on("exit", (code) => {
+            process.exit(code != null ? code : 0);
+        });
+    }
+}
+
+/**
+ * qssh export <file> - 导出配置
  */
 function cmdExport(filePath) {
     if (!filePath) {
@@ -203,7 +271,6 @@ function cmdExport(filePath) {
         return;
     }
 
-    // 以 SSH config 格式导出
     const lines = [];
     for (const h of hosts) {
         lines.push(`Host ${h.alias}`);
@@ -214,11 +281,11 @@ function cmdExport(filePath) {
         lines.push("");
     }
     fs.writeFileSync(filePath, lines.join("\n"), "utf-8");
-    console.log(COLOR.green(`✔ 已导出 ${hosts.length} 个连接到 '${filePath}' (SSH config 格式)。`));
+    console.log(COLOR.green(`✔ 已导出 ${hosts.length} 个连接到 '${filePath}'。`));
 }
 
 /**
- * qssh import <file> - 导入 SSH config 格式文件
+ * qssh import <file> - 导入配置
  */
 function cmdImport(filePath) {
     if (!filePath) {
@@ -231,7 +298,6 @@ function cmdImport(filePath) {
         process.exit(1);
     }
 
-    // 复用 data.js 的解析逻辑（内联避免循环依赖）
     function parseConfig(content) {
         const hosts = [];
         const lines = content.split("\n");
@@ -291,30 +357,12 @@ function cmdImport(filePath) {
 }
 
 /**
- * 启动 TUI 界面
- */
-function launchTUI() {
-    const tuiScript = path.join(__dirname, "..", "tui", "index.js");
-    if (!fs.existsSync(tuiScript)) {
-        console.error(COLOR.red(`错误：未找到 TUI 脚本: ${tuiScript}`));
-        process.exit(1);
-    }
-
-    const child = spawn(process.execPath, [tuiScript], {
-        stdio: "inherit",
-        env: { ...process.env },
-    });
-    child.on("exit", (code) => {
-        process.exit(code != null ? code : 0);
-    });
-}
-
-/**
  * qssh help - 显示帮助
  */
 function cmdHelp() {
     console.log("");
-    console.log(COLOR.cyan("Quick-SSH - SSH 连接管理工具 (Node.js CLI)"));
+    console.log(COLOR.cyan("Quick-SSH - SSH 连接管理工具"));
+    console.log(COLOR.cyan(IS_BINARY ? "  原生二进制版本 (无需 Node.js)" : "  Node.js CLI 版本"));
     console.log("");
     console.log(COLOR.yellow("用法:"));
     console.log("  qssh                   启动 TUI 终端界面（推荐）");
@@ -325,7 +373,7 @@ function cmdHelp() {
     console.log("  qssh <别名>           一键连接 SSH 服务器");
     console.log("  qssh export <文件>    导出全部主机配置为 SSH config 格式");
     console.log("  qssh import <文件>    从 SSH config 文件批量导入连接");
-    console.log("  qssh init             重新注册 Quick-SSH 到 Shell 配置文件");
+    console.log("  qssh init             重新注册 Quick-SSH 到 PATH 环境变量");
     console.log("  qssh help             显示本帮助信息");
     console.log("");
     console.log(COLOR.yellow("示例:"));
@@ -347,7 +395,6 @@ function main() {
     const args = process.argv.slice(2);
 
     if (args.length === 0) {
-        // qssh (无参数) → 启动 TUI
         launchTUI();
         return;
     }
@@ -399,19 +446,29 @@ function main() {
         }
 
         case "init": {
-            // 重新运行 postinstall 逻辑，重新注入 shell 配置文件
+            // 重新运行 postinstall 逻辑
             console.log(COLOR.cyan("[Quick-SSH] 正在重新注册到 Shell 配置文件..."));
-            const postinstall = path.join(__dirname, "..", "lib", "index.js");
-            if (fs.existsSync(postinstall)) {
-                const child = spawn(process.execPath, [postinstall, "postinstall"], {
-                    stdio: "inherit",
-                });
-                child.on("exit", (code) => {
-                    process.exit(code != null ? code : 0);
-                });
+            if (IS_BINARY) {
+                // 二进制模式下直接调用内部的 postinstall 逻辑
+                try {
+                    require("../lib/index");
+                } catch (err) {
+                    console.error(COLOR.red(`错误：${err.message}`));
+                    process.exit(1);
+                }
             } else {
-                console.error(COLOR.red(`错误：未找到 postinstall 脚本: ${postinstall}`));
-                process.exit(1);
+                const postinstall = path.join(__dirname, "..", "lib", "index.js");
+                if (fs.existsSync(postinstall)) {
+                    const child = spawn(process.execPath, [postinstall, "postinstall"], {
+                        stdio: "inherit",
+                    });
+                    child.on("exit", (code) => {
+                        process.exit(code != null ? code : 0);
+                    });
+                } else {
+                    console.error(COLOR.red(`错误：未找到 postinstall 脚本: ${postinstall}`));
+                    process.exit(1);
+                }
             }
             break;
         }
@@ -424,7 +481,6 @@ function main() {
         }
 
         default: {
-            // 未知命令当作别名尝试连接
             cmdConnect(cmd);
             break;
         }

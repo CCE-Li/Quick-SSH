@@ -1,2 +1,5 @@
 node_modules/
+dist/
 console.log*
+# 构建工具（自动下载）
+scripts/tools/

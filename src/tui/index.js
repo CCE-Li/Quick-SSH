@@ -30,9 +30,21 @@ const { sshConnect, checkHost } = require("./network");
 
 // ============================================================
 // 阻止 blessed 切换备用屏幕缓冲区（保留 PowerShell 透明背景）
+//
+// Windows 原生终端（PowerShell/cmd）的透明背景依赖于主缓冲区，
+// 如果 blessed 切换到备用屏幕缓冲区（alt buffer），透明背景会失效。
+// 因此需要拦截 smcup / alternateBuffer。
+//
+// WSL 中的 Windows Terminal 正确支持备用屏幕缓冲区，
+// 无需拦截，使用 blessed 默认行为可获得更好的渲染效果。
 // ============================================================
 
-if (blessed.Program) {
+// 检测是否运行在 WSL 环境（通过 Linux 内核版本中的 "Microsoft" 标记）
+const IS_WSL = process.platform === "linux" &&
+    (os.release().toLowerCase().includes("microsoft") ||
+     os.release().toLowerCase().includes("wsl"));
+
+if (blessed.Program && !IS_WSL) {
     blessed.Program.prototype.alternateBuffer = function (val, cb) {
         if (typeof val === "function") { cb = val; }
         if (typeof cb === "function") { cb(); }
@@ -473,7 +485,11 @@ function handleInputCancel() {
 
 function startTUI() {
     screen = blessed.screen({
-        smartCSR: true,
+        // 注意: 在 WSL 中，smartCSR 依赖 terminfo 的 change_scroll_region 能力。
+        // 当 bundled 或系统 terminfo 报告的能力与实际终端不匹配时，
+        // 会导致 Content 垂直偏移错位。关闭 smartCSR 使用 blessed 内置的
+        // 滚动逻辑，兼容性更好。
+        smartCSR: false,
         title: "Quick-SSH",
         cursor: { artificial: true, shape: "block" },
         dockBorders: true,

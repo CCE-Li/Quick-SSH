@@ -1,36 +1,21 @@
 # Maintainer: CCE-Li <cce.li@example.com>
 # PKGBUILD for Quick-SSH (Arch Linux)
+# 原生二进制版本 - 无需 Node.js 依赖
 
 pkgname=quick-ssh
 pkgver=1.1.0
 pkgrel=1
-pkgdesc="🚀 Quick-SSH - Docker-style SSH connection manager with TUI"
-arch=('any')
+pkgdesc="🚀 Quick-SSH - Docker-style SSH connection manager with TUI (native binary)"
+arch=('x86_64')
 url="https://github.com/CCE-Li/Quick-SSH"
 license=('MIT')
-depends=('nodejs' 'openssh')
-makedepends=('npm')
-source=("$url/archive/v$pkgver.tar.gz")
+depends=('glibc' 'openssh')
+provides=('quick-ssh')
+conflicts=('quick-ssh')
+source=("$url/releases/download/v$pkgver/qssh-linux-x64")
 sha256sums=('SKIP')
 
 package() {
-  cd "$srcdir/Quick-SSH-$pkgver"
-
-  # Install to /usr/lib/node_modules/quick-ssh
-  install -dm755 "$pkgdir/usr/lib/node_modules/quick-ssh"
-  cp -r package.json README.md LICENSE "$pkgdir/usr/lib/node_modules/quick-ssh/"
-  cp -r src "$pkgdir/usr/lib/node_modules/quick-ssh/"
-
-  # Create executable symlink
   install -dm755 "$pkgdir/usr/bin"
-  ln -sf "/usr/lib/node_modules/quick-ssh/src/unix/cli.js" "$pkgdir/usr/bin/qssh"
-
-  # Make CLI script executable
-  chmod +x "$pkgdir/usr/lib/node_modules/quick-ssh/src/unix/cli.js"
-
-  # Install bash/zsh completion (if created)
-  # install -Dm644 contrib/completion/qssh "$pkgdir/usr/share/bash-completion/completions/qssh"
-  # install -Dm644 contrib/completion/_qssh "$pkgdir/usr/share/zsh/site-functions/_qssh"
+  install -m755 "$srcdir/qssh-linux-x64" "$pkgdir/usr/bin/qssh"
 }
-
-# vim: ts=2 sw=2 et:
