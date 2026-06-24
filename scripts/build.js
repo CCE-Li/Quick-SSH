@@ -464,10 +464,20 @@ async function main() {
             await buildTarget(p);
         }
         ok("所有平台构建完成！");
+        warn("注意：跨平台构建仅当宿主平台与目标平台一致时才有效！");
+        warn("例如在 Windows 上构建的 linux/darwin 二进制不可执行（格式为 PE 而非 ELF/Mach-O）。");
+        warn("如需为多平台发布，请使用 CI（如 GitHub Actions matrix）在各自平台上构建。");
         return;
     }
 
     if (platform) {
+        const currentPlatform = process.platform;
+        if (platform !== currentPlatform) {
+            warn(`跨平台构建: ${currentPlatform} → ${platform}`);
+            warn(`构建产物 ${PLATFORM_CONFIG[platform].output} 无法在 ${platform} 上执行！`);
+            warn(`这是因为 Node.js SEA 二进制必须使用目标平台的 node 可执行文件作为基础。`);
+            warn(`请在 ${platform} 上重新构建以获得有效的可执行文件。`);
+        }
         await buildTarget(platform);
         return;
     }

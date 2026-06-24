@@ -37,7 +37,7 @@
     "build:win": "node scripts/build.js --platform win32",
     "build:linux": "node scripts/build.js --platform linux",
     "build:mac": "node scripts/build.js --platform darwin",
-    "prepublishOnly": "node scripts/build.js --all",
+    "prepublishOnly": "node scripts/build.js",
     "pack:dry": "npm pack --dry-run"
   },
   "files": [
