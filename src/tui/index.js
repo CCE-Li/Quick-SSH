@@ -164,7 +164,7 @@ function refreshList(keepSelection) {
     listBox.setItems(filteredHosts.map(h => {
         const sta = hostStatus[h.alias] || "unknown";
         const ind = indicators[sta] || indicators.unknown;
-        const mark = selectedAliases.has(h.alias) ? "▶" : " ";
+        const mark = selectedAliases.has(h.alias) ? "▌" : " ";
         return `${mark} ${ind} ${h.alias.padEnd(14)} ${h.user}@${h.host}:${h.port}`;
     }));
 
@@ -476,7 +476,7 @@ function startTUI() {
         smartCSR: true,
         title: "Quick-SSH",
         cursor: { artificial: true, shape: "block" },
-        dockBorders: true,
+        dockBorders: false,
         fullUnicode: true,
     });
 
