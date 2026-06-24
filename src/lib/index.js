@@ -74,8 +74,8 @@ function getHomeDir() {
  * 获取 Quick-SSH 二进制文件的预期安装路径
  *
  * 查找顺序:
- *   1. dist/qssh.exe (本地开发 / 源码安装)
- *   2. 全局 node_modules 下 quick-ssh/dist/qssh.exe
+ *   1. dist/bin/ 下当前平台的 qssh-* 二进制（发布包）
+ *   2. 全局 node_modules 下 quick-ssh/dist/bin/qssh-* 二进制
  *   3. 全局 node_modules/.bin/qssh (npm 链接)
  *
  * @returns {{ binDir: string, binName: string } | null}
@@ -86,7 +86,7 @@ function getBinaryInfo() {
     // 平台区分二进制名称（与 build.js PLATFORM_CONFIG 一致）
     const platformMap = {
         windows: "qssh-win.exe",
-        linux:   "qssh",
+        linux:   "qssh-linux",
         macos:   "qssh-darwin",
     };
     const binName = platformMap[osType] || "qssh";

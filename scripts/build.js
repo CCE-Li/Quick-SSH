@@ -41,7 +41,7 @@ const PLATFORM_CONFIG = {
         nodeExe: process.execPath,        // 使用当前 node.exe
     },
     linux:  {
-        output:  path.join("bin", "qssh"),
+        output:  path.join("bin", "qssh-linux"),
         nodeExe: process.execPath,        // 交叉构建时需要替换
     },
     darwin: {

@@ -6,7 +6,7 @@
  * 检测当前操作系统平台，然后运行对应的原生二进制文件。
  *
  * 这样做的原因:
- *   原生二进制文件是平台相关的（qssh-win.exe / qssh / qssh-darwin），
+ *   原生二进制文件是平台相关的（qssh-win.exe / qssh-linux / qssh-darwin），
  *   而 npm 的 bin 字段只能指向单一入口。此包装器根据平台动态选择正确的二进制。
  *
  * 额外检测:
@@ -27,16 +27,25 @@ const platform = process.platform;
 const PLATFORM_CONFIG = {
     win32: {
         binNames: ["qssh-win.exe"],
-        magic: null,             // Windows 不检测魔数
+        magics: null,            // Windows 不检测魔数
     },
     linux: {
-        binNames: ["qssh-linux", "qssh"],
-        magic: [0x7f, 0x45, 0x4c, 0x46],  // \x7fELF
+        binNames: ["qssh-linux"],
+        magics: [
+            { bytes: [0x7f, 0x45, 0x4c, 0x46], label: "ELF (Linux 可执行文件)" },
+        ],
         magicLabel: "ELF (Linux 可执行文件)",
     },
     darwin: {
-        binNames: ["qssh-darwin", "qssh"],
-        magic: [0xfe, 0xed, 0xfa, 0xce],  // Mach-O (x86_64)
+        binNames: ["qssh-darwin"],
+        magics: [
+            { bytes: [0xcf, 0xfa, 0xed, 0xfe], label: "Mach-O 64-bit little-endian" },
+            { bytes: [0xfe, 0xed, 0xfa, 0xcf], label: "Mach-O 64-bit big-endian" },
+            { bytes: [0xce, 0xfa, 0xed, 0xfe], label: "Mach-O 32-bit little-endian" },
+            { bytes: [0xfe, 0xed, 0xfa, 0xce], label: "Mach-O 32-bit big-endian" },
+            { bytes: [0xca, 0xfe, 0xba, 0xbe], label: "Mach-O universal/fat" },
+            { bytes: [0xbe, 0xba, 0xfe, 0xca], label: "Mach-O universal/fat reverse" },
+        ],
         magicLabel: "Mach-O (macOS 可执行文件)",
     },
 };
@@ -92,19 +101,21 @@ function validateBinary(binPath, config) {
     }
 
     // 在 Linux/macOS 上检查魔数
-    if (config.magic) {
+    if (config.magics) {
         const magic = readMagicBytes(binPath);
         if (!magic) {
             return `无法读取文件魔数，文件可能已损坏`;
         }
 
-        const expected = config.magic;
-        const isMatch = magic.length >= expected.length &&
-            expected.every((b, i) => magic[i] === b);
+        const matchedMagic = config.magics.find(({ bytes }) =>
+            magic.length >= bytes.length && bytes.every((b, i) => magic[i] === b)
+        );
 
-        if (!isMatch) {
+        if (!matchedMagic) {
             const actualHex = magic.map(b => "0x" + b.toString(16).padStart(2, "0")).join(" ");
-            const expectedHex = expected.map(b => "0x" + b.toString(16).padStart(2, "0")).join(" ");
+            const expectedHex = config.magics
+                .map(({ bytes, label }) => `${label} (${bytes.map(b => "0x" + b.toString(16).padStart(2, "0")).join(" ")})`)
+                .join(" / ");
 
             // 通过魔数前几个字节识别已知格式
             function identifyFormat(bytes) {
@@ -119,13 +130,12 @@ function validateBinary(binPath, config) {
             }
 
             const actualName = identifyFormat(magic);
-            return `文件格式不正确: 期望 ${config.magicLabel} (${expectedHex})，实际为 ${actualName}` +
-                `\n   Quick-SSH 当前提供的 Linux 二进制实际是 Windows PE 格式（MZ）。` +
-                `\n   这是因为构建工具链在 Windows 上运行，未正确交叉编译。` +
+            return `文件格式不正确: 期望 ${config.magicLabel}: ${expectedHex}，实际为 ${actualName}` +
+                `\n   这通常是因为二进制文件不是在目标系统上原生构建，或发布包中放错了平台产物。` +
                 `\n   ` +
                 `\n   解决方案：` +
-                `\n   1. 从源码构建（推荐）：在 Linux 上执行 npm run build` +
-                `\n   2. 或使用包管理器安装: apt install quick-ssh / pacman -S quick-ssh`;
+                `\n   1. 通过 CI 在 Windows/Linux/macOS 各自系统上构建并合并后发布 npm 包` +
+                `\n   2. 或在当前系统上从源码执行 npm run build`;
         }
     }
 

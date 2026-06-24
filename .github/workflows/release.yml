@@ -1,5 +1,5 @@
-# GitHub Actions: 构建二进制并发布 Quick-SSH
-# 触发方式: 推送 tag v* (如 v1.1.0)
+# GitHub Actions: build native binaries and publish Quick-SSH
+# Trigger: push a tag like v1.1.0
 
 name: Release
 
@@ -12,22 +12,28 @@ permissions:
   contents: write
 
 jobs:
-  # ─── 1. 构建二进制（跨平台）──────────────────────────
   build-binaries:
-    name: 🏗️ Build binary (${{ matrix.target }})
+    name: Build binary (${{ matrix.target }})
     runs-on: ${{ matrix.runner }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - target: win-x64
             runner: windows-latest
-            suffix: .exe
+            platform: win32
+            artifact: qssh-win
+            binary: qssh-win.exe
           - target: linux-x64
             runner: ubuntu-latest
-            suffix: ""
+            platform: linux
+            artifact: qssh-linux
+            binary: qssh-linux
           - target: macos-x64
-            runner: macos-latest
-            suffix: ""
+            runner: macos-15-intel
+            platform: darwin
+            artifact: qssh-darwin
+            binary: qssh-darwin
     steps:
       - uses: actions/checkout@v4
 
@@ -39,89 +45,132 @@ jobs:
         run: npm ci
 
       - name: Build binary
-        run: node scripts/build.js --platform ${{ matrix.target == 'win-x64' && 'win32' || matrix.target == 'linux-x64' && 'linux' || 'darwin' }}
-
-      - name: Rename binary
-        shell: bash
-        run: |
-          mv dist/qssh-*.exe dist/qssh-${{ matrix.target }}${{ matrix.suffix }} 2>/dev/null || \
-          mv dist/qssh-* dist/qssh-${{ matrix.target }}${{ matrix.suffix }} 2>/dev/null || true
+        run: node scripts/build.js --platform ${{ matrix.platform }}
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: qssh-${{ matrix.target }}
-          path: dist/qssh-${{ matrix.target }}${{ matrix.suffix }}
+          name: ${{ matrix.artifact }}
+          path: dist/bin/${{ matrix.binary }}
+          if-no-files-found: error
 
-  # ─── 2. 构建 .deb 包 ──────────────────────────────
+      - name: Upload runtime assets
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-assets
+          path: dist/usr/**
+          if-no-files-found: error
+
   deb-build:
-    name: 📦 Build .deb package
+    name: Build .deb package
     needs: build-binaries
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Download Linux binary
         uses: actions/download-artifact@v4
         with:
-          name: qssh-linux-x64
+          name: qssh-linux
           path: packaging/apt/
+
       - name: Build .deb
         run: |
+          mv packaging/apt/qssh-linux packaging/apt/qssh-linux-x64
           chmod +x packaging/apt/qssh-linux-x64
-          cd packaging/apt && make deb
+          cd packaging/apt
+          make deb
+
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v4
         with:
           name: quick-ssh-deb
           path: packaging/apt/build/*.deb
+          if-no-files-found: error
 
-  # ─── 3. 发布到 npm（可选，保留源码包）────────────
   npm-publish:
-    name: 📦 Publish to npm
+    name: Publish to npm
+    needs: build-binaries
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           registry-url: "https://registry.npmjs.org"
-      - run: npm ci
-      - run: npm publish
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Download npm package binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: qssh-*
+          path: dist/bin
+          merge-multiple: true
+
+      - name: Download npm package runtime assets
+        uses: actions/download-artifact@v4
+        with:
+          name: runtime-assets
+          path: dist/usr
+
+      - name: Verify npm package binaries
+        run: |
+          chmod +x dist/bin/qssh-linux dist/bin/qssh-darwin
+          node scripts/verify-package-binaries.js
+
+      - name: Publish npm package
+        run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  # ─── 4. 创建 GitHub Release ─────────────────────
   github-release:
-    name: 🚀 Create GitHub Release
+    name: Create GitHub Release
     needs: [build-binaries, deb-build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: release-artifacts
+          path: release-artifacts/all
           merge-multiple: true
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-artifacts/assets
+          cp release-artifacts/all/qssh-win.exe release-artifacts/assets/qssh-win-x64.exe
+          cp release-artifacts/all/qssh-linux release-artifacts/assets/qssh-linux-x64
+          cp release-artifacts/all/qssh-darwin release-artifacts/assets/qssh-macos-x64
+          chmod +x release-artifacts/assets/qssh-linux-x64 release-artifacts/assets/qssh-macos-x64
+          for deb in release-artifacts/all/*.deb; do
+            cp "$deb" release-artifacts/assets/
+          done
+
       - name: Generate release notes
         run: |
           cat > release-notes.md << 'EORELEASE'
           ## Quick-SSH ${{ github.ref_name }}
 
-          ### 🎉 原生二进制版本
+          ### Native binary release
 
-          本次发布的 **原生二进制版本** 不再需要 Node.js 运行时！直接下载对应平台的可执行文件即可使用。
+          This release provides native binaries that can run without a local Node.js runtime.
 
-          ### 📦 安装方式
+          ### Installation
 
-          **直接下载二进制（快速上手）：**
+          **Direct binary download:**
 
-          | 平台 | 下载 |
+          | Platform | Download |
           |------|------|
           | Windows | `qssh-win-x64.exe` |
           | Linux | `qssh-linux-x64` |
           | macOS | `qssh-macos-x64` |
 
-          下载后将文件放入 PATH 目录（如 `/usr/local/bin/`）并重命名为 `qssh` 即可。
+          After downloading, put the file in a PATH directory and rename it to `qssh` if needed.
 
           **Scoop (Windows):**
           ```powershell
@@ -144,25 +193,24 @@ jobs:
           yay -S quick-ssh
           ```
 
-          **npm (源码安装，需要 Node.js):**
+          **npm:**
           ```bash
           npm install -g quick-ssh
           ```
           EORELEASE
 
           echo "" >> release-notes.md
-          echo "### 🚀 快速使用" >> release-notes.md
+          echo "### Quick usage" >> release-notes.md
           echo "" >> release-notes.md
           echo '```bash' >> release-notes.md
-          echo 'qssh                              # 启动 TUI 界面' >> release-notes.md
+          echo 'qssh                              # Start TUI' >> release-notes.md
           echo 'qssh add my-server root@192.168.1.100:22' >> release-notes.md
-          echo 'qssh my-server                    # 一键连接' >> release-notes.md
-          echo 'qssh ps                           # 列出所有连接' >> release-notes.md
+          echo 'qssh my-server                    # Connect' >> release-notes.md
+          echo 'qssh ps                           # List connections' >> release-notes.md
           echo '```' >> release-notes.md
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           body_path: release-notes.md
-          files: |
-            release-artifacts/*
+          files: release-artifacts/assets/*

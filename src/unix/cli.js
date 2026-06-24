@@ -215,17 +215,23 @@ function launchTUI() {
         // 修复 WSL 下 terminfo 路径问题：
         // ncc 在构建时将 blessed 内的 __dirname 解析为构建机上的 Windows 绝对路径，
         // 当二进制在 WSL 中运行时，这些路径不指向任何有效文件。
-        // 这里将 bundled terminfo 目录（dist/usr/）添加到 blessed 的搜索路径末尾，
-        // 作为系统路径未能找到时的兜底方案。
+        // 这里将 bundled terminfo 目录（dist/usr/）注册到 blessed 的搜索路径。
         try {
-            // 先加载 blessed 以访问 Tput 静态属性
-            const blessed = require("blessed");
             // process.execPath 在 SEA 二进制中指向二进制本身的实际运行时路径
             const binaryDir = path.dirname(process.execPath);
             // 二进制位于 dist/bin/，terminfo 位于 dist/usr/
             const bundledTerminfo = path.resolve(binaryDir, "..", "usr");
-            // 追加到搜索路径末尾（作为兜底，不覆盖系统 terminfo）
-            blessed.Tput.ipaths.push(bundledTerminfo);
+
+            // blessed 在 require 时就会读取 process.env.TERMINFO 初始化搜索路径，
+            // 所以必须在加载 blessed 之前设置。
+            if (fs.existsSync(bundledTerminfo)) {
+                process.env.TERMINFO = bundledTerminfo;
+            }
+
+            const blessed = require("blessed");
+            if (blessed.Tput && Array.isArray(blessed.Tput.ipaths)) {
+                blessed.Tput.ipaths.unshift(bundledTerminfo);
+            }
 
             require("../tui/index");
         } catch (err) {
