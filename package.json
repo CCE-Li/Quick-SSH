@@ -1,6 +1,6 @@
 {
   "name": "quick-ssh",
-  "version": "1.1.0",
+  "version": "1.1.2",
   "description": "🚀 Quick-SSH - 仿 Docker 命令行风格的 SSH 连接管理工具（原生二进制版本，无需 Node.js）",
   "keywords": [
     "ssh",

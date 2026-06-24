@@ -86,7 +86,7 @@ function getBinaryInfo() {
     // 平台区分二进制名称（与 build.js PLATFORM_CONFIG 一致）
     const platformMap = {
         windows: "qssh-win.exe",
-        linux:   "qssh-linux",
+        linux:   "qssh",
         macos:   "qssh-darwin",
     };
     const binName = platformMap[osType] || "qssh";

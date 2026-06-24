@@ -41,7 +41,7 @@ const PLATFORM_CONFIG = {
         nodeExe: process.execPath,        // 使用当前 node.exe
     },
     linux:  {
-        output:  path.join("bin", "qssh-linux"),
+        output:  path.join("bin", "qssh"),
         nodeExe: process.execPath,        // 交叉构建时需要替换
     },
     darwin: {
@@ -146,6 +146,25 @@ require(${JSON.stringify(entryPath.replace(/\\/g, "/"))});
             }
         }
         copyDir(blessedUsr, distUsr);
+
+        // 创建 x/xterm 子目录结构（兼容 TERMINFO 环境变量查找方式）
+        // blessed 的 tput.js 通过 _tprefix() 函数搜索 terminfo，
+        // 标准 terminfo 数据库使用 "首字母/终端名" 的目录结构。
+        // 此步骤确保通过 TERMINFO 环境变量也能找到 terminfo 文件。
+        const terminfoFiles = fs.readdirSync(distUsr)
+            .filter(f => f !== "fonts" && !fs.statSync(path.join(distUsr, f)).isDirectory());
+        for (const file of terminfoFiles) {
+            const firstChar = file[0];
+            const subDir = path.join(distUsr, firstChar);
+            if (!fs.existsSync(subDir)) {
+                fs.mkdirSync(subDir, { recursive: true });
+            }
+            // 如果子目录中已存在同名文件则跳过（避免覆盖已存在的标准结构）
+            const targetPath = path.join(subDir, file);
+            if (!fs.existsSync(targetPath)) {
+                fs.copyFileSync(path.join(distUsr, file), targetPath);
+            }
+        }
         ok("terminfo 文件复制完成");
     }
 }

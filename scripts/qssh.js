@@ -6,7 +6,7 @@
  * 检测当前操作系统平台，然后运行对应的原生二进制文件。
  *
  * 这样做的原因:
- *   原生二进制文件是平台相关的（qssh-win.exe / qssh-linux / qssh-darwin），
+ *   原生二进制文件是平台相关的（qssh-win.exe / qssh / qssh-darwin），
  *   而 npm 的 bin 字段只能指向单一入口。此包装器根据平台动态选择正确的二进制。
  */
 
@@ -20,7 +20,7 @@ let binName;
 if (platform === "win32") {
     binName = "qssh-win.exe";
 } else if (platform === "linux") {
-    binName = "qssh-linux";
+    binName = "qssh";
 } else if (platform === "darwin") {
     binName = "qssh-darwin";
 } else {

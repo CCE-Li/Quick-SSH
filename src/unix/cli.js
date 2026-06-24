@@ -210,7 +210,18 @@ function cmdConnect(alias) {
  */
 function launchTUI() {
     if (IS_BINARY) {
-        // pkg 二进制模式 → 直接加载 TUI（所有文件已打包在二进制中）
+        // SEA 二进制模式 → 直接加载 TUI（所有文件已打包在二进制中）
+        //
+        // 修复 terminfo 路径：ncc 打包后 blessed/tput.js 中的 __dirname
+        // 被编译为构建时的绝对路径（如 D:\...\node_modules\blessed\lib），
+        // 导致 SEA 二进制在运行时找不到 terminfo 文件。
+        // 通过设置 TERMINFO 环境变量指向 dist/usr/ 目录来解决。
+        const usrDir = path.resolve(
+            path.dirname(process.execPath), "..", "usr"
+        );
+        if (fs.existsSync(usrDir)) {
+            process.env.TERMINFO = usrDir;
+        }
         try {
             require("../tui/index");
         } catch (err) {
