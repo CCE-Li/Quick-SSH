@@ -212,11 +212,21 @@ function launchTUI() {
     if (IS_BINARY) {
         // SEA 二进制模式 → 直接加载 TUI（所有文件已打包在二进制中）
         //
-        // 注意: 不再通过 TERMINFO 环境变量指向 bundled terminfo，
-        // 因为 blessed 在二进制模式下会使用内置的 terminfo 兜底逻辑，
-        // 且系统 terminfo 通常比 bundled 版本更完整。
-        // 设置 TERMINFO 可能导致终端能力检测异常（如左边框定位错误）。
+        // 修复 WSL 下 terminfo 路径问题：
+        // ncc 在构建时将 blessed 内的 __dirname 解析为构建机上的 Windows 绝对路径，
+        // 当二进制在 WSL 中运行时，这些路径不指向任何有效文件。
+        // 这里将 bundled terminfo 目录（dist/usr/）添加到 blessed 的搜索路径末尾，
+        // 作为系统路径未能找到时的兜底方案。
         try {
+            // 先加载 blessed 以访问 Tput 静态属性
+            const blessed = require("blessed");
+            // process.execPath 在 SEA 二进制中指向二进制本身的实际运行时路径
+            const binaryDir = path.dirname(process.execPath);
+            // 二进制位于 dist/bin/，terminfo 位于 dist/usr/
+            const bundledTerminfo = path.resolve(binaryDir, "..", "usr");
+            // 追加到搜索路径末尾（作为兜底，不覆盖系统 terminfo）
+            blessed.Tput.ipaths.push(bundledTerminfo);
+
             require("../tui/index");
         } catch (err) {
             console.error(COLOR.red(`错误：无法加载 TUI 界面: ${err.message}`));

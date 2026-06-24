@@ -1,10 +1,12 @@
 {
   "name": "quick-ssh",
-  "version": "1.1.2",
+  "version": "1.1.4",
   "description": "🚀 Quick-SSH - 仿 Docker 命令行风格的 SSH 连接管理工具（原生二进制版本，无需 Node.js）",
   "keywords": [
     "ssh",
     "powershell",
+    "wsl",
+    "crt",
     "quick-ssh",
     "qssh",
     "connection-manager",
@@ -42,6 +44,8 @@
     "dist/bin/",
     "dist/usr/",
     "src/lib/",
+    "src/unix/",
+    "src/tui/",
     "scripts/qssh.js"
   ],
   "engines": {
@@ -56,10 +60,12 @@
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
+  "dependencies": {
+    "blessed": "^0.1.81",
+    "ssh2": "^1.17.0"
+  },
   "devDependencies": {
     "@vercel/ncc": "^0.44.0",
-    "blessed": "^0.1.81",
-    "postject": "^1.0.0-alpha.6",
-    "ssh2": "^1.17.0"
+    "postject": "^1.0.0-alpha.6"
   }
 }
