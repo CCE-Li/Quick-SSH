@@ -24,6 +24,7 @@
 
 const path    = require("path");
 const fs      = require("fs");
+const os      = require("os");
 const { spawn } = require("child_process");
 
 // 复用 TUI 数据层（同一份 ~/.ssh/config）
@@ -216,21 +217,42 @@ function launchTUI() {
         // ncc 在构建时将 blessed 内的 __dirname 解析为构建机上的 Windows 绝对路径，
         // 当二进制在 WSL 中运行时，这些路径不指向任何有效文件。
         // 这里将 bundled terminfo 目录（dist/usr/）注册到 blessed 的搜索路径。
+        //
+        // 对于独立二进制（Scoop/WinGet）分发的情况，dist/usr/ 不存在，
+        // 改为从内嵌的 terminfo 数据（src/unix/terminfo-embed.js）提取到临时目录。
         try {
             // process.execPath 在 SEA 二进制中指向二进制本身的实际运行时路径
             const binaryDir = path.dirname(process.execPath);
             // 二进制位于 dist/bin/，terminfo 位于 dist/usr/
             const bundledTerminfo = path.resolve(binaryDir, "..", "usr");
 
-            // blessed 在 require 时就会读取 process.env.TERMINFO 初始化搜索路径，
-            // 所以必须在加载 blessed 之前设置。
             if (fs.existsSync(bundledTerminfo)) {
+                // npm 全局安装模式：dist/usr/ 目录存在
                 process.env.TERMINFO = bundledTerminfo;
+            } else {
+                // 独立二进制模式（Scoop/WinGet/APT）：dist/usr/ 不存在
+                // 从内嵌的 terminfo 数据中提取到系统临时目录
+                const terminfoDir = path.join(os.tmpdir(), "qssh-terminfo");
+                if (!fs.existsSync(terminfoDir)) {
+                    const embed = require("./terminfo-embed");
+                    for (const name of Object.keys(embed)) {
+                        const firstChar = name[0];
+                        const subDir = path.join(terminfoDir, firstChar);
+                        if (!fs.existsSync(subDir)) {
+                            fs.mkdirSync(subDir, { recursive: true });
+                        }
+                        const targetPath = path.join(subDir, name);
+                        if (!fs.existsSync(targetPath)) {
+                            fs.writeFileSync(targetPath, embed[name]);
+                        }
+                    }
+                }
+                process.env.TERMINFO = terminfoDir;
             }
 
             const blessed = require("blessed");
             if (blessed.Tput && Array.isArray(blessed.Tput.ipaths)) {
-                blessed.Tput.ipaths.unshift(bundledTerminfo);
+                blessed.Tput.ipaths.unshift(process.env.TERMINFO);
             }
 
             require("../tui/index");
