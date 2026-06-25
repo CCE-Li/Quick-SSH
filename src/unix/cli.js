@@ -25,6 +25,7 @@
 const path    = require("path");
 const fs      = require("fs");
 const os      = require("os");
+const readline = require("readline");
 const { spawn } = require("child_process");
 
 // 复用 TUI 数据层（同一份 ~/.ssh/config）
@@ -53,6 +54,27 @@ const COLOR = {
     cyan:   (s) => `\x1b[36m${s}\x1b[0m`,
     bold:   (s) => `\x1b[1m${s}\x1b[0m`,
 };
+
+// ============================================================
+// ============================================================
+// 辅助函数
+// ============================================================
+
+/**
+ * 等待用户按 Enter 键（上传完成后保持窗口不关闭）
+ */
+function waitForEnter() {
+    return new Promise((resolve) => {
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+        });
+        rl.question("按 Enter 键关闭窗口...", () => {
+            rl.close();
+            resolve();
+        });
+    });
+}
 
 // ============================================================
 // 命令实现
@@ -422,11 +444,26 @@ function main() {
     if (uploadFlagIdx >= 1) {
         const encoded = process.argv[uploadFlagIdx + 1];
         if (encoded) {
-            const payload = JSON.parse(Buffer.from(encoded, "base64").toString("utf8"));
-            require("../lib/upload_runner").runUpload(payload).catch((err) => {
-                console.error("Upload error:", err.message);
-                process.exit(1);
-            });
+            // 使用 IIFE 确保 async/await 正常工作
+            (async () => {
+                try {
+                    let payload;
+                    try {
+                        payload = JSON.parse(Buffer.from(encoded, "base64").toString("utf8"));
+                    } catch (parseError) {
+                        console.error("\n\x1b[31m[Quick-SSH] 上传参数解析失败：无效的 payload\x1b[0m");
+                        console.error("错误详情:", parseError.message);
+                        await waitForEnter();
+                        process.exit(1);
+                        return;
+                    }
+                    await require("../lib/upload_runner").runUpload(payload);
+                } catch (err) {
+                    console.error(`\n\x1b[31m[Quick-SSH] 上传失败: ${err.message}\x1b[0m`);
+                    await waitForEnter();
+                    process.exit(1);
+                }
+            })();
             return;
         }
     }
