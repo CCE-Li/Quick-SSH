@@ -1,10 +1,10 @@
 Package: quick-ssh
-Version: 1.1.0
+Version: 1.1.7
 Section: net
 Priority: optional
 Architecture: amd64
 Depends: libc6 (>= 2.17), openssh-client
-Maintainer: CCE-Li <cce.li@example.com>
+Maintainer: CCE-Li <2766503189@qq.com>
 Description: 🚀 Quick-SSH - Docker-style SSH connection manager (native binary)
  Quick-SSH is a cross-platform SSH connection manager with a Docker-like
  command-line interface and a TUI (Terminal User Interface).
