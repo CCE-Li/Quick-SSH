@@ -414,6 +414,23 @@ function cmdHelp() {
 // ============================================================
 
 function main() {
+    // ----- 独立二进制上传模式 -----
+    // 当用户从 SSH 会话中拖拽文件到终端时，
+    // openUploadTerminal() 会自派生子进程运行此模式。
+    const UPLOAD_FLAG = "--qssh-upload";
+    const uploadFlagIdx = process.argv.indexOf(UPLOAD_FLAG);
+    if (uploadFlagIdx >= 1) {
+        const encoded = process.argv[uploadFlagIdx + 1];
+        if (encoded) {
+            const payload = JSON.parse(Buffer.from(encoded, "base64").toString("utf8"));
+            require("../lib/upload_runner").runUpload(payload).catch((err) => {
+                console.error("Upload error:", err.message);
+                process.exit(1);
+            });
+            return;
+        }
+    }
+
     const args = process.argv.slice(2);
 
     if (args.length === 0) {

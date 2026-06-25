@@ -335,16 +335,7 @@ async function runUploadPool(payload, files) {
     return { renderer, succeeded, failed };
 }
 
-async function main() {
-    let payload;
-    try {
-        payload = decodePayload(process.argv);
-    } catch (error) {
-        process.stderr.write(`Quick-SSH upload runner payload error: ${error.message}\n`);
-        process.exitCode = 1;
-        return;
-    }
-
+async function runUpload(payload) {
     const files = flattenPayloadFiles(payload.files);
     if (files.length === 0) {
         process.stderr.write("没有可上传的文件。\n");
@@ -373,9 +364,25 @@ async function main() {
     await waitForEnter();
 }
 
-main().catch(async (error) => {
-    disableAltScreen();
-    process.stderr.write(`Quick-SSH upload runner fatal error: ${error.message}\n\n`);
-    process.exitCode = 1;
-    await waitForEnter();
-});
+async function main() {
+    let payload;
+    try {
+        payload = decodePayload(process.argv);
+    } catch (error) {
+        process.stderr.write(`Quick-SSH upload runner payload error: ${error.message}\n`);
+        process.exitCode = 1;
+        return;
+    }
+    await runUpload(payload);
+}
+
+module.exports = { runUpload };
+
+if (require.main === module) {
+    main().catch(async (error) => {
+        disableAltScreen();
+        process.stderr.write(`Quick-SSH upload runner fatal error: ${error.message}\n\n`);
+        process.exitCode = 1;
+        await waitForEnter();
+    });
+}

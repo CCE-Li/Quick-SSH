@@ -129,8 +129,92 @@ function spawnDetached(command, args, options = {}) {
 }
 
 async function openUploadTerminal(target, files, remotePath) {
-    const runnerScript = path.join(__dirname, "upload_runner.js");
     const payload = encodeUploadPayload(target, files, remotePath, readQsshConfig());
+
+    // 独立二进制模式：自派生子进程，无需查找 upload_runner.js 和 node
+    // 二进制自身通过 --qssh-upload 标志来识别上传模式
+    const IS_SEA = typeof globalThis.__IS_BINARY__ !== "undefined" || typeof process.pkg !== "undefined";
+    if (IS_SEA) {
+        const binaryPath = process.execPath;
+        if (process.platform === "win32") {
+            const title = "Quick-SSH Upload";
+            return spawnDetached("cmd.exe", [
+                "/c",
+                "start",
+                `"${title}"`,
+                `"${binaryPath}"`,
+                "--qssh-upload",
+                payload,
+            ], { detached: false, windowsVerbatimArguments: true });
+        }
+
+        if (isWSL()) {
+            const distro = process.env.WSL_DISTRO_NAME || "";
+            const escapedDistro = distro.replace(/"/g, '\\"');
+            const escapedBinary = binaryPath.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+            const wslCommand = `wsl.exe${distro ? ` -d "${escapedDistro}"` : ""} "${escapedBinary}" --qssh-upload "${payload}"`;
+
+            if (await spawnDetached("wt.exe", [
+                "new-tab",
+                "powershell.exe",
+                "-NoExit",
+                "-Command",
+                wslCommand,
+            ], { detached: false })) {
+                return true;
+            }
+
+            return spawnDetached("powershell.exe", [
+                "-NoProfile",
+                "-Command",
+                `Start-Process powershell -ArgumentList @('-Command','${wslCommand.replace(/'/g, "''")}')`,
+            ], { detached: false });
+        }
+
+        if (process.platform === "darwin") {
+            const escapedBinary = binaryPath.replace(/"/g, '\\"');
+            const script = `tell application "Terminal" to do script "${escapedBinary} --qssh-upload ${payload}"`;
+            return spawnDetached("osascript", ["-e", script]);
+        }
+
+        if (process.platform === "linux") {
+            if (hasDisplayServer()) {
+                const candidates = [
+                    { cmd: "x-terminal-emulator", args: ["-e", binaryPath, "--qssh-upload", payload] },
+                    { cmd: "gnome-terminal", args: ["--", binaryPath, "--qssh-upload", payload] },
+                    { cmd: "konsole", args: ["-e", binaryPath, "--qssh-upload", payload] },
+                    { cmd: "xfce4-terminal", args: ["--command", `${binaryPath} --qssh-upload ${payload}`] },
+                    { cmd: "xterm", args: ["-e", binaryPath, "--qssh-upload", payload] },
+                ];
+
+                for (const candidate of candidates) {
+                    if (await spawnDetached(candidate.cmd, candidate.args)) {
+                        return true;
+                    }
+                }
+            }
+
+            if (process.env.TMUX) {
+                return spawnDetached("tmux", [
+                    "split-window",
+                    "-v",
+                    `${binaryPath} --qssh-upload ${payload}`,
+                ], { detached: false });
+            }
+
+            if (process.env.STY) {
+                return spawnDetached("screen", [
+                    "-X",
+                    "screen",
+                    `${binaryPath} --qssh-upload ${payload}`,
+                ], { detached: false });
+            }
+        }
+        return false;
+    }
+
+    // 开发模式（非二进制）：使用 node + upload_runner.js
+    const runnerScript = path.join(__dirname, "upload_runner.js");
     const nodeExe = process.execPath;
 
     if (process.platform === "win32") {
