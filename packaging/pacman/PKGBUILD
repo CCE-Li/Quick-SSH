@@ -1,9 +1,18 @@
-# Maintainer: CCE-Li <cce.li@example.com>
+# Maintainer: CCE-Li <2766503189@qq.com>
 # PKGBUILD for Quick-SSH (Arch Linux)
 # 原生二进制版本 - 无需 Node.js 依赖
+#
+# Quick-SSH uses Node.js SEA (Single Executable Application) to build
+# native binaries — no Node.js runtime needed at user end.
+# 
+# 更新步骤:
+#   1. 更新 pkgver 到新版本号
+#   2. 从 GitHub Release 的 SHA256SUMS 中获取 qssh-linux-x64 的哈希值
+#   3. 运行: makepkg --printsrcinfo > .SRCINFO
+#   4. git commit && git push
 
 pkgname=quick-ssh
-pkgver=1.1.0
+pkgver=1.1.7
 pkgrel=1
 pkgdesc="🚀 Quick-SSH - Docker-style SSH connection manager with TUI (native binary)"
 arch=('x86_64')
@@ -14,6 +23,7 @@ provides=('quick-ssh')
 conflicts=('quick-ssh')
 source=("$url/releases/download/v$pkgver/qssh-linux-x64")
 sha256sums=('SKIP')
+# 注: 发布前请从 Release 的 SHA256SUMS 中获取真实哈希值替换 SKIP
 
 package() {
   install -dm755 "$pkgdir/usr/bin"

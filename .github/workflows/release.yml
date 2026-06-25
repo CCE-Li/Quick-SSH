@@ -150,6 +150,8 @@ jobs:
           for deb in release-artifacts/all/*.deb; do
             cp "$deb" release-artifacts/assets/
           done
+          cd release-artifacts/assets
+          sha256sum * > SHA256SUMS
 
       - name: Generate release notes
         run: |
