@@ -11,7 +11,7 @@
 # Local: This Makefile falls back to downloading from GitHub Releases.
 
 PKG_NAME    := quick-ssh
-VERSION     := 1.1.7
+VERSION     := 1.1.8
 ARCH        := amd64
 
 BUILD_DIR   := build

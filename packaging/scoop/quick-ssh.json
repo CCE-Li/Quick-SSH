@@ -1,5 +1,5 @@
 {
-  "version": "1.1.7",
+  "version": "1.1.8",
   "description": "🚀 Quick-SSH - Docker-style SSH connection manager with TUI (native binary, no Node.js needed)",
   "homepage": "https://github.com/CCE-Li/Quick-SSH",
   "license": "MIT",
@@ -9,7 +9,7 @@
   ],
   "architecture": {
     "64bit": {
-      "url": "https://github.com/CCE-Li/Quick-SSH/releases/download/v1.1.7/qssh-win-x64.exe",
+      "url": "https://github.com/CCE-Li/Quick-SSH/releases/download/v1.1.8/qssh-win-x64.exe",
       "hash": "sha256:123cd81641a513303d97b26484937aa27f2016762e3517cf277bad5ff83f5176"
     }
   },
