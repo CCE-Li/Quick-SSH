@@ -24,8 +24,7 @@ pub fn run(target: &str, ssh_args: &[String]) -> Result<()> {
         resolved.port.to_string().blue(),
     );
 
-    let exit_code = start_interactive_session(&resolved, ssh_args)
-        .context("SSH 会话失败")?;
+    let exit_code = start_interactive_session(&resolved, ssh_args).context("SSH 会话失败")?;
 
     if exit_code != 0 {
         println!(

@@ -145,18 +145,21 @@ impl UploadState {
 
         // 总体进度
         let overall_ratio = if self.total_files > 0 {
-            (self.done_files as f64 + if self.file_size > 0 {
-                self.file_done as f64 / self.file_size as f64
-            } else {
-                0.0
-            }) / self.total_files as f64
+            (self.done_files as f64
+                + if self.file_size > 0 {
+                    self.file_done as f64 / self.file_size as f64
+                } else {
+                    0.0
+                })
+                / self.total_files as f64
         } else {
             0.0
         };
 
         println!(
             "总体进度: [{}/{}] {}",
-            self.done_files, self.total_files,
+            self.done_files,
+            self.total_files,
             render_bar(overall_ratio.clamp(0.0, 1.0), 40)
         );
         println!(
@@ -198,8 +201,8 @@ impl UploadState {
 
 fn connect_sftp(args: &UploadArgs) -> Result<(Session, ssh2::Sftp)> {
     let addr = format!("{}:{}", args.hostname, args.port);
-    let tcp = std::net::TcpStream::connect(&addr)
-        .with_context(|| format!("无法连接到 {}", addr))?;
+    let tcp =
+        std::net::TcpStream::connect(&addr).with_context(|| format!("无法连接到 {}", addr))?;
 
     let mut session = Session::new()?;
     session.set_tcp_stream(tcp);
@@ -252,8 +255,8 @@ fn upload_file(
         .create(remote)
         .with_context(|| format!("无法创建远程文件: {}", remote.display()))?;
 
-    let data = std::fs::read(local)
-        .with_context(|| format!("无法读取本地文件: {}", local.display()))?;
+    let data =
+        std::fs::read(local).with_context(|| format!("无法读取本地文件: {}", local.display()))?;
 
     let total = data.len() as u64;
     let chunk_size = 65536u64;
@@ -323,7 +326,10 @@ fn main() -> Result<()> {
 
     // 恢复终端
     disable_raw_mode();
-    println!("\n🎉 所有文件上传完成！耗时: {}", format_duration(state.start_time.elapsed().as_secs_f64()));
+    println!(
+        "\n🎉 所有文件上传完成！耗时: {}",
+        format_duration(state.start_time.elapsed().as_secs_f64())
+    );
     println!("按 Enter 键退出...");
     let _ = std::io::stdin().read_line(&mut String::new());
 

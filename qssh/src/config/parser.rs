@@ -66,10 +66,8 @@ pub fn parse_config_content(content: &str) -> SshConfig {
                     if let Ok(port) = val.trim().parse::<u16>() {
                         host.directives.push(SshDirective::Port(port));
                     } else {
-                        host.directives.push(SshDirective::Unknown(
-                            "Port".into(),
-                            val.trim().to_string(),
-                        ));
+                        host.directives
+                            .push(SshDirective::Unknown("Port".into(), val.trim().to_string()));
                     }
                 } else if let Some(val) = trimmed.strip_prefix("IdentityFile ") {
                     let expanded = shellexpand::full(val.trim())
@@ -79,15 +77,11 @@ pub fn parse_config_content(content: &str) -> SshConfig {
                 } else {
                     // 未识别的指令
                     if let Some((k, v)) = trimmed.split_once(char::is_whitespace) {
-                        host.directives.push(SshDirective::Unknown(
-                            k.to_string(),
-                            v.trim().to_string(),
-                        ));
+                        host.directives
+                            .push(SshDirective::Unknown(k.to_string(), v.trim().to_string()));
                     } else {
-                        host.directives.push(SshDirective::Unknown(
-                            trimmed.to_string(),
-                            String::new(),
-                        ));
+                        host.directives
+                            .push(SshDirective::Unknown(trimmed.to_string(), String::new()));
                     }
                 }
             }

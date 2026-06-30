@@ -10,14 +10,9 @@ pub fn check_host(hostname: &str, port: u16, timeout_secs: u64) -> Result<bool> 
         .to_socket_addrs()
         .with_context(|| format!("无法解析主机名: {}", hostname))?;
 
-    let addr = addrs
-        .next()
-        .context("无法解析主机地址: 没有返回任何地址")?;
+    let addr = addrs.next().context("无法解析主机地址: 没有返回任何地址")?;
 
-    match TcpStream::connect_timeout(
-        &addr,
-        std::time::Duration::from_secs(timeout_secs),
-    ) {
+    match TcpStream::connect_timeout(&addr, std::time::Duration::from_secs(timeout_secs)) {
         Ok(_) => Ok(true),
         Err(_) => Ok(false),
     }

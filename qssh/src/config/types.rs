@@ -119,10 +119,7 @@ pub fn find_host<'a>(config: &'a SshConfig, alias: &str) -> Option<&'a HostBlock
 
 /// 可变查找
 #[allow(dead_code)]
-pub fn find_host_mut<'a>(
-    config: &'a mut SshConfig,
-    alias: &str,
-) -> Option<&'a mut HostBlock> {
+pub fn find_host_mut<'a>(config: &'a mut SshConfig, alias: &str) -> Option<&'a mut HostBlock> {
     config.hosts.iter_mut().find(|h| h.alias == alias)
 }
 

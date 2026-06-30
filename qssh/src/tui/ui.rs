@@ -14,7 +14,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(1), // 标题栏
-            Constraint::Min(0),     // 主体
+            Constraint::Min(0),    // 主体
             Constraint::Length(1), // 状态栏
         ])
         .split(area);
@@ -32,8 +32,11 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
         app.mode.label()
     );
 
-    let header = Paragraph::new(title)
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD));
+    let header = Paragraph::new(title).style(
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    );
     frame.render_widget(header, area);
 }
 
@@ -69,10 +72,7 @@ fn render_host_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 Span::raw(prefix),
                 Span::raw(status_icon),
                 Span::raw(" "),
-                Span::styled(
-                    &host.alias,
-                    Style::default().add_modifier(Modifier::BOLD),
-                ),
+                Span::styled(&host.alias, Style::default().add_modifier(Modifier::BOLD)),
             ]);
 
             ListItem::new(content)
@@ -122,14 +122,12 @@ fn render_detail(frame: &mut Frame, area: Rect, app: &App) {
         "选择主机查看详情".to_string()
     };
 
-    let detail = Paragraph::new(detail)
-        .block(Block::default().borders(Borders::ALL).title("详情"));
+    let detail = Paragraph::new(detail).block(Block::default().borders(Borders::ALL).title("详情"));
     frame.render_widget(detail, area);
 }
 
 fn render_status_bar(frame: &mut Frame, area: Rect, app: &App) {
     let hint = app.mode.hint();
-    let status = Paragraph::new(hint)
-        .style(Style::default().fg(Color::White).bg(Color::DarkGray));
+    let status = Paragraph::new(hint).style(Style::default().fg(Color::White).bg(Color::DarkGray));
     frame.render_widget(status, area);
 }

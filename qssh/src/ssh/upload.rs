@@ -70,8 +70,8 @@ impl UploadPayload {
 #[allow(dead_code)]
 fn connect_sftp(payload: &UploadPayload) -> Result<(Session, ssh2::Sftp)> {
     let addr = format!("{}:{}", payload.hostname, payload.port);
-    let tcp = std::net::TcpStream::connect(&addr)
-        .with_context(|| format!("无法连接到 {}", addr))?;
+    let tcp =
+        std::net::TcpStream::connect(&addr).with_context(|| format!("无法连接到 {}", addr))?;
 
     let mut session = Session::new().context("无法创建 SSH 会话")?;
     session.set_tcp_stream(tcp);
@@ -152,10 +152,7 @@ fn upload_one_file(
 ///
 /// 建立 SFTP 连接 → 创建远程目录 → 逐个上传文件（带进度回调）
 #[allow(dead_code)]
-pub fn run_upload(
-    payload: &UploadPayload,
-    on_progress: &dyn Fn(usize, u64, u64),
-) -> Result<()> {
+pub fn run_upload(payload: &UploadPayload, on_progress: &dyn Fn(usize, u64, u64)) -> Result<()> {
     let (_session, sftp) = connect_sftp(payload)?;
 
     // 确保远程根目录存在

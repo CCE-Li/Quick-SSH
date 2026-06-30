@@ -52,9 +52,7 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
         },
         Mode::Confirm => match key.code {
             KeyCode::Char('y') | KeyCode::Char('Y') => Action::ConfirmDelete(true),
-            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
-                Action::ConfirmDelete(false)
-            }
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Action::ConfirmDelete(false),
             _ => Action::None,
         },
         Mode::Help => match key.code {

@@ -16,7 +16,11 @@ pub fn run(file: Option<&str>) -> Result<()> {
             let out_path = PathBuf::from(path);
             std::fs::write(&out_path, &json)
                 .with_context(|| format!("无法写入文件: {}", out_path.display()))?;
-            println!("📤 已导出 {} 台主机到 {}", config.hosts.len(), out_path.display());
+            println!(
+                "📤 已导出 {} 台主机到 {}",
+                config.hosts.len(),
+                out_path.display()
+            );
         }
         None => {
             println!("{}", json);
