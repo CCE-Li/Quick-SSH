@@ -51,6 +51,12 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
+      - name: Install OpenSSL (macOS only)
+        if: runner.os == 'macOS'
+        run: |
+          brew install openssl
+          echo "OPENSSL_DIR=$(brew --prefix openssl)" >> $GITHUB_ENV
+
       - name: Build qssh (release)
         run: cargo build --release --target ${{ matrix.target }} --package qssh
 
