@@ -23,6 +23,8 @@ pub enum Action {
     StartAdd,
     #[allow(dead_code)]
     DoAdd(String),
+    StartEdit,
+    DoEdit(String),
     #[allow(dead_code)]
     StartRename(String),
     #[allow(dead_code)]
@@ -55,6 +57,9 @@ pub enum Mode {
     /// 添加主机模式
     #[strum(to_string = "ADD")]
     Add,
+    /// 编辑主机模式
+    #[strum(to_string = "EDIT")]
+    Edit,
     /// 重命名模式
     #[strum(to_string = "RENAME")]
     Rename,

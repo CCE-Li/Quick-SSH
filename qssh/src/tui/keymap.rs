@@ -16,6 +16,7 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
             KeyCode::Enter => Action::Connect,
             KeyCode::Char(' ') => Action::ToggleSelect,
             KeyCode::Char('d') => Action::Delete,
+            KeyCode::Char('e') => Action::StartEdit,
             KeyCode::Char('a') => Action::StartAdd,
             KeyCode::Char('p') => Action::Ping,
             KeyCode::Char('P') => Action::PingAll,
@@ -50,6 +51,17 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
             }
             _ => Action::None,
         },
+        Mode::Edit => match key.code {
+            KeyCode::Esc => Action::HideHelp,
+            KeyCode::Enter => Action::DoEdit(app.input_buffer.clone()),
+            KeyCode::Char(c) => Action::DoEdit(c.to_string()),
+            KeyCode::Backspace => {
+                let mut s = app.input_buffer.clone();
+                s.pop();
+                Action::DoEdit(s)
+            }
+            _ => Action::None,
+        },
         Mode::Confirm => match key.code {
             KeyCode::Char('y') | KeyCode::Char('Y') => Action::ConfirmDelete(true),
             KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Action::ConfirmDelete(false),
@@ -72,6 +84,7 @@ impl Mode {
             Mode::Normal => " NORMAL ",
             Mode::Search => " SEARCH ",
             Mode::Add => " ADD ",
+            Mode::Edit => " EDIT ",
             Mode::Rename => " RENAME ",
             Mode::Export => " EXPORT ",
             Mode::Import => " IMPORT ",
@@ -83,9 +96,12 @@ impl Mode {
     /// 模式对应的提示信息
     pub fn hint(&self) -> &str {
         match self {
-            Mode::Normal => "j↓ k↑ gg↕ G↕ /搜索 a添加 d删除 p检测 P全检 Enter连接 q退出 ?帮助",
+            Mode::Normal => {
+                "j↓ k↑ gg↕ G↕ /搜索 a添加 e编辑 d删除 p检测 P全检 Enter连接 空格标记 q退出 ?帮助"
+            }
             Mode::Search => "输入搜索关键词，Enter 确认，Esc 取消",
             Mode::Add => "格式: user@hostname[:port] 可选 --key <path>",
+            Mode::Edit => "修改: user@hostname[:port]，Enter 确认，Esc 取消",
             Mode::Rename => "输入新别名，Enter 确认，Esc 取消",
             Mode::Export => "输入导出文件路径，Enter 确认，Esc 取消",
             Mode::Import => "输入导入文件路径，Enter 确认，Esc 取消",

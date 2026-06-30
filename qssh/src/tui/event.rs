@@ -23,7 +23,7 @@ pub fn start() -> Result<()> {
     let terminal = ratatui::try_init()?;
 
     // 创建应用状态
-    let mut app = App::new(config.hosts);
+    let mut app = App::new(config.hosts, config_path);
 
     // 进入事件循环
     let result = run_event_loop(terminal, &mut app);
