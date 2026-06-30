@@ -1,9 +1,9 @@
 PackageIdentifier: CCE-Li.Quick-SSH
-PackageVersion: 1.1.11
+PackageVersion: 2.0.0
 PackageLocale: en-US
 Publisher: CCE-Li
 PackageName: Quick-SSH
 License: MIT
-ShortDescription: 🚀 Quick-SSH - Docker-style SSH connection manager with TUI
+ShortDescription: 🚀 Quick-SSH - Docker-style SSH connection manager with TUI (Rust native binary)
 ManifestType: default
 ManifestVersion: 1.6.0

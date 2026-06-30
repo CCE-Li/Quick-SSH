@@ -1,5 +1,7 @@
-# GitHub Actions: build native binaries and publish Quick-SSH
-# Trigger: push a tag like v1.1.0
+# 🚀 Quick-SSH Release Pipeline (cargo-dist 风格)
+# 自动构建 Rust 二进制 → 归档(.zip/.tar.gz) → GitHub Release
+#
+# 触发方式: 推送 v* 标签 (如 v2.0.0)
 
 name: Release
 
@@ -11,125 +13,111 @@ on:
 permissions:
   contents: write
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
-  build-binaries:
-    name: Build binary (${{ matrix.target }})
+  # ── 构建阶段：为各平台编译二进制 ──────────────────────
+  build:
+    name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: win-x64
-            runner: windows-latest
-            platform: win32
-            artifact: qssh-win
-            binary: qssh-win.exe
-          - target: linux-x64
+          - target: x86_64-unknown-linux-gnu
             runner: ubuntu-latest
-            platform: linux
-            artifact: qssh-linux
-            binary: qssh-linux
-          - target: macos-x64
-            runner: macos-15-intel
-            platform: darwin
-            artifact: qssh-darwin
-            binary: qssh-darwin
+            archive-suffix: x86_64-linux
+          - target: x86_64-apple-darwin
+            runner: macos-latest
+            archive-suffix: x86_64-macos
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            archive-suffix: aarch64-macos
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            archive-suffix: x86_64-windows
+
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          node-version: 20
+          targets: ${{ matrix.target }}
 
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Build binary
-        run: node scripts/build.js --platform ${{ matrix.platform }}
-
-      - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@v2
         with:
-          name: ${{ matrix.artifact }}
-          path: dist/bin/${{ matrix.binary }}
-          if-no-files-found: error
+          key: ${{ matrix.target }}
 
-      - name: Upload runtime assets
-        if: matrix.platform == 'linux'
-        uses: actions/upload-artifact@v4
-        with:
-          name: runtime-assets
-          path: dist/usr/**
-          if-no-files-found: error
+      - name: Build qssh (release)
+        run: cargo build --release --target ${{ matrix.target }} --package qssh
 
-  deb-build:
-    name: Build .deb package
-    needs: build-binaries
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      - name: Build qssh-uploader (release)
+        run: cargo build --release --target ${{ matrix.target }} --package qssh-uploader
 
-      - name: Download Linux binary
-        uses: actions/download-artifact@v4
-        with:
-          name: qssh-linux
-          path: packaging/apt/
-
-      - name: Build .deb
+      - name: Generate shell completions
+        shell: bash
         run: |
-          mv packaging/apt/qssh-linux packaging/apt/qssh-linux-x64
-          chmod +x packaging/apt/qssh-linux-x64
-          cd packaging/apt
-          make deb
+          # 生成本地可运行的补全（主机架构）
+          cargo run --package qssh -- completions bash > qssh.bash
+          cargo run --package qssh -- completions zsh > qssh.zsh
+          cargo run --package qssh -- completions fish > qssh.fish
+          cargo run --package qssh -- completions powershell > qssh.ps1
+          cargo run --package qssh -- completions elvish > qssh.elv
 
-      - name: Upload .deb artifact
+      - name: Prepare archive
+        shell: bash
+        run: |
+          BIN_DIR="target/${{ matrix.target }}/release"
+
+          # 确定二进制文件名（Windows 需要 .exe 后缀）
+          if [[ "${{ matrix.target }}" == *-windows-* ]]; then
+            QSSH_BIN="qssh.exe"
+            UPLOADER_BIN="qssh-uploader.exe"
+          else
+            QSSH_BIN="qssh"
+            UPLOADER_BIN="qssh-uploader"
+          fi
+
+          ARCHIVE_DIR="qssh-${{ matrix.archive-suffix }}"
+          mkdir -p "$ARCHIVE_DIR"
+
+          cp "$BIN_DIR/$QSSH_BIN" "$ARCHIVE_DIR/"
+          cp "$BIN_DIR/$UPLOADER_BIN" "$ARCHIVE_DIR/"
+          cp LICENSE "$ARCHIVE_DIR/"
+          cp README.md "$ARCHIVE_DIR/"
+          cp qssh.*.bash qssh.*.zsh qssh.*.fish qssh.*.ps1 qssh.*.elv "$ARCHIVE_DIR/" 2>/dev/null || true
+
+          # 创建归档
+          if [[ "${{ matrix.target }}" == *-windows-* ]]; then
+            7z a -tzip "qssh-${{ matrix.archive-suffix }}.zip" "$ARCHIVE_DIR/"
+          else
+            tar czf "qssh-${{ matrix.archive-suffix }}.tar.gz" "$ARCHIVE_DIR/"
+          fi
+
+      - name: Generate checksum
+        shell: bash
+        run: |
+          if [[ "${{ matrix.target }}" == *-windows-* ]]; then
+            sha256sum "qssh-${{ matrix.archive-suffix }}.zip" > "qssh-${{ matrix.archive-suffix }}.zip.sha256"
+          else
+            sha256sum "qssh-${{ matrix.archive-suffix }}.tar.gz" > "qssh-${{ matrix.archive-suffix }}.tar.gz.sha256"
+          fi
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: quick-ssh-deb
-          path: packaging/apt/build/*.deb
+          name: qssh-${{ matrix.archive-suffix }}
+          path: |
+            qssh-${{ matrix.archive-suffix }}.*
           if-no-files-found: error
 
-  npm-publish:
-    name: Publish to npm
-    needs: build-binaries
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Download npm package binaries
-        uses: actions/download-artifact@v4
-        with:
-          pattern: qssh-*
-          path: dist/bin
-          merge-multiple: true
-
-      - name: Download npm package runtime assets
-        uses: actions/download-artifact@v4
-        with:
-          name: runtime-assets
-          path: dist/usr
-
-      - name: Verify npm package binaries
-        run: |
-          chmod +x dist/bin/qssh-linux dist/bin/qssh-darwin
-          node scripts/verify-package-binaries.js
-
-      - name: Publish npm package
-        run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-  github-release:
+  # ── 发布阶段：创建 GitHub Release ─────────────────────
+  release:
     name: Create GitHub Release
-    needs: [build-binaries, deb-build]
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -137,42 +125,26 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: release-artifacts/all
+          path: artifacts
           merge-multiple: true
-
-      - name: Prepare release assets
-        run: |
-          mkdir -p release-artifacts/assets
-          cp release-artifacts/all/qssh-win.exe release-artifacts/assets/qssh-win-x64.exe
-          cp release-artifacts/all/qssh-linux release-artifacts/assets/qssh-linux-x64
-          cp release-artifacts/all/qssh-darwin release-artifacts/assets/qssh-macos-x64
-          chmod +x release-artifacts/assets/qssh-linux-x64 release-artifacts/assets/qssh-macos-x64
-          for deb in release-artifacts/all/*.deb; do
-            cp "$deb" release-artifacts/assets/
-          done
-          cd release-artifacts/assets
-          sha256sum * > SHA256SUMS
 
       - name: Generate release notes
         run: |
-          cat > release-notes.md << 'EORELEASE'
-          ## Quick-SSH ${{ github.ref_name }}
+          cat > RELEASE_NOTES.md << 'EOF'
+          ## 🚀 Quick-SSH v${{ github.ref_name }}
 
-          ### Native binary release
+          ### Rust 重构版发布
 
-          This release provides native binaries that can run without a local Node.js runtime.
+          此版本使用 Rust 完全重构，提供以下改进：
+          - 🎯 原生性能，无 Node.js 依赖
+          - 🖥️ TUI 界面（ratatui 驱动）
+          - 🔧 完整的 CLI 子命令（ps/add/rm/connect/export/import）
+          - 📤 独立文件上传工具（qssh-uploader）
+          - 🐚 Shell 补全（bash/zsh/fish/powershell/elvish）
 
-          ### Installation
+          ### 安装方式
 
-          **Direct binary download:**
-
-          | Platform | Download |
-          |------|------|
-          | Windows | `qssh-win-x64.exe` |
-          | Linux | `qssh-linux-x64` |
-          | macOS | `qssh-macos-x64` |
-
-          After downloading, put the file in a PATH directory and rename it to `qssh` if needed.
+          从下方 **Assets** 下载对应平台的归档文件，解压后即可使用。
 
           **Scoop (Windows):**
           ```powershell
@@ -185,34 +157,35 @@ jobs:
           winget install CCE-Li.Quick-SSH
           ```
 
-          **apt (Debian/Ubuntu):**
+          **Homebrew (macOS):**
           ```bash
-          sudo apt install ./quick-ssh_*.deb
+          brew install quick-ssh
           ```
 
-          **Pacman/AUR (Arch Linux):**
+          **AUR (Arch Linux):**
           ```bash
           yay -S quick-ssh
           ```
 
-          **npm:**
+          **APT (Debian/Ubuntu):**
           ```bash
-          npm install -g quick-ssh
+          sudo dpkg -i quick-ssh_*.deb
           ```
-          EORELEASE
 
-          echo "" >> release-notes.md
-          echo "### Quick usage" >> release-notes.md
-          echo "" >> release-notes.md
-          echo '```bash' >> release-notes.md
-          echo 'qssh                              # Start TUI' >> release-notes.md
-          echo 'qssh add my-server root@192.168.1.100:22' >> release-notes.md
-          echo 'qssh my-server                    # Connect' >> release-notes.md
-          echo 'qssh ps                           # List connections' >> release-notes.md
-          echo '```' >> release-notes.md
+          ### 快速使用
+
+          ```bash
+          qssh                              # 启动 TUI
+          qssh add my-srv root@10.0.0.1     # 添加主机
+          qssh my-srv                       # 连接
+          qssh ps                           # 列出主机
+          qssh help                         # 查看帮助
+          ```
+          EOF
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          body_path: release-notes.md
-          files: release-artifacts/assets/*
+          body_path: RELEASE_NOTES.md
+          files: artifacts/*
+          fail_on_unmatched_files: false

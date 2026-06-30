@@ -1,29 +1,29 @@
 {
-  "version": "1.1.11",
-  "description": "🚀 Quick-SSH - Docker-style SSH connection manager with TUI (native binary, no Node.js needed)",
+  "version": "2.0.0",
+  "description": "🚀 Quick-SSH - Docker-style SSH connection manager with TUI (Rust native binary)",
   "homepage": "https://github.com/CCE-Li/Quick-SSH",
   "license": "MIT",
   "notes": [
-    "安装完成即可使用 'qssh' 命令。",
-    "无需安装 Node.js，本包包含预编译的原生二进制文件。"
+    "安装完成即可使用 'qssh' 和 'qssh-uploader' 命令。",
+    "无需安装 Node.js，本包包含 Rust 编译的原生二进制文件。"
   ],
   "architecture": {
     "64bit": {
-      "url": "https://github.com/CCE-Li/Quick-SSH/releases/download/v1.1.11/qssh-win-x64.exe",
-      "hash": "sha256:123cd81641a513303d97b26484937aa27f2016762e3517cf277bad5ff83f5176"
+      "url": "https://github.com/CCE-Li/Quick-SSH/releases/download/v$version/qssh-x86_64-windows.zip",
+      "hash": "sha256:UPDATE_ME"
     }
   },
-  "bin": "qssh-win-x64.exe",
+  "bin": ["qssh.exe", "qssh-uploader.exe"],
   "checkver": {
     "github": "https://github.com/CCE-Li/Quick-SSH"
   },
   "autoupdate": {
     "architecture": {
       "64bit": {
-        "url": "https://github.com/CCE-Li/Quick-SSH/releases/download/v$version/qssh-win-x64.exe",
+        "url": "https://github.com/CCE-Li/Quick-SSH/releases/download/v$version/qssh-x86_64-windows.zip",
         "hash": {
-          "url": "https://github.com/CCE-Li/Quick-SSH/releases/download/v$version/SHA256SUMS",
-          "regex": "$sha256\\s+qssh-win-x64\\.exe"
+          "url": "https://github.com/CCE-Li/Quick-SSH/releases/download/v$version/qssh-x86_64-windows.zip.sha256",
+          "regex": "$sha256"
         }
       }
     }

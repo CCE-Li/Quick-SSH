@@ -1,0 +1,16 @@
+[package]
+name = "qssh-uploader"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Quick-SSH 文件上传工具（SFTP）"
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+tokio.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+ssh2.workspace = true
+shellexpand.workspace = true

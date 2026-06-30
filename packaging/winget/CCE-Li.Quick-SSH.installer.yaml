@@ -1,8 +1,8 @@
-# winget manifest for Quick-SSH (Binary Version)
+# winget manifest for Quick-SSH (Rust Binary Version)
 # https://github.com/microsoft/winget-pkgs
 
 PackageIdentifier: CCE-Li.Quick-SSH
-PackageVersion: 1.1.11
+PackageVersion: 2.0.0
 PackageLocale: en-US
 Publisher: CCE-Li
 PublisherUrl: https://github.com/CCE-Li
@@ -12,8 +12,8 @@ PackageName: Quick-SSH
 PackageUrl: https://github.com/CCE-Li/Quick-SSH
 License: MIT
 LicenseUrl: https://github.com/CCE-Li/Quick-SSH/blob/main/LICENSE
-ShortDescription: 🚀 Quick-SSH - Docker-style SSH connection manager (native binary, no Node.js needed)
-Description: Quick-SSH is a cross-platform SSH connection manager with a Docker-like command-line interface and a TUI (Terminal User Interface). This package contains the pre-compiled native binary - no Node.js runtime required.
+ShortDescription: 🚀 Quick-SSH - Docker-style SSH connection manager with TUI (Rust native binary)
+Description: Quick-SSH is a cross-platform SSH connection manager with a Docker-like command-line interface and a TUI (Terminal User Interface). This package contains the pre-compiled Rust native binary - no Node.js runtime required.
 Tags:
   - ssh
   - connection-manager
@@ -21,12 +21,20 @@ Tags:
   - tui
   - quick-ssh
   - qssh
+  - rust
 Installers:
   - Architecture: x64
-    InstallerType: portable
-    InstallerUrl: https://github.com/CCE-Li/Quick-SSH/releases/download/v1.1.11/qssh-win-x64.exe
-    InstallerSha256: "e3b0c44298fc1c149afbf4c8995fb92427ae41e4649b934ca495991b7852b855"
+    InstallerType: zip
+    InstallerUrl: https://github.com/CCE-Li/Quick-SSH/releases/download/v2.0.0/qssh-x86_64-windows.zip
+    InstallerSha256: "UPDATE_ME"
+    NestedInstallerType: portable
+    NestedInstallerFiles:
+      - RelativeFilePath: qssh.exe
+        PortableCommandAlias: qssh
+      - RelativeFilePath: qssh-uploader.exe
+        PortableCommandAlias: qssh-uploader
     Commands:
       - qssh
+      - qssh-uploader
 ManifestType: installer
 ManifestVersion: 1.6.0

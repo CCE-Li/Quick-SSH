@@ -3,3 +3,18 @@ dist/
 console.log*
 # 构建工具（自动下载）
 scripts/tools/
+# ai计划文档
+RUST_REWRITE_PLAN.md
+
+# Rust 构建产物
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# 旧 Node.js 源码（已迁移至 Rust，保留作为参考）
+/src/
+scripts/build.js
+scripts/qssh.js
+scripts/verify-package-binaries.js
+package.json
+package-lock.json

@@ -1,0 +1,30 @@
+[package]
+name = "qssh"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+clap.workspace = true
+ratatui.workspace = true
+crossterm.workspace = true
+ssh2.workspace = true
+regex.workspace = true
+shellexpand.workspace = true
+colored.workspace = true
+dirs.workspace = true
+clap_complete = "4"
+strum = { version = "0.26", features = ["derive"] }
+
+[build-dependencies]
+clap = { version = "4", features = ["derive"] }
+clap_complete = "4"

@@ -1,0 +1,30 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/qssh",
+    "crates/qssh-uploader",
+]
+
+[workspace.package]
+version = "2.0.0"
+edition = "2021"
+license = "MIT"
+authors = ["CCE-Li"]
+description = "🚀 Quick-SSH - 快速 SSH 连接管理工具"
+homepage = "https://github.com/CCE-Li/Quick-SSH"
+repository = "https://github.com/CCE-Li/Quick-SSH"
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+thiserror = "1"
+clap = { version = "4", features = ["derive", "env"] }
+ratatui = "0.29"
+crossterm = "0.28"
+ssh2 = "0.9"
+regex = "1"
+shellexpand = "3"
+colored = "2"
+dirs = "6"
