@@ -25,6 +25,9 @@ dirs.workspace = true
 clap_complete = "4"
 strum = { version = "0.26", features = ["derive"] }
 
+[target.'cfg(not(target_os = "windows"))'.dependencies]
+openssl-sys = { workspace = true, features = ["vendored"] }
+
 [build-dependencies]
 clap = { version = "4", features = ["derive"] }
 clap_complete = "4"

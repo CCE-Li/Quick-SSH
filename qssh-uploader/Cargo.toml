@@ -14,3 +14,6 @@ anyhow.workspace = true
 thiserror.workspace = true
 ssh2.workspace = true
 shellexpand.workspace = true
+
+[target.'cfg(not(target_os = "windows"))'.dependencies]
+openssl-sys = { workspace = true, features = ["vendored"] }
