@@ -1,11 +1,11 @@
-/// qssh-uploader - Quick-SSH 独立文件上传工具
-///
-/// 由 qssh connect 在检测到拖拽操作时自动启动。
-/// 使用 libssh2 (ssh2 crate) 实现 SFTP 上传，显示独立进度窗口。
-///
-/// 使用方式:
-///   qssh-uploader --host <host> --user <user> --port <port>
-///                --remote-dir <dir> [--key <keyfile>] <file1> [file2 ...]
+//! qssh-uploader - Quick-SSH 独立文件上传工具
+//!
+//! 由 qssh connect 在检测到拖拽操作时自动启动。
+//! 使用 libssh2 (ssh2 crate) 实现 SFTP 上传，显示独立进度窗口。
+//!
+//! 使用方式:
+//!   qssh-uploader --host <host> --user <user> --port <port>
+//!                --remote-dir <dir> [--key <keyfile>] <file1> [file2 ...]
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -105,9 +105,8 @@ fn format_duration(secs: f64) -> String {
 fn render_bar(ratio: f64, width: u16) -> String {
     let filled = (ratio * width as f64).round() as u16;
     let empty = width.saturating_sub(filled);
-    let bar: String = std::iter::repeat('█')
-        .take(filled as usize)
-        .chain(std::iter::repeat('░').take(empty as usize))
+    let bar: String = std::iter::repeat_n('█', filled as usize)
+        .chain(std::iter::repeat_n('░', empty as usize))
         .collect();
     bar
 }

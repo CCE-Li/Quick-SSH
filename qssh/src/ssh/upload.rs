@@ -7,8 +7,10 @@ use ssh2::Session;
 use crate::config::types::HostBlock;
 
 // ── SFTP 上传 ────────────────────────────────────────────
+// #![allow(dead_code)] 置于模块级
 
 /// 单个文件上传条目
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct UploadEntry {
     pub local_path: PathBuf,
@@ -17,6 +19,7 @@ pub struct UploadEntry {
 }
 
 /// SFTP 上传参数
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct UploadPayload {
     pub hostname: String,
@@ -28,6 +31,7 @@ pub struct UploadPayload {
 }
 
 /// 从 HostBlock 构建上传参数
+#[allow(dead_code)]
 impl UploadPayload {
     pub fn from_host(host: &HostBlock, files: Vec<PathBuf>, remote_dir: PathBuf) -> Result<Self> {
         let hostname = host
@@ -63,6 +67,7 @@ impl UploadPayload {
 }
 
 /// 建立 SSH 连接并打开 SFTP 会话
+#[allow(dead_code)]
 fn connect_sftp(payload: &UploadPayload) -> Result<(Session, ssh2::Sftp)> {
     let addr = format!("{}:{}", payload.hostname, payload.port);
     let tcp = std::net::TcpStream::connect(&addr)
@@ -99,6 +104,7 @@ fn connect_sftp(payload: &UploadPayload) -> Result<(Session, ssh2::Sftp)> {
 }
 
 /// 确保远程目录存在
+#[allow(dead_code)]
 fn ensure_remote_dir(sftp: &ssh2::Sftp, dir: &Path) -> Result<()> {
     let mut current = PathBuf::new();
     for component in dir.components() {
@@ -112,6 +118,7 @@ fn ensure_remote_dir(sftp: &ssh2::Sftp, dir: &Path) -> Result<()> {
 }
 
 /// 上传单个文件，带进度回调
+#[allow(dead_code)]
 fn upload_one_file(
     sftp: &ssh2::Sftp,
     entry: &UploadEntry,
@@ -144,6 +151,7 @@ fn upload_one_file(
 /// 执行文件上传任务
 ///
 /// 建立 SFTP 连接 → 创建远程目录 → 逐个上传文件（带进度回调）
+#[allow(dead_code)]
 pub fn run_upload(
     payload: &UploadPayload,
     on_progress: &dyn Fn(usize, u64, u64),
@@ -170,6 +178,7 @@ pub fn run_upload(
 }
 
 /// 生成 qssh-uploader 的 CLI 参数（用于独立进程启动）
+#[allow(dead_code)]
 pub fn build_uploader_args(payload: &UploadPayload) -> Vec<String> {
     let mut args = Vec::new();
 

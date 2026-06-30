@@ -21,12 +21,19 @@ pub enum Action {
     /// 取消搜索
     CancelSearch,
     StartAdd,
+    #[allow(dead_code)]
     DoAdd(String),
+    #[allow(dead_code)]
     StartRename(String),
+    #[allow(dead_code)]
     DoRename(String),
+    #[allow(dead_code)]
     StartExport(String),
+    #[allow(dead_code)]
     DoExport(String),
+    #[allow(dead_code)]
     StartImport,
+    #[allow(dead_code)]
     DoImport(String),
     Ping,
     PingAll,

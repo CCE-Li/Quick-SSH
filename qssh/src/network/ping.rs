@@ -3,6 +3,7 @@ use std::net::{TcpStream, ToSocketAddrs};
 use anyhow::{Context, Result};
 
 /// TCP 连接测试 —— 检测远程主机端口是否可达
+#[allow(dead_code)]
 pub fn check_host(hostname: &str, port: u16, timeout_secs: u64) -> Result<bool> {
     let addr = format!("{}:{}", hostname, port);
     let mut addrs = addr

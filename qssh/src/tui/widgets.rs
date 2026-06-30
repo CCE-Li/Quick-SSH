@@ -6,6 +6,7 @@ use ratatui::Frame;
 // ── 自定义 TUI 组件 ──────────────────────────────────────
 
 /// 居中弹窗辅助函数
+#[allow(dead_code)]
 pub fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
     let popup_layout = ratatui::layout::Layout::default()
         .direction(ratatui::layout::Direction::Vertical)
@@ -27,6 +28,7 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
 }
 
 /// 渲染确认对话框
+#[allow(dead_code)]
 pub fn render_confirm_dialog(frame: &mut Frame, area: Rect, title: &str, message: &str) {
     let popup_area = centered_rect(40, 20, area);
     let block = Block::default()
@@ -40,6 +42,7 @@ pub fn render_confirm_dialog(frame: &mut Frame, area: Rect, title: &str, message
 }
 
 /// 渲染帮助弹窗
+#[allow(dead_code)]
 pub fn render_help_popup(frame: &mut Frame, area: Rect) {
     let popup_area = centered_rect(60, 70, area);
     let help_text = "\

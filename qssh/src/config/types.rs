@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 // ── 渐进式 SSH 配置类型定义 ──────────────────────────────
@@ -118,6 +118,7 @@ pub fn find_host<'a>(config: &'a SshConfig, alias: &str) -> Option<&'a HostBlock
 }
 
 /// 可变查找
+#[allow(dead_code)]
 pub fn find_host_mut<'a>(
     config: &'a mut SshConfig,
     alias: &str,
@@ -126,6 +127,7 @@ pub fn find_host_mut<'a>(
 }
 
 /// 获取所有别名
+#[allow(dead_code)]
 pub fn list_aliases(config: &SshConfig) -> Vec<&str> {
     config.hosts.iter().map(|h| h.alias.as_str()).collect()
 }

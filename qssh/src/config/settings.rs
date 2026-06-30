@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 
 // ── ~/.qsshrc 程序设置 ──────────────────────────────────
 
-/// 用户自定义设置
+/// 用户自定义设置（预留，后续版本启用）
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QsshSettings {
     /// 默认 SSH 端口
@@ -43,6 +44,7 @@ impl Default for QsshSettings {
 }
 
 /// 加载 ~/.qsshrc（如果存在）
+#[allow(dead_code)]
 pub fn load_settings() -> Result<QsshSettings> {
     let config_path = dirs::home_dir()
         .map(|p| p.join(".qsshrc"))
@@ -58,6 +60,7 @@ pub fn load_settings() -> Result<QsshSettings> {
 }
 
 /// 保存设置到 ~/.qsshrc
+#[allow(dead_code)]
 pub fn save_settings(settings: &QsshSettings) -> Result<()> {
     let config_path = dirs::home_dir()
         .map(|p| p.join(".qsshrc"))

@@ -13,7 +13,8 @@ pub struct App {
     pub hosts: Vec<HostBlock>,
     /// 列表状态（选中索引等）
     pub list_state: ListState,
-    /// 滚动偏移
+    /// 滚动偏移（预留）
+    #[allow(dead_code)]
     pub scroll_offset: usize,
     /// 当前模式
     pub mode: Mode,
