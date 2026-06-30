@@ -57,6 +57,12 @@ jobs:
           brew install openssl pkg-config
           echo "OPENSSL_DIR=$(brew --prefix openssl)" >> $GITHUB_ENV
           echo "PKG_CONFIG_PATH=$(brew --prefix openssl)/lib/pkgconfig" >> $GITHUB_ENV
+          echo "LDFLAGS=-L$(brew --prefix openssl)/lib" >> $GITHUB_ENV
+          echo "CFLAGS=-I$(brew --prefix openssl)/include" >> $GITHUB_ENV
+
+      - name: Clean build cache (macOS only)
+        if: runner.os == 'macOS'
+        run: cargo clean
 
       - name: Build qssh (release)
         run: cargo build --release --target ${{ matrix.target }} --package qssh
