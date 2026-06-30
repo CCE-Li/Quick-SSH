@@ -54,8 +54,9 @@ jobs:
       - name: Install OpenSSL (macOS only)
         if: runner.os == 'macOS'
         run: |
-          brew install openssl
+          brew install openssl pkg-config
           echo "OPENSSL_DIR=$(brew --prefix openssl)" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=$(brew --prefix openssl)/lib/pkgconfig" >> $GITHUB_ENV
 
       - name: Build qssh (release)
         run: cargo build --release --target ${{ matrix.target }} --package qssh
