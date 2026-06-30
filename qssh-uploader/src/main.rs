@@ -191,7 +191,6 @@ impl UploadState {
     }
 
     fn files_done_bytes(&self) -> u64 {
-        // 简化：不追踪每个已完成文件的具体字节数
         self.file_done
     }
 }

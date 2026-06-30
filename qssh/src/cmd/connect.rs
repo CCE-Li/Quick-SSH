@@ -1,8 +1,9 @@
 use anyhow::{Context, Result};
 use colored::*;
 
-use crate::config::ssh_config::{self, SshConfig};
-use crate::ssh::session::{resolve_target, start_interactive_session};
+use crate::config::{self, SshConfig};
+use crate::ssh::session::resolve_target;
+use crate::ssh::spawn::start_interactive_session;
 
 /// 连接 SSH 主机
 ///
@@ -10,8 +11,8 @@ use crate::ssh::session::{resolve_target, start_interactive_session};
 /// 1. 别名（从 ~/.ssh/config 查找）
 /// 2. user@hostname（直接连接）
 pub fn run(target: &str, ssh_args: &[String]) -> Result<()> {
-    let config_path = ssh_config::default_config_path();
-    let config: SshConfig = ssh_config::parse_config(&config_path)?;
+    let config_path = config::default_config_path();
+    let config: SshConfig = config::parser::parse_config(&config_path)?;
 
     let resolved = resolve_target(&config, target);
 

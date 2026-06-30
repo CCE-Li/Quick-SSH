@@ -1,11 +1,11 @@
 use anyhow::Result;
 
-use crate::config::ssh_config::{self, SshConfig};
+use crate::config;
 
 /// 列出所有 SSH 主机
 pub fn run(keyword: Option<String>) -> Result<()> {
-    let config_path = ssh_config::default_config_path();
-    let config: SshConfig = ssh_config::parse_config(&config_path)?;
+    let config_path = config::default_config_path();
+    let config = config::parser::parse_config(&config_path)?;
 
     if config.hosts.is_empty() {
         println!("📭 没有找到 SSH 主机");

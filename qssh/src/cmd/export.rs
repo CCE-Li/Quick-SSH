@@ -2,12 +2,12 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
-use crate::config::ssh_config::{self, SshConfig};
+use crate::config::{self, SshConfig};
 
 /// 导出所有主机配置为 JSON
 pub fn run(file: Option<&str>) -> Result<()> {
-    let config_path = ssh_config::default_config_path();
-    let config: SshConfig = ssh_config::parse_config(&config_path)?;
+    let config_path = config::default_config_path();
+    let config: SshConfig = config::parser::parse_config(&config_path)?;
 
     let json = serde_json::to_string_pretty(&config.hosts)?;
 

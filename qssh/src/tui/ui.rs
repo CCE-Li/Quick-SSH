@@ -10,7 +10,6 @@ use crate::tui::app::App;
 pub fn render(frame: &mut Frame, app: &mut App) {
     let area = frame.area();
 
-    // 布局：标题栏 | 主机列表 + 详情 | 状态栏
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -39,14 +38,11 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_body(frame: &mut Frame, area: Rect, app: &mut App) {
-    // 主体分左右：主机列表 | 详情
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)])
         .split(area);
 
-    // 先渲染详情（只读），再渲染列表（&mut）
-    // 分离借用以避免冲突
     render_detail(frame, chunks[1], &*app);
     render_host_list(frame, chunks[0], app);
 }
@@ -96,7 +92,6 @@ fn render_host_list(frame: &mut Frame, area: Rect, app: &mut App) {
 }
 
 fn render_detail(frame: &mut Frame, area: Rect, app: &App) {
-    // 显示选中主机的详细信息
     let detail = if let Some(idx) = app.selected() {
         if let Some(host) = app.hosts.get(idx) {
             let hostname = host.hostname().unwrap_or("-");

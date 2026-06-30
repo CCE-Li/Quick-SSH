@@ -1,5 +1,3 @@
-![Quick-SSH](doc/images/poster.png)
-
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
 
@@ -99,16 +97,7 @@ UploadConcurrency=3
 |------|------|
 | [`docs/architecture.md`](docs/architecture.md) | Rust 架构设计 |
 | [`docs/release.md`](docs/release.md) | 发布流程与包管理器维护 |
-| [`doc/FAQ.md`](doc/FAQ.md) | 常见问题 |
-
----
-
-## 近期规划
-
-- 批量命令执行
-- 自动检测更新
-- 连接日志记录
-- 更多包管理器覆盖
+| [`docs/roadmap.md`](docs/roadmap.md) | 开发路线图 |
 
 ---
 

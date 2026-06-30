@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use ssh2::Session;
 
-use crate::config::ssh_config::HostBlock;
+use crate::config::types::HostBlock;
 
 // ── SFTP 上传 ────────────────────────────────────────────
 

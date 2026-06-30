@@ -1,76 +1,11 @@
-mod app;
-mod event;
-mod modes;
-mod ui;
-mod widgets;
+use crossterm::event::KeyEvent;
 
-use std::time::Duration;
-
-use anyhow::Result;
-use crossterm::event::{Event as CrosstermEvent, KeyEventKind};
-use ratatui::DefaultTerminal;
-
-use crate::config::ssh_config;
+use super::action::{Action, Mode};
 use crate::tui::app::App;
-use crate::tui::event::Action;
-use crate::tui::ui::render;
-
-// ── TUI 主入口 ───────────────────────────────────────────
-
-/// 启动 TUI 界面
-pub fn start() -> Result<()> {
-    // 加载 SSH 配置
-    let config_path = ssh_config::default_config_path();
-    ssh_config::ensure_config(&config_path)?;
-    let config = ssh_config::parse_config(&config_path)?;
-
-    // 创建终端
-    let terminal = ratatui::try_init()?;
-
-    // 创建应用状态
-    let mut app = App::new(config.hosts);
-
-    // 进入事件循环
-    let result = run_event_loop(terminal, &mut app);
-
-    // 恢复终端
-    ratatui::try_restore()?;
-
-    result
-}
-
-/// TUI 事件循环：Event → Action → State → Render
-fn run_event_loop(mut terminal: DefaultTerminal, app: &mut App) -> Result<()> {
-    let tick_rate = Duration::from_millis(100);
-
-    while app.running {
-        // Render
-        terminal.draw(|frame| render(frame, app))?;
-
-        // 等待事件（带超时）
-        let has_event = crossterm::event::poll(tick_rate)?;
-
-        if has_event {
-            if let CrosstermEvent::Key(key) = crossterm::event::read()? {
-                // 仅在按下时处理（忽略重复和释放）
-                if key.kind == KeyEventKind::Press {
-                    let action = map_key_to_action(key, app);
-                    app.apply(action);
-                }
-            }
-        } else {
-            // Tick 事件（可用于定时刷新等）
-            app.apply(Action::None);
-        }
-    }
-
-    Ok(())
-}
 
 /// 键盘事件 → Action 映射
-fn map_key_to_action(key: crossterm::event::KeyEvent, app: &App) -> Action {
+pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
     use crossterm::event::KeyCode;
-    use crate::tui::modes::Mode;
 
     match app.mode {
         Mode::Normal => match key.code {
@@ -127,5 +62,37 @@ fn map_key_to_action(key: crossterm::event::KeyEvent, app: &App) -> Action {
             _ => Action::None,
         },
         _ => Action::None,
+    }
+}
+
+// ── Mode 的 UI 方法 ─────────────────────────────────────
+
+impl Mode {
+    /// 模式对应的状态栏标签
+    pub fn label(&self) -> &str {
+        match self {
+            Mode::Normal => " NORMAL ",
+            Mode::Search => " SEARCH ",
+            Mode::Add => " ADD ",
+            Mode::Rename => " RENAME ",
+            Mode::Export => " EXPORT ",
+            Mode::Import => " IMPORT ",
+            Mode::Confirm => " CONFIRM ",
+            Mode::Help => " HELP ",
+        }
+    }
+
+    /// 模式对应的提示信息
+    pub fn hint(&self) -> &str {
+        match self {
+            Mode::Normal => "j↓ k↑ gg↕ G↕ /搜索 a添加 d删除 p检测 P全检 Enter连接 q退出 ?帮助",
+            Mode::Search => "输入搜索关键词，Enter 确认，Esc 取消",
+            Mode::Add => "格式: user@hostname[:port] 可选 --key <path>",
+            Mode::Rename => "输入新别名，Enter 确认，Esc 取消",
+            Mode::Export => "输入导出文件路径，Enter 确认，Esc 取消",
+            Mode::Import => "输入导入文件路径，Enter 确认，Esc 取消",
+            Mode::Confirm => "确认删除？y/Y 确认，n/N/Esc 取消",
+            Mode::Help => "按 q/Esc 关闭帮助",
+        }
     }
 }

@@ -2,9 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
-use crate::config::ssh_config::{
-    self, render_config, HostBlock, SshConfig, SshDirective,
-};
+use crate::config::{self, types::SshDirective, HostBlock, SshConfig};
 
 /// 添加新的 SSH 主机
 ///
@@ -15,12 +13,12 @@ pub fn run(
     key: Option<&str>,
     port: u16,
 ) -> Result<()> {
-    let config_path = ssh_config::default_config_path();
-    ssh_config::ensure_config(&config_path)?;
-    let mut config: SshConfig = ssh_config::parse_config(&config_path)?;
+    let config_path = config::default_config_path();
+    config::ensure_config(&config_path)?;
+    let mut config: SshConfig = config::parser::parse_config(&config_path)?;
 
     // 检查别名是否已存在
-    if ssh_config::find_host(&config, alias).is_some() {
+    if config::find_host(&config, alias).is_some() {
         anyhow::bail!("主机 \"{}\" 已存在。使用 `qssh rm {}` 删除后重试", alias, alias);
     }
 
@@ -29,7 +27,6 @@ pub fn run(
         .split_once('@')
         .map(|(u, h)| (u.to_string(), h.to_string()))
         .unwrap_or_else(|| {
-            // 没有 @，整个作为 hostname
             ("".to_string(), user_at_host.to_string())
         });
 
@@ -60,7 +57,7 @@ pub fn run(
     config.hosts.push(block);
 
     // 写回 SSH 配置文件
-    let content = render_config(&config);
+    let content = config::render_config(&config);
     std::fs::write(&config_path, content)
         .with_context(|| format!("无法写入 SSH 配置文件: {}", config_path.display()))?;
 

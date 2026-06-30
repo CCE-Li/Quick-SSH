@@ -14,7 +14,7 @@ fn main() -> anyhow::Result<()> {
     match cli.command {
         None => {
             // 无子命令 → 启动 TUI
-            tui::start()?;
+            tui::event::start()?;
         }
         Some(Command::Ps { keyword }) => {
             cmd::ps::run(keyword)?;

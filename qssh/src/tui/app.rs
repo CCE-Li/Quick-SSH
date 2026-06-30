@@ -2,9 +2,8 @@ use std::collections::HashMap;
 
 use ratatui::widgets::ListState;
 
-use crate::config::ssh_config::HostBlock;
-use crate::tui::event::Action;
-use crate::tui::modes::Mode;
+use crate::config::types::HostBlock;
+use crate::tui::action::{Action, Mode};
 
 // ── 应用状态 ─────────────────────────────────────────────
 
@@ -109,19 +108,12 @@ impl App {
             Action::ConfirmDelete(confirmed) => {
                 self.mode = Mode::Normal;
                 if confirmed {
-                    // Phase 3 实现实际删除
                     self.flash_message = Some(("已删除".into(), "green".into()));
                 }
             }
-            Action::Ping => {
-                // Phase 2 实现
-            }
-            Action::PingAll => {
-                // Phase 2 实现
-            }
-            _ => {
-                // 其余 Phase 3 实现
-            }
+            Action::Ping => {}
+            Action::PingAll => {}
+            _ => {}
         }
     }
 }
