@@ -52,7 +52,7 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: Build qssh (release)
-        run: cargo build --release --target ${{ matrix.target }} --package qssh
+        run: cargo build --release --target ${{ matrix.target }} --package quick-ssh
 
       - name: Build qssh-uploader (release)
         run: cargo build --release --target ${{ matrix.target }} --package qssh-uploader
@@ -61,11 +61,11 @@ jobs:
         shell: bash
         run: |
           # 生成本地可运行的补全（主机架构）
-          cargo run --package qssh -- completions bash > qssh.bash
-          cargo run --package qssh -- completions zsh > qssh.zsh
-          cargo run --package qssh -- completions fish > qssh.fish
-          cargo run --package qssh -- completions powershell > qssh.ps1
-          cargo run --package qssh -- completions elvish > qssh.elv
+          cargo run --package quick-ssh -- completions bash > qssh.bash
+          cargo run --package quick-ssh -- completions zsh > qssh.zsh
+          cargo run --package quick-ssh -- completions fish > qssh.fish
+          cargo run --package quick-ssh -- completions powershell > qssh.ps1
+          cargo run --package quick-ssh -- completions elvish > qssh.elv
 
       - name: Prepare archive
         shell: bash
