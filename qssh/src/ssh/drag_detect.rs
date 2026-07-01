@@ -29,7 +29,7 @@ fn looks_like_windows_path(s: &str) -> bool {
 }
 
 /// 判断字符串是否看起来像 Unix 绝对路径 (/...)
-#[allow(dead_code)]
+#[cfg_attr(windows, allow(dead_code))]
 fn looks_like_unix_path(s: &str) -> bool {
     s.starts_with('/') && s.len() > 1
 }
@@ -110,7 +110,7 @@ pub fn parse_windows_drag(text: &str) -> Option<Vec<PathBuf>> {
 }
 
 /// 解析 Unix 拖拽路径（如 `/home/user/file.txt`）
-#[allow(dead_code)]
+#[cfg_attr(windows, allow(dead_code))]
 pub fn parse_unix_drag(text: &str) -> Option<Vec<PathBuf>> {
     let tokens = tokenize(text);
     if tokens.is_empty() {
@@ -170,14 +170,17 @@ mod tests {
 
     #[test]
     fn test_windows_simple_path() {
-        // 测试简单 Windows 路径
-        let text = r#"C:\Windows\System32\cmd.exe"#;
-        let result = parse_windows_drag(text);
-        assert!(result.is_some());
+        // 创建临时文件（兼容 Linux CI，不依赖 C:\Windows\...）
+        let tmp = std::env::temp_dir().join("qssh_test_drag_file.exe");
+        std::fs::write(&tmp, b"test").ok();
+        let text = tmp.to_string_lossy().to_string();
+        let result = parse_windows_drag(&text);
+        assert!(result.is_some(), "路径应被检测到: {}", text);
         let files = result.unwrap();
         assert!(files
             .iter()
-            .any(|p| p.to_string_lossy().contains("cmd.exe")));
+            .any(|p| p.to_string_lossy().contains("qssh_test_drag_file")));
+        let _ = std::fs::remove_file(&tmp);
     }
 
     #[test]
@@ -214,12 +217,24 @@ mod tests {
 
     #[test]
     fn test_multiple_files_drag() {
-        // 多个文件拖拽
-        let text = "C:\\temp\\a.txt C:\\temp\\b.txt";
-        let result = parse_windows_drag(text);
-        // 如果这些文件实际上不存在，结果也可能是 None
-        // 所以这个测试只是验证逻辑不崩溃
-        assert!(result.is_none() || result.is_some());
+        // 创建多个临时文件测试多文件拖拽（兼容 Linux CI）
+        let tmp_dir = std::env::temp_dir().join("qssh_test_multi_drag");
+        let _ = std::fs::create_dir_all(&tmp_dir);
+        let a = tmp_dir.join("a.txt");
+        let b = tmp_dir.join("b.txt");
+        std::fs::write(&a, b"test").ok();
+        std::fs::write(&b, b"test").ok();
+
+        let text = format!("{} {}", a.display(), b.display());
+        let result = parse_windows_drag(&text);
+        assert!(result.is_some(), "多文件拖拽应被检测到: {}", text);
+        let files = result.unwrap();
+        assert_eq!(files.len(), 2);
+
+        // 清理
+        let _ = std::fs::remove_file(&a);
+        let _ = std::fs::remove_file(&b);
+        let _ = std::fs::remove_dir(&tmp_dir);
     }
 
     #[test]
