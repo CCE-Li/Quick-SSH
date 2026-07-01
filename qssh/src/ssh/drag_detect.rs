@@ -175,7 +175,9 @@ mod tests {
         let result = parse_windows_drag(text);
         assert!(result.is_some());
         let files = result.unwrap();
-        assert!(files.iter().any(|p| p.to_string_lossy().contains("cmd.exe")));
+        assert!(files
+            .iter()
+            .any(|p| p.to_string_lossy().contains("cmd.exe")));
     }
 
     #[test]
@@ -223,7 +225,7 @@ mod tests {
     #[test]
     fn test_strip_paste_markers() {
         let text = "\x1b[200~C:\\test.txt\x1b[201~";
-        let result = strip_paste_markers(&text);
+        let result = strip_paste_markers(text);
         assert_eq!(result, "C:\\test.txt");
     }
 

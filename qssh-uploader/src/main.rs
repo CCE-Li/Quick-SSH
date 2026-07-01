@@ -175,7 +175,8 @@ fn display_width(s: &str) -> usize {
                 || ('\u{f900}'..='\u{faff}').contains(&c) // CJK Compatibility Ideographs
                 || ('\u{fe30}'..='\u{fe6f}').contains(&c) // CJK Compatibility Forms ~ Small Form Variants
                 || ('\u{ff01}'..='\u{ff60}').contains(&c) // Fullwidth Forms
-                || ('\u{fffe}'..='\u{ffff}').contains(&c) // Specials
+                || ('\u{fffe}'..='\u{ffff}').contains(&c)
+            // Specials
             {
                 2
             } else {
@@ -228,7 +229,15 @@ fn render_all(files: &[Arc<Mutex<FileProgress>>], start_time: Instant) {
             if fp.success {
                 done_count += 1;
                 let bar = render_bar(1.0, 24);
-                (format!("{} 100%  {}/{}", bar, format_bytes(fp.size), format_bytes(fp.size)), true)
+                (
+                    format!(
+                        "{} 100%  {}/{}",
+                        bar,
+                        format_bytes(fp.size),
+                        format_bytes(fp.size)
+                    ),
+                    true,
+                )
             } else {
                 fail_count += 1;
                 all_finished = false;
@@ -244,7 +253,16 @@ fn render_all(files: &[Arc<Mutex<FileProgress>>], start_time: Instant) {
             };
             let bar = render_bar(ratio.clamp(0.0, 1.0), 24);
             let pct = (ratio * 100.0) as u8;
-            (format!("{} {:3}%  {}/{}", bar, pct, format_bytes(fp.done), format_bytes(fp.size)), false)
+            (
+                format!(
+                    "{} {:3}%  {}/{}",
+                    bar,
+                    pct,
+                    format_bytes(fp.done),
+                    format_bytes(fp.size)
+                ),
+                false,
+            )
         };
 
         println!("{}", format_left_right(&left, &right));
@@ -323,10 +341,7 @@ fn upload_via_scp(args: &UploadArgs) -> Result<()> {
     let status = cmd.status().context("无法启动 scp 进程")?;
 
     if !status.success() {
-        anyhow::bail!(
-            "scp 上传失败 (退出码: {:?})",
-            status.code().unwrap_or(-1)
-        );
+        anyhow::bail!("scp 上传失败 (退出码: {:?})", status.code().unwrap_or(-1));
     }
 
     Ok(())
@@ -423,9 +438,7 @@ fn run() -> Result<()> {
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_else(|| format!("<file {}>", i));
-            let size = std::fs::metadata(path)
-                .map(|m| m.len())
-                .unwrap_or(0);
+            let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
             Arc::new(Mutex::new(FileProgress {
                 index: i,
                 name,

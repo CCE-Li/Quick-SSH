@@ -172,7 +172,13 @@ fn restore_cursor() {
         // 方法1: WriteConsoleW — 直接写入 ANSI 转义序列（需 VT 处理支持）
         let seq: Vec<u16> = "\x1b[?25h".encode_utf16().collect();
         let mut written = 0u32;
-        let _ = WriteConsoleW(handle, seq.as_ptr(), seq.len() as u32, &mut written, std::ptr::null_mut());
+        let _ = WriteConsoleW(
+            handle,
+            seq.as_ptr(),
+            seq.len() as u32,
+            &mut written,
+            std::ptr::null_mut(),
+        );
 
         // 方法2: SetConsoleCursorInfo — 直接设置光标可见性（不依赖 VT 处理）
         let info = CONSOLE_CURSOR_INFO {
@@ -260,18 +266,9 @@ fn start_interactive_session_inner(target: &SshTarget, extra_args: &[String]) ->
         .spawn()
         .context("无法启动 ssh 进程，请确保已安装 OpenSSH Client")?;
 
-    let mut ssh_stdin = child
-        .stdin
-        .take()
-        .context("无法获取 SSH 进程的 stdin")?;
-    let ssh_stdout = child
-        .stdout
-        .take()
-        .context("无法获取 SSH 进程的 stdout")?;
-    let ssh_stderr = child
-        .stderr
-        .take()
-        .context("无法获取 SSH 进程的 stderr")?;
+    let mut ssh_stdin = child.stdin.take().context("无法获取 SSH 进程的 stdin")?;
+    let ssh_stdout = child.stdout.take().context("无法获取 SSH 进程的 stdout")?;
+    let ssh_stderr = child.stderr.take().context("无法获取 SSH 进程的 stderr")?;
 
     // ── 共享状态 ──────────────────────────────────────────
     let drag_pending = Arc::new(AtomicBool::new(false));
@@ -453,7 +450,10 @@ fn extract_remote_pwd(acc: &str) -> Option<String> {
         let after = &acc[start + MARKER_LEN..];
         if let Some(end) = after.find("__") {
             // 先拿到原始内容，然后去除所有控制字符
-            let pwd = after[..end].trim().trim_matches(&['\r', '\n', ' '][..]).to_string();
+            let pwd = after[..end]
+                .trim()
+                .trim_matches(&['\r', '\n', ' '][..])
+                .to_string();
             if !pwd.is_empty() {
                 return Some(pwd);
             }
@@ -490,7 +490,11 @@ fn handle_drag(
     pwd_condvar: &Arc<Condvar>,
     drag_pending: &Arc<AtomicBool>,
 ) {
-    writeln!(std::io::stdout(), "\r\n\x1b[33m\u{1f4e4} 检测到文件拖拽，正在准备上传...\x1b[0m").ok();
+    writeln!(
+        std::io::stdout(),
+        "\r\n\x1b[33m\u{1f4e4} 检测到文件拖拽，正在准备上传...\x1b[0m"
+    )
+    .ok();
 
     // ── 步骤 1: 按 Enter 结束当前行 ─────────────────────
     // 已输入的拖拽路径已被零延迟转发到 SSH 远程 shell 的输入缓冲区。
@@ -532,13 +536,16 @@ fn handle_drag(
     // ── 步骤 3: 等待 PWD 结果（带超时） ─────────────────
     let pwd = {
         let guard = remote_pwd.lock().unwrap();
-        let result = pwd_condvar
-            .wait_timeout(guard, Duration::from_secs(PWD_TIMEOUT_SECS));
+        let result = pwd_condvar.wait_timeout(guard, Duration::from_secs(PWD_TIMEOUT_SECS));
         match result {
             Ok((g, _timeout)) => g.clone(),
             Err(poisoned) => {
                 let (g, _timeout) = poisoned.into_inner();
-                writeln!(std::io::stdout(), "\r\n\x1b[31m\u{26a0}\u{fe0f} 获取远程路径超时\x1b[0m").ok();
+                writeln!(
+                    std::io::stdout(),
+                    "\r\n\x1b[31m\u{26a0}\u{fe0f} 获取远程路径超时\x1b[0m"
+                )
+                .ok();
                 g.clone()
             }
         }
@@ -548,14 +555,27 @@ fn handle_drag(
 
     // ── 步骤 4: 启动新窗口执行上传 ──────────────────────
     if let Some(ref remote_path) = pwd {
-        writeln!(std::io::stdout(), "\r\n\x1b[32m\u{1f4c2} 远程路径: {}\x1b[0m", remote_path).ok();
+        writeln!(
+            std::io::stdout(),
+            "\r\n\x1b[32m\u{1f4c2} 远程路径: {}\x1b[0m",
+            remote_path
+        )
+        .ok();
         spawn_upload_window(target, files, remote_path);
     } else {
-        writeln!(std::io::stdout(), "\r\n\x1b[31m\u{26a0}\u{fe0f} 无法确定远程路径，使用当前目录\x1b[0m").ok();
+        writeln!(
+            std::io::stdout(),
+            "\r\n\x1b[31m\u{26a0}\u{fe0f} 无法确定远程路径，使用当前目录\x1b[0m"
+        )
+        .ok();
         spawn_upload_window(target, files, ".");
     }
 
-    writeln!(std::io::stdout(), "\r\n\x1b[32m\u{2705} 已在新窗口中启动上传任务\x1b[0m").ok();
+    writeln!(
+        std::io::stdout(),
+        "\r\n\x1b[32m\u{2705} 已在新窗口中启动上传任务\x1b[0m"
+    )
+    .ok();
 }
 
 // ── 上传窗口启动 ─────────────────────────────────────────

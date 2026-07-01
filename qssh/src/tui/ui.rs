@@ -56,11 +56,7 @@ fn render_host_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .iter()
         .enumerate()
         .map(|(i, host)| {
-            let prefix = if app.marked.contains(&i) {
-                "> "
-            } else {
-                " "
-            };
+            let prefix = if app.marked.contains(&i) { "> " } else { " " };
 
             let status_span = match app.host_status.get(&host.alias) {
                 Some(true) => Span::styled("●", Style::default().fg(Color::Green)),
