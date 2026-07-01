@@ -110,20 +110,6 @@ UploadConcurrency=3
 
 ---
 
-## 支持项目
-
-如果这个项目对你有帮助，可以通过以下方式支持：
-
-### 支付宝
-
-![支付宝](doc/images/alipay.jpg)
-
-### 微信支付
-
-![微信支付](doc/images/wechat-pay.jpg)
-
----
-
 ## License
 
 [MIT](LICENSE)
