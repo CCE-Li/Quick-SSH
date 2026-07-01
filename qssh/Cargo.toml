@@ -8,6 +8,10 @@ description.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+[[bin]]
+name = "qssh"
+path = "src/main.rs"
+
 [dependencies]
 tokio.workspace = true
 serde.workspace = true
