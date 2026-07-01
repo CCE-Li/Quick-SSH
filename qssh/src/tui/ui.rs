@@ -26,7 +26,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
 fn render_header(frame: &mut Frame, area: Rect, app: &App) {
     let title = format!(
-        " 🚀 Quick-SSH v{}  |  共 {} 台主机  |  模式: {}",
+        " Quick-SSH v{}  |  共 {} 台主机  |  模式: {}",
         env!("CARGO_PKG_VERSION"),
         app.hosts.len(),
         app.mode.label()
@@ -57,15 +57,15 @@ fn render_host_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .enumerate()
         .map(|(i, host)| {
             let prefix = if app.marked.contains(&i) {
-                " ✓ "
+                " > "
             } else {
                 "   "
             };
 
             let status_icon = match app.host_status.get(&host.alias) {
-                Some(true) => "🟢",
-                Some(false) => "🔴",
-                None => "⚪",
+                Some(true) => "(*)",
+                Some(false) => "(x)",
+                None => "( )",
             };
 
             let content = Line::from(vec![
@@ -86,7 +86,7 @@ fn render_host_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 .bg(Color::Blue)
                 .add_modifier(Modifier::BOLD),
         )
-        .highlight_symbol("> ");
+        .highlight_symbol("│ ");
 
     frame.render_stateful_widget(list, area, &mut app.list_state);
 }
@@ -110,9 +110,9 @@ fn render_detail(frame: &mut Frame, area: Rect, app: &App) {
                 port,
                 key,
                 match app.host_status.get(&host.alias) {
-                    Some(true) => "🟢 在线",
-                    Some(false) => "🔴 离线",
-                    None => "⚪ 未检测",
+                    Some(true) => "在线",
+                    Some(false) => "离线",
+                    None => "未检测",
                 }
             )
         } else {

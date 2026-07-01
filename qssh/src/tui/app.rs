@@ -144,10 +144,10 @@ impl App {
                             // 保存到 SSH 配置文件
                             if let Err(e) = self.save_config() {
                                 self.flash_message =
-                                    Some((format!("❌ 保存失败: {}", e), "red".into()));
+                                    Some((format!("保存失败: {}", e), "red".into()));
                             } else {
                                 self.flash_message =
-                                    Some((format!("🗑️ 已删除主机 \"{}\"", alias), "green".into()));
+                                    Some((format!("已删除主机 \"{}\"", alias), "green".into()));
                             }
                         }
                     }
@@ -217,10 +217,10 @@ impl App {
                     host.directives = new_directives;
                     // 保存到 SSH 配置文件
                     if let Err(e) = self.save_config() {
-                        self.flash_message = Some((format!("❌ 保存失败: {}", e), "red".into()));
+                        self.flash_message = Some((format!("保存失败: {}", e), "red".into()));
                     } else {
                         self.flash_message =
-                            Some((format!("✏️ 已更新主机 \"{}\"", alias), "green".into()));
+                            Some((format!("已更新主机 \"{}\"", alias), "green".into()));
                     }
                 }
             }
@@ -229,6 +229,7 @@ impl App {
                 // 这里留空，实际添加由 cmd::add 处理
                 self.mode = Mode::Normal;
             }
+            Action::Connect => {}
             Action::Ping => {}
             Action::PingAll => {}
             Action::ToggleSelect => {
