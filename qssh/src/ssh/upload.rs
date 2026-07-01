@@ -1,206 +1,133 @@
+//! 文件上传（SCP 方案，同进程内联执行）
+//!
+//! #![allow(dead_code)] — 当前使用独立 qssh-uploader 进程上传，
+//!                        此模块保留以备将来可能的内联上传需求。
+//!
+//! 由 [`spawn.rs`](spawn.rs) 在检测到拖拽操作时直接调用。
+//! 使用 OpenSSH `scp.exe` 实现文件传输，在当前终端内显示进度。
+//!
+//! ## 设计说明
+//!
+//! - 不启动独立进程/窗口，在同一终端内完成上传
+//! - 每个文件调用一次 `scp`，上传完成后显示结果
+//! - 上传期间 SSH 终端暂时冻结（stdin 转发暂停），但 stdout/stderr 仍正常显示
+
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+use std::time::Instant;
 
 use anyhow::{Context, Result};
-use ssh2::Session;
 
-use crate::config::types::HostBlock;
+use crate::ssh::session::SshTarget;
 
-// ── SFTP 上传 ────────────────────────────────────────────
-// #![allow(dead_code)] 置于模块级
+// ── 格式化工具 ────────────────────────────────────────────
 
-/// 单个文件上传条目
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub struct UploadEntry {
-    pub local_path: PathBuf,
-    pub relative_path: String,
-    pub size: u64,
-}
-
-/// SFTP 上传参数
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub struct UploadPayload {
-    pub hostname: String,
-    pub user: Option<String>,
-    pub port: u16,
-    pub identity_file: Option<PathBuf>,
-    pub remote_dir: PathBuf,
-    pub files: Vec<UploadEntry>,
-}
-
-/// 从 HostBlock 构建上传参数
-#[allow(dead_code)]
-impl UploadPayload {
-    pub fn from_host(host: &HostBlock, files: Vec<PathBuf>, remote_dir: PathBuf) -> Result<Self> {
-        let hostname = host
-            .hostname()
-            .context("Host 缺少 HostName 配置")?
-            .to_string();
-
-        let entries = files
-            .iter()
-            .map(|p| -> Result<UploadEntry> {
-                let metadata = std::fs::metadata(p)?;
-                let relative = p
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_default();
-                Ok(UploadEntry {
-                    local_path: p.clone(),
-                    relative_path: relative,
-                    size: metadata.len(),
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        Ok(Self {
-            hostname,
-            user: host.user().map(|s| s.to_string()),
-            port: host.port(),
-            identity_file: host.identity_file().cloned(),
-            remote_dir,
-            files: entries,
-        })
+fn format_bytes(bytes: u64) -> String {
+    const UNITS: &[&str] = &["B", "KB", "MB", "GB"];
+    let mut size = bytes as f64;
+    let mut unit_idx = 0;
+    while size >= 1024.0 && unit_idx < UNITS.len() - 1 {
+        size /= 1024.0;
+        unit_idx += 1;
     }
+    format!("{:.1}{}", size, UNITS[unit_idx])
 }
 
-/// 建立 SSH 连接并打开 SFTP 会话
-#[allow(dead_code)]
-fn connect_sftp(payload: &UploadPayload) -> Result<(Session, ssh2::Sftp)> {
-    let addr = format!("{}:{}", payload.hostname, payload.port);
-    let tcp =
-        std::net::TcpStream::connect(&addr).with_context(|| format!("无法连接到 {}", addr))?;
+// ── 核心上传函数 ──────────────────────────────────────────
 
-    let mut session = Session::new().context("无法创建 SSH 会话")?;
-    session.set_tcp_stream(tcp);
-    session.handshake().context("SSH 握手失败")?;
-
-    // 认证
-    if let Some(ref key_path) = payload.identity_file {
-        let key_str = key_path.to_string_lossy().to_string();
-        let expanded = shellexpand::full(&key_str)?;
-        session
-            .userauth_pubkey_file(
-                payload.user.as_deref().unwrap_or("root"),
-                None,
-                Path::new(expanded.as_ref()),
-                None, // passphrase
-            )
-            .context("公钥认证失败")?;
-    } else {
-        session
-            .userauth_agent(payload.user.as_deref().unwrap_or("root"))
-            .context("agent 认证失败")?;
-    }
-
-    if !session.authenticated() {
-        anyhow::bail!("SSH 认证失败");
-    }
-
-    let sftp = session.sftp().context("无法打开 SFTP 会话")?;
-    Ok((session, sftp))
-}
-
-/// 确保远程目录存在
-#[allow(dead_code)]
-fn ensure_remote_dir(sftp: &ssh2::Sftp, dir: &Path) -> Result<()> {
-    let mut current = PathBuf::new();
-    for component in dir.components() {
-        current.push(component);
-        if sftp.stat(&current).is_err() {
-            sftp.mkdir(&current, 0o755)
-                .with_context(|| format!("无法创建远程目录: {}", current.display()))?;
-        }
-    }
-    Ok(())
-}
-
-/// 上传单个文件，带进度回调
-#[allow(dead_code)]
-fn upload_one_file(
-    sftp: &ssh2::Sftp,
-    entry: &UploadEntry,
-    remote_dir: &Path,
-    on_progress: &dyn Fn(u64, u64),
-) -> Result<()> {
-    let remote_path = remote_dir.join(&entry.relative_path);
-    let mut remote_file = sftp
-        .create(&remote_path)
-        .with_context(|| format!("无法创建远程文件: {}", remote_path.display()))?;
-
-    let local_data = std::fs::read(&entry.local_path)
-        .with_context(|| format!("无法读取本地文件: {}", entry.local_path.display()))?;
-
-    // 分块写入以触发进度回调
-    let chunk_size = 65536u64; // 64KB
-    let total = local_data.len() as u64;
-    let mut written = 0u64;
-
-    for chunk in local_data.chunks(chunk_size as usize) {
-        remote_file.write_all(chunk)?;
-        written += chunk.len() as u64;
-        on_progress(written, total);
-    }
-
-    remote_file.close()?;
-    Ok(())
-}
-
-/// 执行文件上传任务
+/// 上传文件到远程服务器（同进程内联执行）
 ///
-/// 建立 SFTP 连接 → 创建远程目录 → 逐个上传文件（带进度回调）
+/// 对每个文件调用 `scp.exe`，在终端内显示实时进度。
+/// 上传期间当前线程被阻塞，但 stdout/stderr 转发线程不受影响。
 #[allow(dead_code)]
-pub fn run_upload(payload: &UploadPayload, on_progress: &dyn Fn(usize, u64, u64)) -> Result<()> {
-    let (_session, sftp) = connect_sftp(payload)?;
+pub fn upload_files(target: &SshTarget, files: &[PathBuf], remote_dir: &str) -> Result<()> {
+    let total = files.len();
+    let start_time = Instant::now();
 
-    // 确保远程根目录存在
-    ensure_remote_dir(&sftp, &payload.remote_dir)?;
+    // ── 上传头 ────────────────────────────────────────────
+    println!();
+    println!("┌─ 📤 文件上传 ──────────────────────────────");
+    println!("│  目标: {}:{}", target.hostname, remote_dir);
+    println!("│  文件数: {}", total);
+    println!("└────────────────────────────────────────────");
+    println!();
 
-    for (i, entry) in payload.files.iter().enumerate() {
-        // 每个文件上传前确保其子目录存在
-        if let Some(parent) = Path::new(&entry.relative_path).parent() {
-            if !parent.as_os_str().is_empty() {
-                ensure_remote_dir(&sftp, &payload.remote_dir.join(parent))?;
-            }
+    for (i, local_path) in files.iter().enumerate() {
+        let file_name = local_path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+
+        let file_size = std::fs::metadata(local_path)
+            .with_context(|| format!("无法读取本地文件: {}", local_path.display()))?
+            .len();
+
+        // 构建远程目标路径: [user@]host:remote_dir/filename
+        let user_part = match target.user {
+            Some(ref u) => format!("{}@", u),
+            None => String::new(),
+        };
+        let remote_target = format!(
+            "{}{}:{}/{}",
+            user_part, target.hostname, remote_dir, file_name
+        );
+
+        // 显示当前文件信息
+        println!(
+            "  [{}/{}] {}  ({})",
+            i + 1,
+            total,
+            file_name,
+            format_bytes(file_size)
+        );
+        print!("   ");
+        std::io::stdout().flush().ok();
+
+        // 构建 scp 命令
+        let mut cmd = std::process::Command::new("scp");
+
+        if target.port != 22 {
+            cmd.arg("-P");
+            cmd.arg(target.port.to_string());
+        }
+        if let Some(ref key_path) = target.identity_file {
+            cmd.arg("-i");
+            cmd.arg(key_path.as_os_str());
+        }
+        // 禁用连接共享，避免与现有 SSH 会话冲突
+        cmd.arg("-o").arg("ControlMaster=no");
+        // 静默模式（无进度），我们自己显示状态
+        cmd.arg("-q");
+        cmd.arg(local_path.as_os_str());
+        cmd.arg(&remote_target);
+
+        let status = cmd.status().with_context(|| {
+            format!(
+                "无法启动 scp 进程 ({}: {})",
+                file_name,
+                local_path.display()
+            )
+        })?;
+
+        if !status.success() {
+            anyhow::bail!(
+                "scp 上传失败: {} (退出码: {:?})",
+                file_name,
+                status.code().unwrap_or(-1)
+            );
         }
 
-        upload_one_file(&sftp, entry, &payload.remote_dir, &|written, total| {
-            on_progress(i, written, total);
-        })?;
+        println!(" ✅");
     }
+
+    // ── 上传完成总结 ─────────────────────────────────────
+    let elapsed = start_time.elapsed().as_secs_f64();
+    println!();
+    println!("┌─ 🎉 上传完成 ──────────────────────────────");
+    println!("│  文件数: {} | 耗时: {:.0}s", total, elapsed);
+    println!("│  目标: {}:{}", target.hostname, remote_dir);
+    println!("└────────────────────────────────────────────");
 
     Ok(())
-}
-
-/// 生成 qssh-uploader 的 CLI 参数（用于独立进程启动）
-#[allow(dead_code)]
-pub fn build_uploader_args(payload: &UploadPayload) -> Vec<String> {
-    let mut args = Vec::new();
-
-    args.push("--host".into());
-    args.push(payload.hostname.clone());
-
-    if let Some(ref user) = payload.user {
-        args.push("--user".into());
-        args.push(user.clone());
-    }
-
-    args.push("--port".into());
-    args.push(payload.port.to_string());
-
-    if let Some(ref key) = payload.identity_file {
-        args.push("--key".into());
-        args.push(key.display().to_string());
-    }
-
-    args.push("--remote-dir".into());
-    args.push(payload.remote_dir.display().to_string());
-
-    for file in &payload.files {
-        args.push(file.local_path.display().to_string());
-    }
-
-    args
 }

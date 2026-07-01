@@ -8,7 +8,7 @@ pub fn run(keyword: Option<String>) -> Result<()> {
     let config = config::parser::parse_config(&config_path)?;
 
     if config.hosts.is_empty() {
-        println!("📭 没有找到 SSH 主机");
+        println!("   没有找到 SSH 主机");
         println!("   使用 `qssh add <alias> <user@host>` 添加主机");
         return Ok(());
     }
@@ -26,7 +26,7 @@ pub fn run(keyword: Option<String>) -> Result<()> {
     };
 
     if hosts.is_empty() {
-        println!("🔍 没有找到匹配 \"{}\" 的主机", keyword.unwrap());
+        println!("   没有找到匹配 \"{}\" 的主机", keyword.unwrap());
         return Ok(());
     }
 
@@ -43,7 +43,7 @@ pub fn run(keyword: Option<String>) -> Result<()> {
             .unwrap_or_else(|| "(agent)".to_string());
 
         println!(
-            "  {:<20} {}{}:{}   🔑 {}",
+            "  {:<20} {}{}:{}      {}",
             host.alias, user, hostname, port, key
         );
     }

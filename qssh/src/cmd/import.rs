@@ -38,7 +38,7 @@ pub fn run(file: &str) -> Result<()> {
     std::fs::write(&config_path, out)
         .with_context(|| format!("无法写入 SSH 配置文件: {}", config_path.display()))?;
 
-    println!("📥 导入完成: 新增 {} 台, 跳过 {} 台", added, skipped);
+    println!("   导入完成: 新增 {} 台, 跳过 {} 台", added, skipped);
 
     Ok(())
 }

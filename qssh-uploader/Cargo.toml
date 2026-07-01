@@ -4,16 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Quick-SSH 文件上传工具（SFTP）"
+description = "Quick-SSH 文件上传工具（基于 OpenSSH SCP）"
 homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-tokio.workspace = true
 anyhow.workspace = true
-thiserror.workspace = true
-ssh2.workspace = true
-shellexpand.workspace = true
-
-[target.'cfg(not(target_os = "windows"))'.dependencies]
-openssl-sys = { workspace = true, features = ["vendored"] }

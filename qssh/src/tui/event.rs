@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -33,6 +34,10 @@ pub fn start() -> Result<()> {
     // 恢复终端
     ratatui::try_restore()?;
 
+    // 最终保障：确保光标可见（防止备用屏幕切换后主屏幕光标状态丢失）
+    let _ = std::io::stdout().write_all(b"\x1b[?25h");
+    let _ = std::io::stdout().flush();
+
     result
 }
 
@@ -63,8 +68,13 @@ fn run_event_loop(mut terminal: DefaultTerminal, app: &mut App) -> Result<()> {
                                 let target = SshTarget::from_host(host);
                                 // 恢复终端，让 SSH 接管
                                 ratatui::try_restore()?;
+                                // 离开备用屏幕后，先确保主屏幕光标可见
+                                // 某些终端在 LeaveAlternateScreen 后会隐藏光标，
+                                // 而 SSH 远程 PTY 初始化不一定发 \x1b[?25h 来显示
+                                let _ = std::io::stdout().write_all(b"\x1b[?25h");
+                                let _ = std::io::stdout().flush();
                                 let _ = start_interactive_session(&target, &[]);
-                                // SSH 退出后，重新初始化终端
+                                // 重新初始化终端（进入备用屏幕）
                                 terminal = ratatui::try_init()?;
                             }
                         }
