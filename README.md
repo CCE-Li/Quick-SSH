@@ -1,3 +1,5 @@
+![Quick-SSH 海报](doc/images/poster.png)
+
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
 
@@ -6,14 +8,7 @@
 基于 Rust 实现，**无需 Node.js 运行时**，即下即用。
 
 ---
-
-## 🎯 功能演示
-
-### 海报
-
-![Quick-SSH 海报](doc/images/poster.png)
-
-### 使用示例
+## 使用示例
 
 ![示例1](doc/images/sample01.png)
 
