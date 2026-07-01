@@ -1,12 +1,14 @@
 use clap::{Parser, Subcommand};
 
-/// 🚀 Quick-SSH - 快速 SSH 连接管理工具
+/// Quick-SSH - 快速 SSH 连接管理工具
 #[derive(Parser)]
 #[command(
     name = "qssh",
     version,
-    about = "🚀 Quick-SSH - SSH 连接管理工具",
+    about = "Quick-SSH - SSH 连接管理工具",
     disable_help_subcommand = true,
+    subcommand_required = false,
+    allow_external_subcommands = true,
     long_about = "\
 Quick-SSH 是一个 SSH 连接管理工具，提供 TUI 界面和命令行双模式操作。
 
@@ -14,12 +16,13 @@ Quick-SSH 是一个 SSH 连接管理工具，提供 TUI 界面和命令行双模
   ps, ls      列出所有 SSH 主机
   add         添加新的 SSH 主机
   rm, remove  删除 SSH 主机
-  connect, cn 连接 SSH 主机（默认操作）
+  connect, cn 连接 SSH 主机
   export      导出 SSH 配置
   import      导入 SSH 配置
   help        显示帮助信息
 
-提示：不带任何参数时，自动启动 TUI 界面。"
+提示：不带任何参数时，自动启动 TUI 界面。
+      直接传入主机别名时，自动连接到该主机。"
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -88,4 +91,8 @@ pub enum Command {
         /// Shell 类型: bash | zsh | fish | powershell | elvish
         shell: String,
     },
+
+    /// 直接连接主机（别名或 user@host）
+    #[command(external_subcommand)]
+    Bare(Vec<String>),
 }

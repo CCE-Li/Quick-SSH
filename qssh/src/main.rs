@@ -45,6 +45,15 @@ fn main() -> anyhow::Result<()> {
         Some(Command::Completions { shell }) => {
             cmd::completions::run(&shell)?;
         }
+        Some(Command::Bare(args)) => {
+            if let Some(target) = args.first() {
+                let ssh_args: Vec<String> = args[1..].to_vec();
+                cmd::connect::run(target, &ssh_args)?;
+            } else {
+                // 无参数时启动 TUI
+                tui::event::start()?;
+            }
+        }
     }
 
     Ok(())

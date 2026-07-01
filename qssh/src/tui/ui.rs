@@ -57,9 +57,9 @@ fn render_host_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .enumerate()
         .map(|(i, host)| {
             let prefix = if app.marked.contains(&i) {
-                " > "
+                "> "
             } else {
-                "   "
+                " "
             };
 
             let status_span = match app.host_status.get(&host.alias) {
@@ -86,7 +86,7 @@ fn render_host_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 .bg(Color::Blue)
                 .add_modifier(Modifier::BOLD),
         )
-        .highlight_symbol("│ ");
+        .highlight_symbol("┃ ");
 
     frame.render_stateful_widget(list, area, &mut app.list_state);
 }
