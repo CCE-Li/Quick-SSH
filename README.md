@@ -7,6 +7,20 @@
 
 ---
 
+## 🎯 功能演示
+
+### 海报
+
+![Quick-SSH 海报](doc/images/poster.png)
+
+### 使用示例
+
+![示例1](doc/images/sample01.png)
+
+![示例2](doc/images/sample02.png)
+
+---
+
 ## 快速安装
 
 ### 方式一：包管理器
@@ -98,6 +112,20 @@ UploadConcurrency=3
 | [`docs/architecture.md`](docs/architecture.md) | Rust 架构设计 |
 | [`docs/release.md`](docs/release.md) | 发布流程与包管理器维护 |
 | [`docs/roadmap.md`](docs/roadmap.md) | 开发路线图 |
+
+---
+
+## 支持项目
+
+如果这个项目对你有帮助，可以通过以下方式支持：
+
+### 支付宝
+
+![支付宝](doc/images/alipay.jpg)
+
+### 微信支付
+
+![微信支付](doc/images/wechat-pay.jpg)
 
 ---
 
