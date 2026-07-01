@@ -230,8 +230,69 @@ impl App {
                 self.mode = Mode::Normal;
             }
             Action::Connect => {}
-            Action::Ping => {}
-            Action::PingAll => {}
+            Action::Ping => {
+                if let Some(idx) = self.selected() {
+                    if let Some(host) = self.hosts.get(idx) {
+                        if let Some(hostname) = host.hostname() {
+                            let port = host.port();
+                            match crate::network::ping::check_host(
+                                hostname,
+                                port,
+                                3,
+                            ) {
+                                Ok(online) => {
+                                    self.host_status
+                                        .insert(host.alias.clone(), online);
+                                    let status = if online { "在线" } else { "离线" };
+                                    self.flash_message = Some((
+                                        format!("{}: {}", host.alias, status),
+                                        "green".into(),
+                                    ));
+                                }
+                                Err(e) => {
+                                    self.flash_message = Some((
+                                        format!("检测失败: {}: {}", host.alias, e),
+                                        "red".into(),
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Action::PingAll => {
+                let total = self.hosts.len();
+                let mut online_count = 0usize;
+                for host in &self.hosts {
+                    if let Some(hostname) = host.hostname() {
+                        let port = host.port();
+                        match crate::network::ping::check_host(
+                            hostname,
+                            port,
+                            3,
+                        ) {
+                            Ok(online) => {
+                                self.host_status
+                                    .insert(host.alias.clone(), online);
+                                if online {
+                                    online_count += 1;
+                                }
+                            }
+                            Err(_) => {
+                                self.host_status
+                                    .insert(host.alias.clone(), false);
+                            }
+                        }
+                    }
+                }
+                self.flash_message = Some((
+                    format!(
+                        "全量检测完成: {}/{} 在线",
+                        online_count, total
+                    ),
+                    "green".into(),
+                ));
+            }
             Action::ToggleSelect => {
                 if let Some(idx) = self.selected() {
                     if self.marked.contains(&idx) {

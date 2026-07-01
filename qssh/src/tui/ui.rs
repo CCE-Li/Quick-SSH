@@ -62,15 +62,15 @@ fn render_host_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 "   "
             };
 
-            let status_icon = match app.host_status.get(&host.alias) {
-                Some(true) => "(*)",
-                Some(false) => "(x)",
-                None => "( )",
+            let status_span = match app.host_status.get(&host.alias) {
+                Some(true) => Span::styled("●", Style::default().fg(Color::Green)),
+                Some(false) => Span::styled("●", Style::default().fg(Color::Red)),
+                None => Span::styled("○", Style::default().fg(Color::DarkGray)),
             };
 
             let content = Line::from(vec![
                 Span::raw(prefix),
-                Span::raw(status_icon),
+                status_span,
                 Span::raw(" "),
                 Span::styled(&host.alias, Style::default().add_modifier(Modifier::BOLD)),
             ]);
@@ -110,9 +110,9 @@ fn render_detail(frame: &mut Frame, area: Rect, app: &App) {
                 port,
                 key,
                 match app.host_status.get(&host.alias) {
-                    Some(true) => "在线",
-                    Some(false) => "离线",
-                    None => "未检测",
+                    Some(true) => "● 在线",
+                    Some(false) => "● 离线",
+                    None => "○ 未检测",
                 }
             )
         } else {
