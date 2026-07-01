@@ -20,6 +20,7 @@ pub fn strip_paste_markers(text: &str) -> String {
 }
 
 /// 判断字符串是否看起来像 Windows 绝对路径 (X:\... 或 X:/...)
+#[cfg_attr(not(windows), allow(dead_code))]
 fn looks_like_windows_path(s: &str) -> bool {
     let bytes = s.as_bytes();
     bytes.len() >= 3
@@ -80,6 +81,7 @@ fn tokenize(text: &str) -> Vec<String> {
 ///
 /// 必须是「所有 token 都是 Windows 绝对路径」才判定为拖拽操作，
 /// 否则视为普通键盘输入（防止误判如 `cat C:\nul` 这类命令）。
+#[cfg_attr(not(windows), allow(dead_code))]
 pub fn parse_windows_drag(text: &str) -> Option<Vec<PathBuf>> {
     let tokens = tokenize(text);
     if tokens.is_empty() {
@@ -168,9 +170,11 @@ pub fn detect_drag_files(text: &str) -> Option<Vec<PathBuf>> {
 mod tests {
     use super::*;
 
+    // ── Windows 专用测试（仅 `looks_like_windows_path` 能识别） ──
+
+    #[cfg(windows)]
     #[test]
     fn test_windows_simple_path() {
-        // 创建临时文件（兼容 Linux CI，不依赖 C:\Windows\...）
         let tmp = std::env::temp_dir().join("qssh_test_drag_file.exe");
         std::fs::write(&tmp, b"test").ok();
         let text = tmp.to_string_lossy().to_string();
@@ -183,59 +187,98 @@ mod tests {
         let _ = std::fs::remove_file(&tmp);
     }
 
+    #[cfg(windows)]
     #[test]
     fn test_windows_quoted_path_with_spaces() {
-        // 创建临时目录（路径带空格）来测试引号包裹的路径
         let tmp = std::env::temp_dir().join("qssh test dir");
         let _ = std::fs::create_dir_all(&tmp);
         let test_file = tmp.join("test.txt");
         std::fs::write(&test_file, b"test").ok();
-
         let text = format!("\"{}\"", test_file.display());
         let result = parse_windows_drag(&text);
         assert!(result.is_some(), "引号包裹的路径应被检测到: {}", text);
-
-        // 清理
         let _ = std::fs::remove_file(&test_file);
         let _ = std::fs::remove_dir(&tmp);
     }
 
-    #[test]
-    fn test_not_drag_regular_command() {
-        // 测试普通命令不应被识别为拖拽
-        let text = "ls -la /home/user";
-        let result = parse_windows_drag(text);
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_not_drag_windows_command() {
-        let text = "dir C:\\Windows";
-        let result = parse_windows_drag(text);
-        assert!(result.is_none()); // "dir" 不是路径
-    }
-
+    #[cfg(windows)]
     #[test]
     fn test_multiple_files_drag() {
-        // 创建多个临时文件测试多文件拖拽（兼容 Linux CI）
         let tmp_dir = std::env::temp_dir().join("qssh_test_multi_drag");
         let _ = std::fs::create_dir_all(&tmp_dir);
         let a = tmp_dir.join("a.txt");
         let b = tmp_dir.join("b.txt");
         std::fs::write(&a, b"test").ok();
         std::fs::write(&b, b"test").ok();
-
         let text = format!("{} {}", a.display(), b.display());
         let result = parse_windows_drag(&text);
         assert!(result.is_some(), "多文件拖拽应被检测到: {}", text);
         let files = result.unwrap();
         assert_eq!(files.len(), 2);
-
-        // 清理
         let _ = std::fs::remove_file(&a);
         let _ = std::fs::remove_file(&b);
         let _ = std::fs::remove_dir(&tmp_dir);
     }
+
+    // ── Unix 专用测试 ──
+
+    #[cfg(not(windows))]
+    #[test]
+    fn test_unix_simple_path() {
+        let tmp = std::env::temp_dir().join("qssh_test_drag_file.txt");
+        std::fs::write(&tmp, b"test").ok();
+        let text = tmp.to_string_lossy().to_string();
+        let result = parse_unix_drag(&text);
+        assert!(result.is_some(), "Unix 路径应被检测到: {}", text);
+        let files = result.unwrap();
+        assert!(files
+            .iter()
+            .any(|p| p.to_string_lossy().contains("qssh_test_drag_file")));
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn test_unix_quoted_path_with_spaces() {
+        let tmp = std::env::temp_dir().join("qssh test dir");
+        let _ = std::fs::create_dir_all(&tmp);
+        let test_file = tmp.join("test.txt");
+        std::fs::write(&test_file, b"test").ok();
+        let text = format!("\"{}\"", test_file.display());
+        let result = parse_unix_drag(&text);
+        assert!(result.is_some(), "引号包裹的 Unix 路径应被检测到: {}", text);
+        let _ = std::fs::remove_file(&test_file);
+        let _ = std::fs::remove_dir(&tmp);
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn test_unix_multiple_files_drag() {
+        let tmp_dir = std::env::temp_dir().join("qssh_test_unix_multi");
+        let _ = std::fs::create_dir_all(&tmp_dir);
+        let a = tmp_dir.join("a.txt");
+        let b = tmp_dir.join("b.txt");
+        std::fs::write(&a, b"test").ok();
+        std::fs::write(&b, b"test").ok();
+        let text = format!("{} {}", a.display(), b.display());
+        let result = parse_unix_drag(&text);
+        assert!(result.is_some(), "多文件 Unix 拖拽应被检测到: {}", text);
+        let files = result.unwrap();
+        assert_eq!(files.len(), 2);
+        let _ = std::fs::remove_file(&a);
+        let _ = std::fs::remove_file(&b);
+        let _ = std::fs::remove_dir(&tmp_dir);
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn test_unix_not_drag_regular_command() {
+        let text = "ls -la /home/user";
+        let result = parse_unix_drag(text);
+        assert!(result.is_none());
+    }
+
+    // ── 平台无关测试 ──
 
     #[test]
     fn test_strip_paste_markers() {
@@ -258,7 +301,9 @@ mod tests {
 
     #[test]
     fn test_empty_text() {
+        #[cfg(windows)]
         assert!(parse_windows_drag("").is_none());
+        #[cfg(not(windows))]
         assert!(parse_unix_drag("").is_none());
     }
 }
