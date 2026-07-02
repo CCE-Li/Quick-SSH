@@ -1,9 +1,18 @@
+![Quick-SSH 海报](doc/images/poster.png)
+
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
 
 **Quick-SSH** — 跨平台 SSH 连接管理器，提供 TUI 界面与 Docker 风格 CLI。
 
 基于 Rust 实现，**无需 Node.js 运行时**，即下即用。
+
+---
+## 使用示例
+
+![示例1](doc/images/sample01.png)
+
+![示例2](doc/images/sample02.png)
 
 ---
 
