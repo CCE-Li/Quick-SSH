@@ -1,4 +1,4 @@
-![Quick-SSH 海报](docs/image/poster.png)
+![Quick-SSH 海报](docs/images/poster.png)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
@@ -10,9 +10,13 @@
 ---
 ## 使用示例
 
-![示例1](docs/image/sample01.png)
+![示例1](docs/images/sample01.png)
 
-![示例2](docs/image/sample02.png)
+![示例2](docs/images/sample02.png)
+
+![示例3](docs/images/tui.gif)
+
+![示例4](docs/images/upload.gif)
 
 ---
 
