@@ -1,5 +1,5 @@
 PackageIdentifier: CCE-Li.Quick-SSH
-PackageVersion: 2.0.0
+PackageVersion: 2.0.1
 PackageLocale: en-US
 Publisher: CCE-Li
 PublisherUrl: https://github.com/CCE-Li
@@ -21,3 +21,4 @@ Tags:
   - rust
 ManifestType: locale
 ManifestVersion: 1.6.0
+

@@ -1,5 +1,5 @@
 Package: quick-ssh
-Version: 2.0.0
+Version: 2.0.1
 Section: net
 Priority: optional
 Architecture: amd64
@@ -19,3 +19,4 @@ Description: 🚀 Quick-SSH - Docker-style SSH connection manager (Rust native b
   * Drag-and-drop file upload via SFTP
   * Cross-platform: Windows/Linux/macOS
 Homepage: https://github.com/CCE-Li/Quick-SSH
+

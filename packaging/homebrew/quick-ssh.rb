@@ -18,20 +18,18 @@
 class QuickSsh < Formula
   desc "🚀 Quick-SSH - Docker-style SSH connection manager with TUI (Rust native binary)"
   homepage "https://github.com/CCE-Li/Quick-SSH"
-  url "https://github.com/CCE-Li/Quick-SSH/releases/download/v2.0.0/qssh-x86_64-macos.tar.gz"
-  sha256 "UPDATE_ME"
+  $151a197681a345125783aec636829646a1f8a55d1e84103c186fab33d68f9fbfb"
   license "MIT"
-  version "2.0.0"
+  version "2.0.1"
 
   depends_on :macos
 
   on_macos do
     if Hardware::CPU.intel?
-      url "https://github.com/CCE-Li/Quick-SSH/releases/download/v2.0.0/qssh-x86_64-macos.tar.gz"
-      sha256 "UPDATE_ME"
+      $151a197681a345125783aec636829646a1f8a55d1e84103c186fab33d68f9fbfb"
     elsif Hardware::CPU.arm?
-      url "https://github.com/CCE-Li/Quick-SSH/releases/download/v2.0.0/qssh-aarch64-macos.tar.gz"
-      sha256 "UPDATE_ME"
+      url "https://github.com/CCE-Li/Quick-SSH/releases/download/v2.0.1/qssh-aarch64-macos.tar.gz"
+      sha256 "26374f7623faa2e547e5b9c2fd3dec6fa157fc63f25264bd7c98d4aacff288c1"
     end
   end
 
@@ -44,3 +42,4 @@ class QuickSsh < Formula
     assert_match "qssh", shell_output("#{bin}/qssh --version")
   end
 end
+

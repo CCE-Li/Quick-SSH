@@ -4,7 +4,7 @@
 #
 # 从 GitHub Release 下载 tar.gz 归档，提取二进制并打包
 
-VERSION ?= 2.0.0
+$12.0.1
 ARCH    ?= amd64
 TARGET  ?= x86_64-unknown-linux-gnu
 PKGNAME  = quick-ssh_$(VERSION)_$(ARCH).deb
@@ -35,3 +35,4 @@ $(PKGNAME): build/usr/bin/qssh build/DEBIAN
 
 clean:
 	rm -rf build *.tar.gz *.deb
+

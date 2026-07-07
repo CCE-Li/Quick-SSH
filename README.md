@@ -20,28 +20,44 @@
 
 ---
 
-## 快速安装
+---
 
-### 方式一：包管理器
+## 安装指南
 
-| 平台 | 命令 |
-|------|------|
-| **Scoop** (Windows) | `scoop bucket add extras && scoop install quick-ssh` |
-| **winget** (Windows) | `winget install CCE-Li.Quick-SSH` |
-| **Homebrew** (macOS) | `brew install quick-ssh` |
-| **AUR** (Arch Linux) | `yay -S quick-ssh` |
-| **APT** (Debian/Ubuntu) | 从 Release 下载 `.deb` 后用 `sudo dpkg -i` 安装 |
+### 📦 使用系统包管理器
 
-### 方式二：直接下载
+| 平台 | 包管理器 | 状态 | 命令 |
+|------|---------|------|------|
+| **Windows** | **Scoop** | ✅ 已就绪 | `scoop bucket add cceli https://github.com/CCE-Li/scoop-bucket && scoop install quick-ssh` |
+| **Windows** | **WinGet** | ✅ 已就绪 | `winget install CCE-Li.Quick-SSH` |
+| **macOS** | **Homebrew** | ✅ 已就绪 | `brew tap CCE-Li/quick-ssh && brew install quick-ssh`（自建 Tap） |
+| **Arch Linux** | **AUR (pacman)** | ✅ 已就绪 | `yay -S quick-ssh` |
+| **Debian/Ubuntu** | **APT (.deb)** | ✅ 已就绪 | 从 [Release](https://github.com/CCE-Li/Quick-SSH/releases) 下载 `.deb`，执行 `sudo dpkg -i quick-ssh_*.deb` |
 
-从 [GitHub Releases](https://github.com/CCE-Li/Quick-SSH/releases) 下载对应平台的 `.zip` / `.tar.gz` 归档，解压后将二进制放入 `PATH` 即可。
+> **包管理器工作原理**：以上所有包管理器都引用了 GitHub Release 上的预编译二进制文件。
+> 每次发布新版本后，运行 `.\scripts\update-packaging.ps1` 即可自动更新所有配置。
+
+### 📥 直接下载
+
+从 [GitHub Releases](https://github.com/CCE-Li/Quick-SSH/releases) 下载对应平台的归档文件：
 
 ```bash
-# Linux / macOS
+# Linux / macOS — 下载 .tar.gz 并解压
 tar xzf qssh-x86_64-linux.tar.gz
 sudo cp qssh/qssh /usr/local/bin/
+sudo cp qssh/qssh-uploader /usr/local/bin/
 
-# Windows — 解压 zip，将 qssh.exe 所在目录加入 PATH
+# Windows — 下载 .zip 并解压，将 qssh.exe 所在目录加入 PATH
+```
+
+### 🔧 从源码编译（cargo）
+
+```bash
+# 需要 Rust 工具链: https://rustup.rs
+git clone https://github.com/CCE-Li/Quick-SSH.git
+cd Quick-SSH
+cargo build --release
+# 二进制位于: target/release/qssh.exe (或 qssh)
 ```
 
 ---
