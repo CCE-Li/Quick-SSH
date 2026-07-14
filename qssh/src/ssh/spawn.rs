@@ -501,7 +501,7 @@ fn handle_drag(
     // Ctrl+C 通过 pipe 发送只是字节 0x03，不触发远程 SIGINT，
     // 所以改为发 Enter 让 shell 把已输入的内容作为一条命令执行
     //（会报 "command not found"，但不会造成危害）。
-    let enter = [b'\r'];
+    let enter = *b"\r";
     if let Err(e) = ssh_stdin.write_all(&enter) {
         log_write_error(&e);
         return;

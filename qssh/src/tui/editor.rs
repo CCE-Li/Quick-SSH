@@ -176,9 +176,8 @@ impl HostFormState {
 
     pub fn handle_key(&mut self, key: KeyEvent) -> EditorOutcome {
         if key.modifiers.contains(KeyModifiers::CONTROL) {
-            match key.code {
-                KeyCode::Char('s') => return EditorOutcome::Save,
-                _ => {}
+            if let KeyCode::Char('s') = key.code {
+                return EditorOutcome::Save;
             }
         }
 

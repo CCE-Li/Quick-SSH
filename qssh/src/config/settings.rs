@@ -22,12 +22,15 @@ pub struct QsshSettings {
     pub ssh_config_path: Option<PathBuf>,
 }
 
+#[allow(dead_code)]
 fn default_port() -> u16 {
     22
 }
+#[allow(dead_code)]
 fn default_timeout() -> u64 {
     3
 }
+#[allow(dead_code)]
 fn default_concurrency() -> usize {
     3
 }
