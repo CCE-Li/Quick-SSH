@@ -26,7 +26,7 @@ pub fn start() -> Result<()> {
     let terminal = ratatui::try_init()?;
 
     // 创建应用状态
-    let mut app = App::new(config.hosts, config_path);
+    let mut app = App::new(config, config_path);
 
     // 进入事件循环
     let result = run_event_loop(terminal, &mut app);
@@ -46,6 +46,9 @@ fn run_event_loop(mut terminal: DefaultTerminal, app: &mut App) -> Result<()> {
     let tick_rate = Duration::from_millis(100);
 
     while app.running {
+        app.poll_background_tasks();
+        app.expire_flash_message();
+
         // Render
         terminal.draw(|frame| render(frame, app))?;
 
@@ -56,6 +59,14 @@ fn run_event_loop(mut terminal: DefaultTerminal, app: &mut App) -> Result<()> {
             if let CrosstermEvent::Key(key) = crossterm::event::read()? {
                 // 仅在按下时处理（忽略重复和释放）
                 if key.kind == KeyEventKind::Press {
+                    if matches!(
+                        app.mode,
+                        crate::tui::action::Mode::Add | crate::tui::action::Mode::Edit
+                    ) {
+                        app.handle_form_key(key);
+                        continue;
+                    }
+
                     let action = map_key_to_action(key, app);
 
                     // 先应用状态变更

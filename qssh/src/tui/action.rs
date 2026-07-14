@@ -24,7 +24,6 @@ pub enum Action {
     #[allow(dead_code)]
     DoAdd(String),
     StartEdit,
-    DoEdit(String),
     #[allow(dead_code)]
     StartRename(String),
     #[allow(dead_code)]

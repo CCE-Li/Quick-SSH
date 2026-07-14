@@ -5,6 +5,7 @@ use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
 use ratatui::Frame;
 
 use crate::tui::app::App;
+use crate::tui::widgets::render_host_form_popup;
 
 /// 渲染主界面
 pub fn render(frame: &mut Frame, app: &mut App) {
@@ -22,6 +23,13 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     render_header(frame, chunks[0], app);
     render_body(frame, chunks[1], app);
     render_status_bar(frame, chunks[2], app);
+
+    if matches!(
+        app.mode,
+        crate::tui::action::Mode::Add | crate::tui::action::Mode::Edit
+    ) {
+        render_host_form_popup(frame, area, app);
+    }
 }
 
 fn render_header(frame: &mut Frame, area: Rect, app: &App) {
@@ -58,10 +66,14 @@ fn render_host_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .map(|(i, host)| {
             let prefix = if app.marked.contains(&i) { "> " } else { " " };
 
-            let status_span = match app.host_status.get(&host.alias) {
-                Some(true) => Span::styled("●", Style::default().fg(Color::Green)),
-                Some(false) => Span::styled("●", Style::default().fg(Color::Red)),
-                None => Span::styled("○", Style::default().fg(Color::DarkGray)),
+            let status_span = if app.pending_pings.contains(&host.alias) {
+                Span::styled("◔", Style::default().fg(Color::Yellow))
+            } else {
+                match app.host_status.get(&host.alias) {
+                    Some(true) => Span::styled("●", Style::default().fg(Color::Green)),
+                    Some(false) => Span::styled("●", Style::default().fg(Color::Red)),
+                    None => Span::styled("○", Style::default().fg(Color::DarkGray)),
+                }
             };
 
             let content = Line::from(vec![
@@ -105,10 +117,14 @@ fn render_detail(frame: &mut Frame, area: Rect, app: &App) {
                 hostname,
                 port,
                 key,
-                match app.host_status.get(&host.alias) {
-                    Some(true) => "● 在线",
-                    Some(false) => "● 离线",
-                    None => "○ 未检测",
+                if app.pending_pings.contains(&host.alias) {
+                    "◔ 检测中"
+                } else {
+                    match app.host_status.get(&host.alias) {
+                        Some(true) => "● 在线",
+                        Some(false) => "● 离线",
+                        None => "○ 未检测",
+                    }
                 }
             )
         } else {
@@ -123,7 +139,23 @@ fn render_detail(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_status_bar(frame: &mut Frame, area: Rect, app: &App) {
-    let hint = app.mode.hint();
-    let status = Paragraph::new(hint).style(Style::default().fg(Color::White).bg(Color::DarkGray));
+    let (message, style) = if let Some(flash_message) = &app.flash_message {
+        let fg = match flash_message.color.as_str() {
+            "green" => Color::Green,
+            "red" => Color::Red,
+            "yellow" => Color::Yellow,
+            _ => Color::White,
+        };
+        (
+            flash_message.message.as_str(),
+            Style::default().fg(fg).bg(Color::DarkGray),
+        )
+    } else {
+        (
+            app.mode.hint(),
+            Style::default().fg(Color::White).bg(Color::DarkGray),
+        )
+    };
+    let status = Paragraph::new(message).style(style);
     frame.render_widget(status, area);
 }

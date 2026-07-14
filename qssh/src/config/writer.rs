@@ -13,8 +13,38 @@ pub fn render_config(config: &SshConfig) -> String {
         if !out.is_empty() && !out.ends_with('\n') {
             out.push('\n');
         }
-        out.push_str(&host.render());
+        if host.raw_text.trim().is_empty() {
+            out.push_str(&host.render());
+        } else {
+            out.push_str(&host.raw_text);
+            if !host.raw_text.ends_with('\n') {
+                out.push('\n');
+            }
+        }
     }
 
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::types::{HostBlock, SshConfig, SshDirective};
+
+    #[test]
+    fn preserves_preamble_and_raw_host_text() {
+        let config = SshConfig {
+            preamble: "Host *\n    ServerAliveInterval 60".into(),
+            hosts: vec![HostBlock {
+                alias: "demo".into(),
+                directives: vec![SshDirective::HostName("example.com".into())],
+                raw_text: "Host demo\n    HostName example.com\n    # keep this comment".into(),
+            }],
+        };
+
+        let rendered = render_config(&config);
+
+        assert!(rendered.starts_with("Host *\n    ServerAliveInterval 60\n"));
+        assert!(rendered.contains("Host demo\n    HostName example.com\n    # keep this comment"));
+    }
 }

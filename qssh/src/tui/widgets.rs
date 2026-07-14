@@ -1,7 +1,9 @@
-use ratatui::layout::Rect;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::Frame;
+
+use crate::tui::app::App;
 
 // ── 自定义 TUI 组件 ──────────────────────────────────────
 
@@ -53,7 +55,8 @@ pub fn render_help_popup(frame: &mut Frame, area: Rect) {
 │  gg          跳到顶部              │
 │  G           跳到底部              │
 │  Space       选择/取消选择          │
-│  a           添加主机              │
+│  a           字段弹窗添加           │
+│  e           字段弹窗编辑           │
 │  d           删除主机              │
 │  /           搜索                  │
 │  p           检测当前主机          │
@@ -72,4 +75,49 @@ pub fn render_help_popup(frame: &mut Frame, area: Rect) {
     let paragraph = Paragraph::new(help_text).block(block);
     frame.render_widget(Clear, popup_area);
     frame.render_widget(paragraph, popup_area);
+}
+
+pub fn render_host_form_popup(frame: &mut Frame, area: Rect, app: &App) {
+    let Some(popup) = app.host_form.as_ref() else {
+        return;
+    };
+
+    let popup_area = centered_rect(78, 72, area);
+    let title = format!("{}  |  当前字段: {}", popup.title(), popup.active_label());
+    let block = Block::default()
+        .title(title)
+        .borders(Borders::ALL)
+        .style(Style::default().bg(Color::Black));
+
+    let inner = block.inner(popup_area);
+    let sections = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Min(7),
+            Constraint::Length(2),
+        ])
+        .split(inner);
+    let row1 = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(35), Constraint::Percentage(65)])
+        .split(sections[0]);
+    let row2 = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(sections[1]);
+
+    let hint = Paragraph::new(popup.footer_hint()).style(Style::default().fg(Color::Gray));
+
+    frame.render_widget(Clear, popup_area);
+    frame.render_widget(block, popup_area);
+    frame.render_widget(popup.field(0), row1[0]);
+    frame.render_widget(popup.field(1), row1[1]);
+    frame.render_widget(popup.field(2), row2[0]);
+    frame.render_widget(popup.field(3), row2[1]);
+    frame.render_widget(popup.field(4), sections[2]);
+    frame.render_widget(popup.field(5), sections[3]);
+    frame.render_widget(hint, sections[4]);
 }
