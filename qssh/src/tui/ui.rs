@@ -24,11 +24,14 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     render_body(frame, chunks[1], app);
     render_status_bar(frame, chunks[2], app);
 
-    if matches!(
-        app.mode,
-        crate::tui::action::Mode::Add | crate::tui::action::Mode::Edit
-    ) {
-        render_host_form_popup(frame, area, app);
+    match app.mode {
+        crate::tui::action::Mode::Add | crate::tui::action::Mode::Edit => {
+            render_host_form_popup(frame, area, app);
+        }
+        crate::tui::action::Mode::Help => {
+            crate::tui::widgets::render_help_popup(frame, area);
+        }
+        _ => {}
     }
 }
 
