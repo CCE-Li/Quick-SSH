@@ -19,6 +19,6 @@ pub fn run(alias: &str) -> Result<()> {
     std::fs::write(&config_path, content)
         .with_context(|| format!("无法写入 SSH 配置文件: {}", config_path.display()))?;
 
-    println!("🗑️ 主机 \"{}\" 已删除", alias);
+    println!(" 主机 \"{}\" 已删除", alias);
     Ok(())
 }

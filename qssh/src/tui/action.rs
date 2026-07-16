@@ -1,6 +1,6 @@
 use strum::{Display, EnumString};
 
-// ── Action：用户意图（由事件转换而来） ─────────────────
+// ── Action：用户意图 ─────────────────
 
 #[derive(Debug, Clone)]
 pub enum Action {
@@ -11,6 +11,8 @@ pub enum Action {
     MoveBottom,
     Connect,
     ToggleSelect,
+    /// 切换地址显示/隐藏
+    ToggleAddress,
     Delete,
     ConfirmDelete(bool),
     StartSearch,

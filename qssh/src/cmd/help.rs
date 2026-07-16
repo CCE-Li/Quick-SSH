@@ -5,12 +5,11 @@ pub fn run() -> Result<()> {
     println!("🚀 Quick-SSH - SSH 连接管理工具");
     println!();
     println!("使用方式:");
-    println!("  qssh                    启动 TUI 界面");
+    println!("  qssh                   启动 TUI 界面");
     println!("  qssh ps [keyword]      列出所有主机（可按关键词过滤）");
     println!("  qssh ls [keyword]      同上 (ps 的别名)");
     println!("  qssh add <alias> <user@host> 添加主机");
     println!("  qssh rm <alias>        删除主机");
-    println!("  qssh remove <alias>    同上 (rm 的别名)");
     println!("  qssh connect <target>  连接主机 (别名 或 user@host)");
     println!("  qssh cn <target>       同上 (connect 的别名)");
     println!("  qssh export [file]     导出配置为 JSON");

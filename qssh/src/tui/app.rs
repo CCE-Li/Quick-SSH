@@ -71,6 +71,8 @@ pub struct App {
     ping_tx: Sender<PingEvent>,
     /// 是否运行中
     pub running: bool,
+    /// 地址显示/隐藏（默认隐藏）
+    pub show_address: bool,
 }
 
 impl App {
@@ -98,6 +100,7 @@ impl App {
             ping_rx,
             ping_tx,
             running: true,
+            show_address: false,
         }
     }
 
@@ -288,6 +291,9 @@ impl App {
                     }
                 }
             }
+            Action::ToggleAddress => {
+                self.show_address = !self.show_address;
+            }
             _ => {}
         }
     }
@@ -446,6 +452,8 @@ impl App {
     }
 
     fn handle_ping_event(&mut self, event: PingEvent) {
+        let ping_msg_duration = Duration::from_secs(1);
+
         match event {
             PingEvent::SingleFinished {
                 alias,
@@ -460,7 +468,11 @@ impl App {
                 self.host_status.insert(alias.clone(), online);
                 match error {
                     Some(error) => {
-                        self.set_flash_message(format!("检测失败: {}: {}", alias, error), "red");
+                        self.set_timed_flash_message(
+                            format!("检测失败: {}: {}", alias, error),
+                            "red",
+                            ping_msg_duration,
+                        );
                     }
                     None => {
                         let (status, color) = if online {
@@ -468,7 +480,11 @@ impl App {
                         } else {
                             ("离线", "yellow")
                         };
-                        self.set_flash_message(format!("{}: {}", alias, status), color);
+                        self.set_timed_flash_message(
+                            format!("{}: {}", alias, status),
+                            color,
+                            ping_msg_duration,
+                        );
                     }
                 }
             }
@@ -496,9 +512,10 @@ impl App {
                 } else {
                     "yellow"
                 };
-                self.set_flash_message(
+                self.set_timed_flash_message(
                     format!("全量检测完成: {}/{} 在线", online_count, total),
                     color,
+                    ping_msg_duration,
                 );
             }
         }

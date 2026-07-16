@@ -113,12 +113,16 @@ fn render_detail(frame: &mut Frame, area: Rect, app: &App) {
                 .map(|p| p.display().to_string())
                 .unwrap_or_else(|| "(agent)".to_string());
 
+            let addr_display = if app.show_address {
+                format!("{}{}:{}", user, hostname, port)
+            } else {
+                "********".to_string()
+            };
+
             format!(
-                "别名: {}\n地址: {}{}:{}\n密钥: {}\n状态: {}",
+                "别名: {}\n地址: {}\n密钥: {}\n状态: {}",
                 host.alias,
-                user,
-                hostname,
-                port,
+                addr_display,
                 key,
                 if app.pending_pings.contains(&host.alias) {
                     "◔ 检测中"

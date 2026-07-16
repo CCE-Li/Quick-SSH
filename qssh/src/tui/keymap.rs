@@ -21,6 +21,7 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
             KeyCode::Char('p') => Action::Ping,
             KeyCode::Char('P') => Action::PingAll,
             KeyCode::Char('/') => Action::StartSearch,
+            KeyCode::Char('.') => Action::ToggleAddress,
             KeyCode::Char('q') | KeyCode::Esc => Action::Quit,
             KeyCode::Char('?') => Action::ShowHelp,
             _ => Action::None,
@@ -77,7 +78,7 @@ impl Mode {
     pub fn hint(&self) -> &str {
         match self {
             Mode::Normal => {
-                "j↓ k↑ gg↕ G↕ /搜索 a添加 e编辑 d删除 p检测 P全检 Enter连接 空格标记 q退出 ?帮助"
+                "j↓ k↑ gg↕ G↕ /搜索 a添加 e编辑 d删除 p检测 P全检 Enter连接 空格标记 .地址 q退出 ?帮助"
             }
             Mode::Search => "输入搜索关键词，Enter 确认，Esc 取消",
             Mode::Add => "字段添加弹窗: Tab 切换字段，Enter 下一项，Ctrl+S 保存，Esc 取消",
