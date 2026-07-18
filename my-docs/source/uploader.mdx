@@ -1,0 +1,173 @@
+---
+title: 上传器
+description: qssh-uploader 独立文件上传工具的详细文档，包含并发上传、进度显示和防闪退设计。
+keywords:
+  - uploader
+  - scp
+  - 并发
+  - 进度条
+  - 上传
+---
+
+# 上传器
+
+`qssh-uploader` 是 Quick-SSH 的独立文件上传工具，位于 [`qssh-uploader/`](/qssh-uploader/)，是一个独立的二进制 crate。
+
+## 设计目标
+
+- **独立可执行**：与主程序分开构建，可独立使用
+- **并发上传**：最多 3 个文件同时通过 SCP 传输
+- **实时进度**：显示每个文件的进度条和总进度
+- **防闪退**：多种机制确保窗口在出错时不会立即关闭
+
+## 架构概览
+
+```
+main()
+  → 延迟 300ms（等待控制台初始化）
+  → 安装 panic hook（防闪退）
+  → run()
+    → parse_args()            // 解析命令行参数
+    → 初始化文件进度跟踪
+    → render_all()            // 首次渲染
+    → 并发上传控制循环
+      → 启动新上传（≤3 并发）
+      → 等待完成通知
+      → 重新渲染进度
+    → 完成
+```
+
+## 命令行接口
+
+```
+qssh-uploader [选项] <文件路径>...
+
+选项：
+  --host <host>          服务器地址（必填）
+  --user <user>          SSH 用户名
+  --port <port>          SSH 端口（默认 22）
+  --key <path>           密钥文件路径
+  --remote-dir <path>    远程目录（默认当前目录）
+```
+
+## 并发上传
+
+### 控制机制
+
+使用 `AtomicUsize` 和 `mpsc::channel` 实现并发控制：
+
+```rust
+let active = Arc::new(AtomicUsize::new(0));
+let (tx, rx) = mpsc::channel::<usize>();
+
+while completed_count < total_files {
+    // 启动新任务（不超过 MAX_CONCURRENT=3）
+    while active < MAX_CONCURRENT && next_index < total {
+        active += 1;
+        thread::spawn(move || {
+            upload_via_scp(&file_args);
+            active -= 1;
+            tx.send(idx);
+        });
+    }
+    // 等待任意一个完成
+    rx.recv();
+    render_all();
+}
+```
+
+### 上传实现
+
+`upload_via_scp()` 使用系统 `scp` 命令：
+
+```bash
+scp -P <port> -i <key> -o ControlMaster=no -q <local_file> [user@]host:remote_dir/filename
+```
+
+## 进度显示
+
+### 进度跟踪
+
+每个文件使用 `FileProgress` 结构体跟踪：
+
+```rust
+struct FileProgress {
+    index: usize,
+    name: String,
+    size: u64,
+    done: u64,
+    finished: bool,
+    success: bool,
+    error: Option<String>,
+}
+```
+
+### 进度渲染
+
+`render_all()` 函数在每次进度更新时刷新整个终端：
+
+```
+# 上传中
+文件 1/3: project.zip     [##################------]  72%  12.1MB/16.8MB
+
+# 上传完成
+文件 1/3: project.zip     [########################] 100%  16.8MB/16.8MB
+
+# 底部状态
+进度: 2/3 个文件完成  |  耗时: 12s
+```
+
+### CJK 字符处理
+
+`display_width()` 函数正确处理中文、日文等双宽字符，确保进度条在同一列对齐：
+
+- ASCII 字符 → 1 列宽度
+- CJK 字符（中日韩统一表意文字、假名、谚文等）→ 2 列宽度
+
+## 防闪退机制
+
+### 启动延迟
+
+```rust
+std::thread::sleep(Duration::from_millis(300));
+```
+
+等待控制台窗口初始化完成，防止在窗口完全创建前输出内容。
+
+### Panic Hook
+
+```rust
+std::panic::set_hook(Box::new(|info| {
+    // 记录错误到日志
+    // 显示错误信息
+    // 循环等待 Enter 键
+    loop {
+        if std::io::stdin().read_line(&mut line).is_ok() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(500));
+    }
+}));
+```
+
+### 错误处理
+
+```rust
+if let Err(e) = run() {
+    // 显示错误信息
+    // & pause 保持窗口打开（由启动脚本的 cmd /c 参数保证）
+}
+```
+
+### 日志记录
+
+所有错误信息同时写入 `%TEMP%\qssh-uploader.log`，便于远程排查问题。
+
+## 与主程序的集成
+
+`qssh` 主程序在检测到拖拽文件操作时，通过以下方式启动上传器：
+
+```powershell
+# 在新控制台窗口中启动
+cmd /c start "qssh-uploader" "qssh-uploader" --host <host> --user <user> ... & pause
+```

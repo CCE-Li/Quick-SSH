@@ -1,0 +1,170 @@
+﻿# 包管理器参考
+
+各包管理器的提交流程和使用说明。
+
+## Scoop (Windows)
+
+### 配置位置
+
+[`packaging/scoop/quick-ssh.json`](/packaging/scoop/quick-ssh.json)
+
+### 提交流程
+
+1. Fork [ScoopInstaller/Main](https://github.com/ScoopInstaller/Main)
+2. 将 `packaging/scoop/quick-ssh.json` 复制到 `bucket/quick-ssh.json`
+3. 提交 PR
+
+### 用户安装
+
+```powershell
+scoop bucket add extras
+scoop install quick-ssh
+```
+
+---
+
+## WinGet (Windows)
+
+### 配置位置
+
+[`packaging/winget/`](/packaging/winget/) — 包含三个文件：
+
+- `CCE-Li.Quick-SSH.installer.yaml`
+- `CCE-Li.Quick-SSH.locale.en-US.yaml`
+- `CCE-Li.Quick-SSH.yaml`
+
+### 提交流程
+
+**方式 A — 使用 wingetcreate 工具（推荐）：**
+
+```powershell
+# 安装 wingetcreate
+winget install wingetcreate
+
+# 自动创建 PR 到 microsoft/winget-pkgs
+wingetcreate submit packaging/winget/CCE-Li.Quick-SSH.installer.yaml
+```
+
+**方式 B — 手动提交：**
+
+1. Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs)
+2. 将 `packaging/winget/` 下三个文件提交到 `manifests/c/CCE-Li/Quick-SSH/<version>/`
+3. 提交 PR
+
+### 用户安装
+
+```powershell
+winget install CCE-Li.Quick-SSH
+```
+
+---
+
+## Homebrew (macOS)
+
+### 配置位置
+
+[`packaging/homebrew/quick-ssh.rb`](/packaging/homebrew/quick-ssh.rb)
+
+### 提交流程
+
+**方式 A — 自建 Tap（推荐，完全自主可控）：**
+
+```bash
+# 1. 创建 GitHub 仓库: CCE-Li/homebrew-quick-ssh
+gh repo create CCE-Li/homebrew-quick-ssh --public
+
+# 2. 将 Formula 放入该仓库
+git clone https://github.com/CCE-Li/homebrew-quick-ssh.git
+cp packaging/homebrew/quick-ssh.rb homebrew-quick-ssh/Formula/
+cd homebrew-quick-ssh
+git add . && git commit -m "Add quick-ssh v2.0.1"
+git push
+```
+
+<Note>
+  命名规则：仓库名必须为 `homebrew-<tapname>`，Formula 文件放在 `Formula/` 目录下。
+</Note>
+
+**方式 B — 提交 Homebrew Core（审核严格）：**
+
+1. Fork [Homebrew/homebrew-core](https://github.com/Homebrew/homebrew-core)
+2. 将 Formula 提交到 `Formula/q/quick-ssh.rb`
+3. 需满足 Homebrew 审核标准（项目稳定、有 GitHub Release 等）
+
+### 用户安装
+
+```bash
+brew tap CCE-Li/quick-ssh
+brew install quick-ssh
+```
+
+---
+
+## AUR (Arch Linux)
+
+### 配置位置
+
+[`packaging/pacman/PKGBUILD`](/packaging/pacman/PKGBUILD)
+
+### 提交流程
+
+```bash
+# 1. 安装 AUR 提交工具
+sudo pacman -S --needed base-devel
+git clone ssh://aur@aur.archlinux.org/quick-ssh.git
+cd quick-ssh
+
+# 2. 复制 PKGBUILD 并生成 .SRCINFO
+cp /path/to/packaging/pacman/PKGBUILD .
+makepkg --printsrcinfo > .SRCINFO
+
+# 3. 提交
+git add PKGBUILD .SRCINFO
+git commit -m "Update quick-ssh to v2.0.1"
+git push
+```
+
+### 用户安装
+
+```bash
+yay -S quick-ssh
+# 或
+paru -S quick-ssh
+```
+
+---
+
+## APT (Debian/Ubuntu)
+
+### 配置位置
+
+[`packaging/apt/`](/packaging/apt/)
+
+### 构建 .deb 包
+
+```bash
+# 构建 .deb 包（需要 Linux 环境或 Docker）
+cd packaging/apt
+make VERSION=2.0.1
+
+# 产物: quick-ssh_2.0.1_amd64.deb
+# 将 .deb 上传到 GitHub Release 的 Assets 中
+```
+
+### 用户安装
+
+```bash
+sudo dpkg -i quick-ssh_2.0.1_amd64.deb
+```
+
+---
+
+## 包管理器状态总览
+
+| 包管理器 | 平台 | 状态 | 配置位置 | 提交目标 |
+|---------|------|------|---------|---------|
+| **Scoop** | Windows | ✅ 就绪 | `packaging/scoop/quick-ssh.json` | [ScoopInstaller/Main](https://github.com/ScoopInstaller/Main) |
+| **WinGet** | Windows | ✅ 就绪 | `packaging/winget/` | [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) |
+| **Homebrew** | macOS | ✅ 就绪 | `packaging/homebrew/quick-ssh.rb` | 自建 Tap 或 Homebrew Core |
+| **AUR** | Arch Linux | ✅ 就绪 | `packaging/pacman/PKGBUILD` | [aur.archlinux.org](https://aur.archlinux.org) |
+| **APT** | Debian/Ubuntu | ✅ 就绪 | `packaging/apt/` | GitHub Release Assets |

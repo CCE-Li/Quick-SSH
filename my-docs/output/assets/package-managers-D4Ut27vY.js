@@ -1,0 +1,114 @@
+import{n as e}from"./vendor-CQh2k-GV.js";import{n as t}from"./react-vendor-6GaKtW3l.js";var n=t();function r(t){let r={a:`a`,code:`code`,h1:`h1`,h2:`h2`,h3:`h3`,hr:`hr`,li:`li`,ol:`ol`,p:`p`,pre:`pre`,span:`span`,strong:`strong`,table:`table`,tbody:`tbody`,td:`td`,th:`th`,thead:`thead`,tr:`tr`,ul:`ul`,...e(),...t.components},{Note:i}=r;return i||a(`Note`,!0),(0,n.jsxs)(n.Fragment,{children:[(0,n.jsx)(r.hr,{}),`
+`,(0,n.jsx)(r.p,{children:`title: 包管理器参考
+description: 各包管理器的详细提交流程和使用说明。
+keywords:`}),`
+`,(0,n.jsxs)(r.ul,{children:[`
+`,(0,n.jsx)(r.li,{children:`scoop`}),`
+`,(0,n.jsx)(r.li,{children:`winget`}),`
+`,(0,n.jsx)(r.li,{children:`homebrew`}),`
+`,(0,n.jsx)(r.li,{children:`aur`}),`
+`,(0,n.jsx)(r.li,{children:`apt`}),`
+`,(0,n.jsx)(r.li,{children:`包管理器`}),`
+`]}),`
+`,(0,n.jsx)(r.hr,{}),`
+`,(0,n.jsx)(r.h1,{id:`包管理器参考`,children:`包管理器参考`}),`
+`,(0,n.jsx)(r.p,{children:`各包管理器的提交流程和使用说明。`}),`
+`,(0,n.jsx)(r.h2,{id:`scoop-windows`,children:`Scoop (Windows)`}),`
+`,(0,n.jsx)(r.h3,{id:`配置位置`,children:`配置位置`}),`
+`,(0,n.jsx)(r.p,{children:(0,n.jsx)(r.a,{href:`/packaging/scoop/quick-ssh.json`,language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`packaging/scoop/quick-ssh.json`})})}),`
+`,(0,n.jsx)(r.h3,{id:`提交流程`,children:`提交流程`}),`
+`,(0,n.jsxs)(r.ol,{children:[`
+`,(0,n.jsxs)(r.li,{children:[`Fork `,(0,n.jsx)(r.a,{href:`https://github.com/ScoopInstaller/Main`,children:`ScoopInstaller/Main`})]}),`
+`,(0,n.jsxs)(r.li,{language:`txt`,children:[`将 `,(0,n.jsx)(r.code,{language:`txt`,children:`packaging/scoop/quick-ssh.json`}),` 复制到 `,(0,n.jsx)(r.code,{language:`txt`,children:`bucket/quick-ssh.json`})]}),`
+`,(0,n.jsx)(r.li,{children:`提交 PR`}),`
+`]}),`
+`,(0,n.jsx)(r.h3,{id:`用户安装`,children:`用户安装`}),`
+`,(0,n.jsx)(n.Fragment,{children:(0,n.jsx)(r.pre,{className:`shiki css-variables`,style:{backgroundColor:`var(--shiki-background)`,color:`var(--shiki-foreground)`},tabIndex:`0`,children:(0,n.jsxs)(r.code,{className:`language-powershell`,children:[(0,n.jsx)(r.span,{className:`line`,children:(0,n.jsx)(r.span,{style:{color:`var(--shiki-foreground)`},children:`scoop bucket add extras`})}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-foreground)`},children:`scoop install quick`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-keyword)`},children:`-`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-foreground)`},children:`ssh`})]})]})})}),`
+`,(0,n.jsx)(r.hr,{}),`
+`,(0,n.jsx)(r.h2,{id:`winget-windows`,children:`WinGet (Windows)`}),`
+`,(0,n.jsx)(r.h3,{id:`配置位置-1`,children:`配置位置`}),`
+`,(0,n.jsxs)(r.p,{children:[(0,n.jsx)(r.a,{href:`/packaging/winget/`,language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`packaging/winget/`})}),` — 包含三个文件：`]}),`
+`,(0,n.jsxs)(r.ul,{children:[`
+`,(0,n.jsx)(r.li,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`CCE-Li.Quick-SSH.installer.yaml`})}),`
+`,(0,n.jsx)(r.li,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`CCE-Li.Quick-SSH.locale.en-US.yaml`})}),`
+`,(0,n.jsx)(r.li,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`CCE-Li.Quick-SSH.yaml`})}),`
+`]}),`
+`,(0,n.jsx)(r.h3,{id:`提交流程-1`,children:`提交流程`}),`
+`,(0,n.jsx)(r.p,{children:(0,n.jsx)(r.strong,{children:`方式 A — 使用 wingetcreate 工具（推荐）：`})}),`
+`,(0,n.jsx)(n.Fragment,{children:(0,n.jsx)(r.pre,{className:`shiki css-variables`,style:{backgroundColor:`var(--shiki-background)`,color:`var(--shiki-foreground)`},tabIndex:`0`,children:(0,n.jsxs)(r.code,{className:`language-powershell`,children:[(0,n.jsx)(r.span,{className:`line`,children:(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-comment)`},children:`# 安装 wingetcreate`})}),`
+`,(0,n.jsx)(r.span,{className:`line`,children:(0,n.jsx)(r.span,{style:{color:`var(--shiki-foreground)`},children:`winget install wingetcreate`})}),`
+`,(0,n.jsx)(r.span,{className:`line`}),`
+`,(0,n.jsx)(r.span,{className:`line`,children:(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-comment)`},children:`# 自动创建 PR 到 microsoft/winget-pkgs`})}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-foreground)`},children:`wingetcreate submit packaging`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-keyword)`},children:`/`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-foreground)`},children:`winget`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-keyword)`},children:`/`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-foreground)`},children:`CCE`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-keyword)`},children:`-`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-foreground)`},children:`Li.Quick`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-keyword)`},children:`-`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-foreground)`},children:`SSH.installer.yaml`})]})]})})}),`
+`,(0,n.jsx)(r.p,{children:(0,n.jsx)(r.strong,{children:`方式 B — 手动提交：`})}),`
+`,(0,n.jsxs)(r.ol,{children:[`
+`,(0,n.jsxs)(r.li,{children:[`Fork `,(0,n.jsx)(r.a,{href:`https://github.com/microsoft/winget-pkgs`,children:`microsoft/winget-pkgs`})]}),`
+`,(0,n.jsxs)(r.li,{language:`txt`,children:[`将 `,(0,n.jsx)(r.code,{language:`txt`,children:`packaging/winget/`}),` 下三个文件提交到 `,(0,n.jsx)(r.code,{language:`txt`,children:`manifests/c/CCE-Li/Quick-SSH/<version>/`})]}),`
+`,(0,n.jsx)(r.li,{children:`提交 PR`}),`
+`]}),`
+`,(0,n.jsx)(r.h3,{id:`用户安装-1`,children:`用户安装`}),`
+`,(0,n.jsx)(n.Fragment,{children:(0,n.jsx)(r.pre,{className:`shiki css-variables`,style:{backgroundColor:`var(--shiki-background)`,color:`var(--shiki-foreground)`},tabIndex:`0`,children:(0,n.jsx)(r.code,{className:`language-powershell`,children:(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-foreground)`},children:`winget install CCE`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-keyword)`},children:`-`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-foreground)`},children:`Li.Quick`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-keyword)`},children:`-`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-foreground)`},children:`SSH`})]})})})}),`
+`,(0,n.jsx)(r.hr,{}),`
+`,(0,n.jsx)(r.h2,{id:`homebrew-macos`,children:`Homebrew (macOS)`}),`
+`,(0,n.jsx)(r.h3,{id:`配置位置-2`,children:`配置位置`}),`
+`,(0,n.jsx)(r.p,{children:(0,n.jsx)(r.a,{href:`/packaging/homebrew/quick-ssh.rb`,language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`packaging/homebrew/quick-ssh.rb`})})}),`
+`,(0,n.jsx)(r.h3,{id:`提交流程-2`,children:`提交流程`}),`
+`,(0,n.jsx)(r.p,{children:(0,n.jsx)(r.strong,{children:`方式 A — 自建 Tap（推荐，完全自主可控）：`})}),`
+`,(0,n.jsx)(n.Fragment,{children:(0,n.jsx)(r.pre,{className:`shiki css-variables`,style:{backgroundColor:`var(--shiki-background)`,color:`var(--shiki-foreground)`},tabIndex:`0`,children:(0,n.jsxs)(r.code,{className:`language-bash`,children:[(0,n.jsx)(r.span,{className:`line`,children:(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-comment)`},children:`# 1. 创建 GitHub 仓库: CCE-Li/homebrew-quick-ssh`})}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`gh`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` repo`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` create`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` CCE-Li/homebrew-quick-ssh`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` --public`})]}),`
+`,(0,n.jsx)(r.span,{className:`line`}),`
+`,(0,n.jsx)(r.span,{className:`line`,children:(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-comment)`},children:`# 2. 将 Formula 放入该仓库`})}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`git`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` clone`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` https://github.com/CCE-Li/homebrew-quick-ssh.git`})]}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`cp`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` packaging/homebrew/quick-ssh.rb`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` homebrew-quick-ssh/Formula/`})]}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`cd`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` homebrew-quick-ssh`})]}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`git`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` add`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` .`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-punctuation)`},children:` &&`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:` git`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` commit`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` -m`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string-expression)`},children:` "Add quick-ssh v2.0.1"`})]}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`git`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` push`})]})]})})}),`
+`,(0,n.jsx)(i,{children:(0,n.jsxs)(r.p,{language:`txt`,children:[`命名规则：仓库名必须为 `,(0,n.jsx)(r.code,{language:`txt`,children:`homebrew-<tapname>`}),`，Formula 文件放在 `,(0,n.jsx)(r.code,{language:`txt`,children:`Formula/`}),` 目录下。`]})}),`
+`,(0,n.jsx)(r.p,{children:(0,n.jsx)(r.strong,{children:`方式 B — 提交 Homebrew Core（审核严格）：`})}),`
+`,(0,n.jsxs)(r.ol,{children:[`
+`,(0,n.jsxs)(r.li,{children:[`Fork `,(0,n.jsx)(r.a,{href:`https://github.com/Homebrew/homebrew-core`,children:`Homebrew/homebrew-core`})]}),`
+`,(0,n.jsxs)(r.li,{language:`txt`,children:[`将 Formula 提交到 `,(0,n.jsx)(r.code,{language:`txt`,children:`Formula/q/quick-ssh.rb`})]}),`
+`,(0,n.jsx)(r.li,{children:`需满足 Homebrew 审核标准（项目稳定、有 GitHub Release 等）`}),`
+`]}),`
+`,(0,n.jsx)(r.h3,{id:`用户安装-2`,children:`用户安装`}),`
+`,(0,n.jsx)(n.Fragment,{children:(0,n.jsx)(r.pre,{className:`shiki css-variables`,style:{backgroundColor:`var(--shiki-background)`,color:`var(--shiki-foreground)`},tabIndex:`0`,children:(0,n.jsxs)(r.code,{className:`language-bash`,children:[(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`brew`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` tap`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` CCE-Li/quick-ssh`})]}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`brew`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` install`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` quick-ssh`})]})]})})}),`
+`,(0,n.jsx)(r.hr,{}),`
+`,(0,n.jsx)(r.h2,{id:`aur-arch-linux`,children:`AUR (Arch Linux)`}),`
+`,(0,n.jsx)(r.h3,{id:`配置位置-3`,children:`配置位置`}),`
+`,(0,n.jsx)(r.p,{children:(0,n.jsx)(r.a,{href:`/packaging/pacman/PKGBUILD`,language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`packaging/pacman/PKGBUILD`})})}),`
+`,(0,n.jsx)(r.h3,{id:`提交流程-3`,children:`提交流程`}),`
+`,(0,n.jsx)(n.Fragment,{children:(0,n.jsx)(r.pre,{className:`shiki css-variables`,style:{backgroundColor:`var(--shiki-background)`,color:`var(--shiki-foreground)`},tabIndex:`0`,children:(0,n.jsxs)(r.code,{className:`language-bash`,children:[(0,n.jsx)(r.span,{className:`line`,children:(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-comment)`},children:`# 1. 安装 AUR 提交工具`})}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`sudo`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` pacman`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` -S`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` --needed`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` base-devel`})]}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`git`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` clone`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` ssh://aur@aur.archlinux.org/quick-ssh.git`})]}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`cd`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` quick-ssh`})]}),`
+`,(0,n.jsx)(r.span,{className:`line`}),`
+`,(0,n.jsx)(r.span,{className:`line`,children:(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-comment)`},children:`# 2. 复制 PKGBUILD 并生成 .SRCINFO`})}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`cp`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` /path/to/packaging/pacman/PKGBUILD`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` .`})]}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`makepkg`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` --printsrcinfo`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-keyword)`},children:` >`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` .SRCINFO`})]}),`
+`,(0,n.jsx)(r.span,{className:`line`}),`
+`,(0,n.jsx)(r.span,{className:`line`,children:(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-comment)`},children:`# 3. 提交`})}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`git`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` add`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` PKGBUILD`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` .SRCINFO`})]}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`git`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` commit`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` -m`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string-expression)`},children:` "Update quick-ssh to v2.0.1"`})]}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`git`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` push`})]})]})})}),`
+`,(0,n.jsx)(r.h3,{id:`用户安装-3`,children:`用户安装`}),`
+`,(0,n.jsx)(n.Fragment,{children:(0,n.jsx)(r.pre,{className:`shiki css-variables`,style:{backgroundColor:`var(--shiki-background)`,color:`var(--shiki-foreground)`},tabIndex:`0`,children:(0,n.jsxs)(r.code,{className:`language-bash`,children:[(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`yay`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` -S`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` quick-ssh`})]}),`
+`,(0,n.jsx)(r.span,{className:`line`,children:(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-comment)`},children:`# 或`})}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`paru`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` -S`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` quick-ssh`})]})]})})}),`
+`,(0,n.jsx)(r.hr,{}),`
+`,(0,n.jsx)(r.h2,{id:`apt-debianubuntu`,children:`APT (Debian/Ubuntu)`}),`
+`,(0,n.jsx)(r.h3,{id:`配置位置-4`,children:`配置位置`}),`
+`,(0,n.jsx)(r.p,{children:(0,n.jsx)(r.a,{href:`/packaging/apt/`,language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`packaging/apt/`})})}),`
+`,(0,n.jsx)(r.h3,{id:`构建-deb-包`,children:`构建 .deb 包`}),`
+`,(0,n.jsx)(n.Fragment,{children:(0,n.jsx)(r.pre,{className:`shiki css-variables`,style:{backgroundColor:`var(--shiki-background)`,color:`var(--shiki-foreground)`},tabIndex:`0`,children:(0,n.jsxs)(r.code,{className:`language-bash`,children:[(0,n.jsx)(r.span,{className:`line`,children:(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-comment)`},children:`# 构建 .deb 包（需要 Linux 环境或 Docker）`})}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`cd`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` packaging/apt`})]}),`
+`,(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`make`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` VERSION=`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-constant)`},children:`2.0.1`})]}),`
+`,(0,n.jsx)(r.span,{className:`line`}),`
+`,(0,n.jsx)(r.span,{className:`line`,children:(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-comment)`},children:`# 产物: quick-ssh_2.0.1_amd64.deb`})}),`
+`,(0,n.jsx)(r.span,{className:`line`,children:(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-comment)`},children:`# 将 .deb 上传到 GitHub Release 的 Assets 中`})})]})})}),`
+`,(0,n.jsx)(r.h3,{id:`用户安装-4`,children:`用户安装`}),`
+`,(0,n.jsx)(n.Fragment,{children:(0,n.jsx)(r.pre,{className:`shiki css-variables`,style:{backgroundColor:`var(--shiki-background)`,color:`var(--shiki-foreground)`},tabIndex:`0`,children:(0,n.jsx)(r.code,{className:`language-bash`,children:(0,n.jsxs)(r.span,{className:`line`,children:[(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-function)`},children:`sudo`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` dpkg`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` -i`}),(0,n.jsx)(r.span,{style:{color:`var(--shiki-token-string)`},children:` quick-ssh_2.0.1_amd64.deb`})]})})})}),`
+`,(0,n.jsx)(r.hr,{}),`
+`,(0,n.jsx)(r.h2,{id:`包管理器状态总览`,children:`包管理器状态总览`}),`
+`,(0,n.jsxs)(r.table,{children:[(0,n.jsx)(r.thead,{children:(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.th,{children:`包管理器`}),(0,n.jsx)(r.th,{children:`平台`}),(0,n.jsx)(r.th,{children:`状态`}),(0,n.jsx)(r.th,{children:`配置位置`}),(0,n.jsx)(r.th,{children:`提交目标`})]})}),(0,n.jsxs)(r.tbody,{children:[(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:(0,n.jsx)(r.strong,{children:`Scoop`})}),(0,n.jsx)(r.td,{children:`Windows`}),(0,n.jsx)(r.td,{children:`✅ 就绪`}),(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`packaging/scoop/quick-ssh.json`})}),(0,n.jsx)(r.td,{children:(0,n.jsx)(r.a,{href:`https://github.com/ScoopInstaller/Main`,children:`ScoopInstaller/Main`})})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:(0,n.jsx)(r.strong,{children:`WinGet`})}),(0,n.jsx)(r.td,{children:`Windows`}),(0,n.jsx)(r.td,{children:`✅ 就绪`}),(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`packaging/winget/`})}),(0,n.jsx)(r.td,{children:(0,n.jsx)(r.a,{href:`https://github.com/microsoft/winget-pkgs`,children:`microsoft/winget-pkgs`})})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:(0,n.jsx)(r.strong,{children:`Homebrew`})}),(0,n.jsx)(r.td,{children:`macOS`}),(0,n.jsx)(r.td,{children:`✅ 就绪`}),(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`packaging/homebrew/quick-ssh.rb`})}),(0,n.jsx)(r.td,{children:`自建 Tap 或 Homebrew Core`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:(0,n.jsx)(r.strong,{children:`AUR`})}),(0,n.jsx)(r.td,{children:`Arch Linux`}),(0,n.jsx)(r.td,{children:`✅ 就绪`}),(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`packaging/pacman/PKGBUILD`})}),(0,n.jsx)(r.td,{children:(0,n.jsx)(r.a,{href:`https://aur.archlinux.org`,children:`aur.archlinux.org`})})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:(0,n.jsx)(r.strong,{children:`APT`})}),(0,n.jsx)(r.td,{children:`Debian/Ubuntu`}),(0,n.jsx)(r.td,{children:`✅ 就绪`}),(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`packaging/apt/`})}),(0,n.jsx)(r.td,{children:`GitHub Release Assets`})]})]})]})]})}function i(t={}){let{wrapper:i}={...e(),...t.components};return i?(0,n.jsx)(i,{...t,children:(0,n.jsx)(r,{...t})}):r(t)}function a(e,t){throw Error(`Expected `+(t?`component`:`object`)+" `"+e+"` to be defined: you likely forgot to import, pass, or provide it.")}export{i as default};

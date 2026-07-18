@@ -1,0 +1,120 @@
+---
+title: 安装指南
+description: 通过包管理器或直接下载安装 Quick-SSH，支持 Windows / Linux / macOS。
+keywords:
+  - 安装
+  - scoop
+  - winget
+  - homebrew
+  - aur
+  - apt
+  - cargo
+---
+
+# 安装指南
+
+Quick-SSH 提供多种安装方式，覆盖主流操作系统和包管理器。
+
+## 系统包管理器安装
+
+<CardGroup cols={2}>
+  <Card title="Windows — Scoop" icon="Terminal">
+    <CodeGroup title="Scoop 安装">
+      ```powershell title="添加 Bucket"
+      scoop bucket add cceli https://github.com/CCE-Li/scoop-bucket
+      ```
+      ```powershell title="安装"
+      scoop install quick-ssh
+      ```
+    </CodeGroup>
+  </Card>
+  <Card title="Windows — WinGet" icon="Terminal">
+    ```powershell
+    winget install CCE-Li.Quick-SSH
+    ```
+  </Card>
+  <Card title="macOS — Homebrew" icon="Terminal">
+    <CodeGroup title="Homebrew 安装">
+      ```bash title="添加 Tap"
+      brew tap CCE-Li/quick-ssh
+      ```
+      ```bash title="安装"
+      brew install quick-ssh
+      ```
+    </CodeGroup>
+  </Card>
+  <Card title="Arch Linux — AUR" icon="Terminal">
+    ```bash
+    yay -S quick-ssh
+    ```
+    <Note>
+      也可使用 `paru -S quick-ssh`
+    </Note>
+  </Card>
+  <Card title="Debian/Ubuntu — APT" icon="Terminal">
+    ```bash
+    # 从 GitHub Release 下载 .deb 包
+    sudo dpkg -i quick-ssh_*.deb
+    ```
+  </Card>
+</CardGroup>
+
+<Callout title="包管理器原理">
+  以上所有包管理器都引用了 GitHub Release 上的预编译二进制文件。每次发布新版本后，运行 `scripts/update-packaging.ps1` 即可自动更新所有配置。
+</Callout>
+
+## 直接下载
+
+从 [GitHub Releases](https://github.com/CCE-Li/Quick-SSH/releases) 下载对应平台的归档文件：
+
+<CodeGroup title="平台归档">
+  ```bash title="Linux x86_64"
+  tar xzf qssh-x86_64-linux.tar.gz
+  sudo cp qssh/qssh /usr/local/bin/
+  sudo cp qssh/qssh-uploader /usr/local/bin/
+  ```
+  ```bash title="macOS x86_64"
+  tar xzf qssh-x86_64-macos.tar.gz
+  sudo cp qssh/qssh /usr/local/bin/
+  sudo cp qssh/qssh-uploader /usr/local/bin/
+  ```
+  ```bash title="macOS ARM64"
+  tar xzf qssh-aarch64-macos.tar.gz
+  sudo cp qssh/qssh /usr/local/bin/
+  sudo cp qssh/qssh-uploader /usr/local/bin/
+  ```
+  ```powershell title="Windows x86_64"
+  # 解压 qssh-x86_64-windows.zip，将 qssh.exe 所在目录加入 PATH
+  ```
+</CodeGroup>
+
+每个归档包含：
+- `qssh` / `qssh.exe` — 主程序
+- `qssh-uploader` / `qssh-uploader.exe` — 文件上传工具
+- `LICENSE` — MIT 许可证
+- `README.md` — 说明文档
+- 各 Shell 补全脚本
+
+## 从源码编译
+
+需要 [Rust 工具链](https://rustup.rs)。
+
+```bash
+git clone https://github.com/CCE-Li/Quick-SSH.git
+cd Quick-SSH
+cargo build --release
+# 二进制位于: target/release/qssh.exe (或 qssh)
+```
+
+## 快速验证安装
+
+```bash
+# 查看版本
+qssh --version
+
+# 启动 TUI
+qssh
+
+# 查看帮助
+qssh help
+```

@@ -1,0 +1,34 @@
+﻿# 路线图
+
+## v2.0（当前版本）
+
+已完成的功能：
+
+- [x] Rust 完整重写（移除 Node.js 依赖）
+- [x] 事件驱动 TUI（ratatui + crossterm）
+- [x] 完整 CLI 子命令（ps/add/rm/connect/export/import/help）
+- [x] Shell 补全生成（bash/zsh/fish/powershell/elvish）
+- [x] 独立 SFTP 上传工具（qssh-uploader）
+- [x] 渐进式 SSH 配置解析
+- [x] `~/.qsshrc` 程序设置
+- [x] 6 种包管理器配置（Scoop/WinGet/Homebrew/AUR/APT）
+- [x] CI/CD 自动构建与发布
+
+## v2.1（规划中）
+
+计划中的功能：
+
+- [ ] 批量命令执行（选中多台主机后执行命令）
+- [ ] 自动检测更新（启动时检查 GitHub Release）
+- [ ] 连接日志记录（会话时间、主机、退出码）
+- [ ] TUI 主机详情增强（显示配置片段）
+
+## v2.2（远期规划）
+
+远期考虑的功能：
+
+- [ ] TUI 主题自定义
+- [ ] 主机分组/标签
+- [ ] 配置备份与恢复
+- [ ] SSH 隧道管理
+- [ ] 更多包管理器支持（Chocolatey、Nix）
