@@ -10,6 +10,7 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 9
+      - run: cd my-docs
       - run: pnpm install
       - run: pnpm exec clarify build
       - uses: peaceiris/actions-gh-pages@v4
