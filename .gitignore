@@ -6,7 +6,6 @@ Cargo.lock
 # 旧 Node.js 源码（已迁移至 Rust）
 /src/
 scripts/
-doc/
 package.json
 package-lock.json
 node_modules/

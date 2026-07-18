@@ -1,4 +1,4 @@
-![Quick-SSH 海报](docs/images/poster.png)
+![Quick-SSH 海报](docx/images/poster.png)
 
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
@@ -10,13 +10,13 @@
 ---
 ## 使用示例
 
-![示例1](docs/images/sample01.png)
+![示例1](docx/images/sample01.png)
 
-![示例2](docs/images/sample02.png)
+![示例2](docx/images/sample02.png)
 
-![示例3](docs/images/tui.gif)
+![示例3](docx/images/tui.gif)
 
-![示例4](docs/images/upload.gif)
+![示例4](docx/images/upload.gif)
 
 ---
 
@@ -124,9 +124,9 @@ UploadConcurrency=3
 
 | 文档 | 说明 |
 |------|------|
-| [`docs/architecture.md`](docs/architecture.md) | Rust 架构设计 |
-| [`docs/release.md`](docs/release.md) | 发布流程与包管理器维护 |
-| [`docs/roadmap.md`](docs/roadmap.md) | 开发路线图 |
+| [`docx/architecture.md`](docx/architecture.md) | Rust 架构设计 |
+| [`docx/release.md`](docx/release.md) | 发布流程与包管理器维护 |
+| [`docx/roadmap.md`](docx/roadmap.md) | 开发路线图 |
 
 ---
 

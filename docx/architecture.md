@@ -35,7 +35,7 @@ quick-ssh/
 │           └── completions.rs
 ├── qssh-uploader/           # 独立上传二进制
 │   └── src/main.rs
-├── docs/                    # 文档
+├── docx/                    # 文档
 │   ├── architecture.md
 │   ├── roadmap.md
 │   └── release.md
