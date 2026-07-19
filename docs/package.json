@@ -1,0 +1,14 @@
+{
+  "name": "quick-ssh-docs",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "clarify dev",
+    "build": "clarify build",
+    "preview": "clarify preview"
+  },
+  "devDependencies": {
+    "@clarify-labs/cli": "^0.11.0"
+  }
+}
