@@ -1,0 +1,140 @@
+﻿# SSH 连接模块
+
+SSH 模块位于 [`qssh/src/ssh/`](/qssh/src/ssh/)，负责 SSH 连接的全流程管理，包括目标解析、进程生成、文件拖拽检测和内联上传。
+
+## 模块结构
+
+```
+ssh/
+├── mod.rs           # 模块声明
+├── session.rs       # SshTarget 解析与 SSH 参数构建
+├── spawn.rs         # 交互式 SSH 会话（跨平台 raw 模式）
+├── drag_detect.rs   # 拖拽文件路径检测
+└── upload.rs        # 内联 SCP 上传（预留）
+```
+
+## session.rs — 连接目标解析
+
+### SshTarget
+
+`SshTarget` 结构体表示已解析的 SSH 连接目标：
+
+```rust
+pub struct SshTarget {
+    pub alias: String,
+    pub hostname: String,
+    pub user: Option<String>,
+    pub port: u16,
+    pub identity_file: Option<PathBuf>,
+}
+```
+
+### 构建方式
+
+| 方法 | 来源 | 说明 |
+|------|------|------|
+| `from_host(host)` | HostBlock | 从配置文件中的 Host 块构建 |
+| `from_user_at_host(input, port)` | 用户输入 | 从 `user@hostname` 字符串解析 |
+
+### SSH 参数构建
+
+`build_ssh_args()` 方法根据 SshTarget 构建 SSH 命令行参数：
+
+```rust
+// 示例输出
+["-l", "root", "-p", "2222", "-i", "~/.ssh/id_rsa", "-o", "ControlMaster=no", "example.com"]
+```
+
+参数规则：
+
+| 条件 | 参数 | 说明 |
+|------|------|------|
+| 有 user | `-l <user>` | 指定登录用户名 |
+| port != 22 | `-p <port>` | 指定端口 |
+| 有 identity_file | `-i <path>` | 指定密钥文件（自动展开 `~`） |
+| 始终 | `-o ControlMaster=no` | 禁用连接复用，确保新连接 |
+
+### 目标解析
+
+`resolve_target()` 函数实现双模式解析：
+
+1. **别名模式**：优先在 `~/.ssh/config` 中查找匹配的 HostBlock
+2. **直接模式**：未找到别名时，将输入视为 `user@hostname` 直接连接
+
+## spawn.rs — SSH 进程生成
+
+### 设计要点
+
+- **stdin 继承**：SSH 直接读取控制台输入，密码认证正常工作
+- **stdout/stderr 转发**：通过独立线程转发到终端显示
+- **强制 PTY**：使用 `-tt` 确保 SSH 在远程分配 PTY
+
+### 启动流程
+
+```
+start_interactive_session()
+  → enable_terminal_raw_mode()    // 启用终端 raw 模式
+  → start_interactive_session_inner()
+    → build_ssh_args_with_pty()   // 构建带 -tt 的参数
+    → Command::new("ssh").spawn() // 启动 SSH 进程
+    → forward_stdout() (线程)     // stdout 转发
+    → forward_stderr() (线程)     // stderr 转发
+    → child.wait()                // 等待 SSH 退出
+  → disable_terminal_raw_mode()   // 恢复终端模式
+  → 返回退出码
+```
+
+### 跨平台终端 Raw 模式
+
+| 平台 | 实现方式 |
+|------|---------|
+| **Windows** | 使用 WinAPI `GetConsoleMode` / `SetConsoleMode` 直接操作控制台 |
+| **Unix** | 使用 crossterm 的 termios 封装 |
+
+**Windows 实现细节：**
+
+1. 获取并保存原始控制台输入/输出模式
+2. 禁用 `ENABLE_ECHO_INPUT`、`ENABLE_LINE_INPUT`、`ENABLE_PROCESSED_INPUT`
+3. 启用 `ENABLE_VIRTUAL_TERMINAL_INPUT`（使 `std::io::stdin().read()` 能正确读取按键）
+4. 启用输出句柄的 `ENABLE_VIRTUAL_TERMINAL_PROCESSING`
+5. 退出时使用三种方法确保恢复光标可见性：
+   - `WriteConsoleW` — ANSI 转义序列（`\x1b[?25h`）
+   - `SetConsoleCursorInfo` — 直接 WinAPI 设置
+   - `WriteFile` — 内核路径写入
+
+## drag_detect.rs — 拖拽文件检测
+
+### 检测原理
+
+当用户在终端中拖拽文件时，终端模拟器会将文件路径"粘贴"到输入流中。检测模块识别这种拖拽行为。
+
+### 检测流程
+
+```
+输入文本 → strip_paste_markers() → tokenize() → 路径验证 → 存在性验证 → 返回文件列表
+```
+
+### 关键函数
+
+| 函数 | 说明 |
+|------|------|
+| `strip_paste_markers()` | 去除终端粘贴模式标记（bracketed paste mode） |
+| `tokenize()` | 分割文本为 token，支持引号包裹 |
+| `looks_like_windows_path()` | 检测 `X:\...` 格式（仅 Windows） |
+| `looks_like_unix_path()` | 检测 `/...` 格式（仅 Unix） |
+| `parse_windows_drag()` | 解析 Windows 拖拽路径 |
+| `parse_unix_drag()` | 解析 Unix 拖拽路径 |
+| `detect_drag_files()` | 平台自适应入口函数 |
+
+### 防误判机制
+
+所有 token 都必须是合法的绝对路径才会判定为拖拽操作，防止将 `ls -la /home/user` 等命令误判。
+
+## upload.rs — 内联上传（预留）
+
+当前被 `#[allow(dead_code)]` 标记，作为预留实现。使用 `scp` 命令在同一终端内完成上传：
+
+- 每个文件调用一次 `scp`
+- 上传完成后显示结果
+- 使用 `-q` 静默模式（不自带进度），自行计算和显示进度
+- 使用 `-o ControlMaster=no` 避免与现有 SSH 会话冲突

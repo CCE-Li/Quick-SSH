@@ -1,0 +1,55 @@
+﻿# 变更日志
+
+## v2.0.1
+
+### 修复
+
+- 改进 Windows 终端 raw 模式下的光标恢复机制
+- 修复拖拽文件检测中 Windows 路径的引号处理
+- 优化 TUI 列表滚动行为
+
+### 更改
+
+- 更新依赖版本
+
+## v2.0.0
+
+### 新增
+
+- Rust 完整重写（移除 Node.js 运行时依赖）
+- 事件驱动 TUI 界面（基于 ratatui + crossterm）
+  - 主机列表浏览、搜索、标记
+  - Ping 检测（单机和全量）
+  - 弹窗表单新增/编辑主机
+  - 隐私保护（地址默认隐藏）
+- 完整 CLI 子命令
+  - `ps` / `ls` — 列出主机（支持关键词过滤）
+  - `add` — 添加主机（支持密钥和端口选项）
+  - `rm` / `remove` — 删除主机
+  - `connect` / `cn` — 连接主机（别名或 user@host）
+  - `export` — 导出为 JSON
+  - `import` — 从 JSON 导入
+  - `help` — 帮助信息
+  - `completions` — Shell 补全生成
+- Shell 补全生成（bash / zsh / fish / powershell / elvish）
+- 独立 SFTP 上传工具（`qssh-uploader`）
+  - 最多 3 文件并发上传
+  - 实时进度条显示
+  - 防闪退设计
+- 渐进式 SSH 配置解析
+  - 只管理 Host/HostName/User/Port/IdentityFile
+  - 其余指令完整保留
+  - 支持全局配置和 Match 块
+- `~/.qsshrc` 程序设置
+- 6 种包管理器配置
+  - Scoop（Windows）
+  - WinGet（Windows）
+  - Homebrew（macOS）
+  - AUR（Arch Linux）
+  - APT（Debian/Ubuntu）
+
+### 基础设施
+
+- GitHub Actions CI/CD（自动构建 + 发布）
+- 跨平台交叉编译（Linux / macOS / Windows）
+- 自动包管理器配置更新脚本

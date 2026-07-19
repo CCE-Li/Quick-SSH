@@ -1,0 +1,273 @@
+﻿# CLI 命令参考
+
+Quick-SSH 提供 Docker 风格的 CLI 接口。所有子命令均可通过 `qssh <subcommand>` 调用。
+
+## 全局选项
+
+```bash
+qssh [子命令] [选项]
+
+# 不带任何参数时，自动启动 TUI 界面
+qssh
+
+# 直接传入主机别名时，自动连接到该主机
+qssh mysrv
+```
+
+## 命令列表
+
+<Properties>
+  <Property name="ps / ls" type="列出主机">
+    列出所有 SSH 主机，支持按关键词过滤
+  </Property>
+  <Property name="add" type="添加主机">
+    添加新的 SSH 主机到配置文件中
+  </Property>
+  <Property name="rm / remove" type="删除主机">
+    从配置文件中删除指定主机
+  </Property>
+  <Property name="connect / cn" type="连接主机">
+    连接 SSH 主机（别名或 user@host）
+  </Property>
+  <Property name="export" type="导出配置">
+    将所有主机配置导出为 JSON
+  </Property>
+  <Property name="import" type="导入配置">
+    从 JSON 文件导入主机配置
+  </Property>
+  <Property name="help" type="帮助信息">
+    打印自定义帮助信息
+  </Property>
+  <Property name="completions" type="Shell 补全">
+    生成 Shell 补全脚本（隐藏命令）
+  </Property>
+</Properties>
+
+---
+
+## `qssh ps` — 列出主机
+
+列出所有 SSH 主机，可按关键词过滤。
+
+```bash
+qssh ps [keyword]
+```
+
+**别名：** `qssh ls`
+
+**参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `keyword` | `string` (可选) | 按关键词过滤主机列表（匹配别名） |
+
+**示例：**
+
+```bash
+# 列出所有主机
+qssh ps
+
+# 搜索含 "dev" 的主机
+qssh ps dev
+```
+
+**输出示例：**
+
+```
+📋 SSH 主机列表 (共 3 台):
+
+  mysrv               root@192.168.1.100:22      (agent)
+  dev-server          admin@10.0.0.1:2222        ~/.ssh/id_rsa
+  web-prod            deploy@example.com:22      ~/.ssh/deploy_key
+```
+
+---
+
+## `qssh add` — 添加主机
+
+添加新的 SSH 主机条目到 `~/.ssh/config` 文件末尾。
+
+```bash
+qssh add <alias> <user@host> [选项]
+```
+
+**参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `alias` | `string` (必填) | 主机别名（用于快速连接） |
+| `user@host` | `string` (必填) | `user@hostname` 格式的连接地址 |
+
+**选项：**
+
+| 选项 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `-k`, `--key` | `string` | — | 指定密钥文件路径 |
+| `-p`, `--port` | `u16` | `22` | 指定 SSH 端口 |
+
+**示例：**
+
+```bash
+# 基本用法
+qssh add mysrv root@192.168.1.100
+
+# 指定密钥和端口
+qssh add mysrv root@10.0.0.1 -k ~/.ssh/id_rsa -p 2222
+
+# 仅主机名（不指定用户）
+qssh add server 192.168.1.200
+```
+
+---
+
+## `qssh rm` — 删除主机
+
+从 SSH 配置文件中删除指定主机。
+
+```bash
+qssh rm <alias>
+```
+
+**别名：** `qssh remove`
+
+**参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `alias` | `string` (必填) | 要删除的主机别名 |
+
+**示例：**
+
+```bash
+qssh rm mysrv
+```
+
+---
+
+## `qssh connect` — 连接主机
+
+连接 SSH 主机，支持别名和 `user@host` 两种输入方式。
+
+```bash
+qssh connect <target> [-- <ssh_args>]
+```
+
+**别名：** `qssh cn`
+
+**参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `target` | `string` (必填) | 主机别名或 `user@host` |
+| `ssh_args` | `string[]` | 额外的 SSH 参数（放在 `--` 之后） |
+
+**示例：**
+
+```bash
+# 通过别名连接
+qssh connect mysrv
+
+# 直接连接
+qssh connect root@192.168.1.100
+
+# 传递额外 SSH 参数
+qssh connect mysrv -- -o "ServerAliveInterval=60" -v
+```
+
+**直接连接（快捷方式）：**
+
+```bash
+# 别名 → 查找配置文件连接
+qssh mysrv
+
+# user@host → 直接连接
+qssh root@192.168.1.100
+```
+
+---
+
+## `qssh export` — 导出配置
+
+将所有主机配置导出为 JSON 格式。
+
+```bash
+qssh export [file]
+```
+
+**参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `file` | `string` (可选) | 导出文件路径。不指定则输出到终端 |
+
+**示例：**
+
+```bash
+# 输出到终端
+qssh export
+
+# 保存到文件
+qssh export backup.json
+```
+
+---
+
+## `qssh import` — 导入配置
+
+从 JSON 文件导入主机配置到 `~/.ssh/config`。
+
+```bash
+qssh import <file>
+```
+
+**参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `file` | `string` (必填) | JSON 文件路径 |
+
+已存在的别名会自动跳过，不覆盖。导入完成后会显示新增和跳过的数量。
+
+**示例：**
+
+```bash
+qssh import backup.json
+```
+
+---
+
+## `qssh help` — 帮助信息
+
+打印自定义的帮助信息，包含常用命令和 TUI 快捷键。
+
+```bash
+qssh help
+```
+
+---
+
+## `qssh completions` — Shell 补全
+
+生成 Shell 补全脚本（隐藏命令）。
+
+```bash
+qssh completions <shell>
+```
+
+**参数：**
+
+| 参数 | 类型 | 支持的值 |
+|------|------|---------|
+| `shell` | `string` (必填) | `bash`, `zsh`, `fish`, `powershell` / `ps1`, `elvish` |
+
+**示例：**
+
+```bash
+# 生成 Zsh 补全
+qssh completions zsh > ~/.zsh/completions/_qssh
+
+# 生成 PowerShell 补全
+qssh completions powershell > qssh.ps1
+```
+
+详情见 [Shell 补全](/shell-completions)。

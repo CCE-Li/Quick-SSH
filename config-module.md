@@ -1,0 +1,140 @@
+﻿# 配置模块
+
+配置模块位于 [`qssh/src/config/`](/qssh/src/config/)，由四个子模块组成，遵循职责单一原则。
+
+## 模块结构
+
+```
+config/
+├── mod.rs          # 模块声明与重导出
+├── types.rs        # 数据结构定义
+├── parser.rs       # SSH 配置解析
+├── writer.rs       # SSH 配置渲染
+└── settings.rs     # 程序设置 (~/.qsshrc)
+```
+
+## types.rs — 类型系统
+
+定义了 SSH 配置的核心数据类型。
+
+### SshDirective
+
+`SshDirective` 枚举表示 SSH 配置文件中的指令行：
+
+```rust
+pub enum SshDirective {
+    HostName(String),              // HostName 指令
+    User(String),                  // User 指令
+    Port(u16),                     // Port 指令
+    IdentityFile(PathBuf),         // IdentityFile 指令
+    Unknown(String, String),       // 未识别的指令，以 (Key, Value) 原始文本保留
+}
+```
+
+每个变体都实现了 `to_line()` 方法，用于渲染回 SSH 配置格式的一行。
+
+### HostBlock
+
+`HostBlock` 结构体表示一个完整的 Host 块：
+
+```rust
+pub struct HostBlock {
+    pub alias: String,              // 别名（Host 值）
+    pub directives: Vec<SshDirective>,  // 已解析的指令列表
+    pub raw_text: String,           // 原始文本，用于忠实重建
+}
+```
+
+提供便捷查询方法：`hostname()`、`user()`、`port()`、`identity_file()` 和 `render()`。
+
+### SshConfig
+
+完整 SSH 配置的顶层结构：
+
+```rust
+pub struct SshConfig {
+    pub hosts: Vec<HostBlock>,  // 所有 Host 块
+    pub preamble: String,       // 非 Host 段（全局配置、Match 块等）
+}
+```
+
+### 工具函数
+
+| 函数 | 说明 |
+|------|------|
+| `find_host()` | 按别名查找 HostBlock |
+| `find_host_mut()` | 可变查找 |
+| `list_aliases()` | 获取所有别名列表 |
+| `default_config_path()` | 返回 `~/.ssh/config` 路径 |
+| `ensure_config()` | 确保配置文件和目录存在，不存在则创建 |
+
+## parser.rs — 渐进式解析器
+
+解析器实现 `parse_config_content()` 函数，采用**渐进式解析**策略。
+
+### 解析策略
+
+```
+输入文本 → 逐行扫描 →
+  ├─ 空行/注释 → 保留到当前上下文中
+  ├─ Host 行 → 创建新 HostBlock
+  ├─ HostName/User/Port/IdentityFile → 解析为对应 SshDirective
+  └─ 其他指令 → 解析为 SshDirective::Unknown
+```
+
+### 已知指令处理
+
+| 指令 | 解析方式 | 特殊处理 |
+|------|---------|---------|
+| `Host` | 创建新 HostBlock | 大小写不敏感（`Host` / `HOST`） |
+| `HostName` | `SshDirective::HostName` | 直接存储值 |
+| `User` | `SshDirective::User` | 直接存储值 |
+| `Port` | `SshDirective::Port` | 尝试 `parse::<u16>()`，失败回退为 Unknown |
+| `IdentityFile` | `SshDirective::IdentityFile` | 使用 `shellexpand` 展开 `~` 和变量 |
+| 其他 | `SshDirective::Unknown` | 按空白字符分割 key/value |
+
+### 测试覆盖
+
+解析器包含完整的单元测试：
+
+- `test_parse_simple_host()` — 验证完整 Host 块的解析
+- `test_parse_with_unknown_directive()` — 验证未知指令的保留
+- `test_render_roundtrip()` — 验证解析→渲染的往返一致性
+
+## writer.rs — 配置渲染器
+
+`render_config()` 函数将 `SshConfig` 渲染回 SSH 配置文件文本格式。
+
+### 渲染策略
+
+1. **优先输出 preamble**（全局配置）
+2. **遍历 hosts 列表**，对每个 HostBlock：
+   - 如果 `raw_text` 非空（有原始文本）→ 直接输出原始文本（保证注释和空白格式不变）
+   - 如果 `raw_text` 为空 → 使用结构化指令渲染（`Host` + 各指令行）
+3. **自动处理换行**：确保块之间有正确的空行分隔
+
+## settings.rs — 程序设置
+
+`~/.qsshrc` 的加载和保存，使用 JSON 格式。
+
+### QsshSettings
+
+```rust
+pub struct QsshSettings {
+    pub default_port: u16,           // 默认 22
+    pub ping_timeout_secs: u64,      // 默认 3
+    pub upload_concurrency: usize,   // 默认 3
+    pub ssh_config_path: Option<PathBuf>, // 自定义 SSH 配置路径
+}
+```
+
+### 函数
+
+| 函数 | 说明 |
+|------|------|
+| `load_settings()` | 加载 `~/.qsshrc`，文件不存在时返回默认值 |
+| `save_settings()` | 保存设置到 `~/.qsshrc` |
+
+<Note>
+  当前版本中 `QsshSettings` 已预留但部分字段尚未启用，将在后续版本中逐步激活。
+</Note>
