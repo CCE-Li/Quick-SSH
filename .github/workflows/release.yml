@@ -189,3 +189,59 @@ jobs:
           body_path: RELEASE_NOTES.md
           files: artifacts/*
           fail_on_unmatched_files: false
+
+  # ── Scoop 仓库更新 ─────────────────────────────────────
+  scoop-bucket:
+    name: Update Scoop Bucket
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows zip sha256
+        uses: actions/download-artifact@v4
+        with:
+          name: qssh-x86_64-windows
+          path: artifacts
+
+      - name: Extract hash from sha256 file
+        id: hash
+        run: |
+          HASH=$(cut -d' ' -f1 artifacts/qssh-x86_64-windows.zip.sha256)
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+          echo "✅ Windows zip SHA256: $HASH"
+
+      - name: Checkout scoop-bucket repo
+        uses: actions/checkout@v4
+        with:
+          repository: CCE-Li/scoop-bucket
+          token: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          path: scoop-bucket
+
+      - name: Update manifest
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          HASH="${{ steps.hash.outputs.hash }}"
+
+          cd scoop-bucket
+
+          # 更新 version
+          jq ".version = \"$VERSION\"" quick-ssh.json > tmp.json && mv tmp.json quick-ssh.json
+
+          # 更新 64bit hash (scoop 使用 "sha256:..." 格式)
+          jq ".architecture.\"64bit\".hash = \"sha256:$HASH\"" quick-ssh.json > tmp.json && mv tmp.json quick-ssh.json
+
+          # 更新 64bit url (虽然 autoupdate 会自动处理, 但显式更新更可靠)
+          jq ".architecture.\"64bit\".url = \"https://github.com/CCE-Li/Quick-SSH/releases/download/v$VERSION/qssh-x86_64-windows.zip\"" quick-ssh.json > tmp.json && mv tmp.json quick-ssh.json
+
+          echo "✅ Manifest updated to v$VERSION"
+          cat quick-ssh.json
+
+      - name: Commit and push
+        run: |
+          cd scoop-bucket
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add quick-ssh.json
+          git commit -m "quick-ssh: update to ${{ github.ref_name }}"
+          git push
+          echo "✅ Pushed to scoop-bucket"

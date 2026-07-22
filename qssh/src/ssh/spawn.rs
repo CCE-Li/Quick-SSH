@@ -22,18 +22,28 @@ use super::session::SshTarget;
 
 /// 启动交互式 SSH 会话，支持拖拽文件上传
 ///
-/// 内部会启用终端 raw 模式，退出时自动恢复。
+/// ## 平台差异
+///
+/// - **Unix (Linux/WSL)**: 不预先设置 raw 模式，SSH 自己管理终端。
+///   `crossterm::enable_raw_mode()` 会禁用本地 ECHO，SSH 会将这些
+///   终端设置传播到远程 PTY，导致远程也不回显键盘输入。
+/// - **Windows**: 手动设置 raw 模式以启用 VT 输入支持。
+///
 /// TUI 调用者需确保调用前已用 `ratatui::try_restore()` 退出 TUI 模式。
 pub fn start_interactive_session(target: &SshTarget, extra_args: &[String]) -> Result<i32> {
-    // 启用终端 raw 模式：禁用本地回显 + 行缓冲 + Ctrl+C 信号处理，
-    // 同时在 Windows 上启用 ENABLE_VIRTUAL_TERMINAL_INPUT，
-    // 使 std::io::stdin().read() 能正确读取每次按键的字节序列。
-    let _ = enable_terminal_raw_mode();
-
+    // Unix: SSH 自己管理终端，不预先设置 raw 模式
+    #[cfg(unix)]
     let result = start_interactive_session_inner(target, extra_args);
 
-    // 恢复终端到 cooked 模式
-    let _ = disable_terminal_raw_mode();
+    // Windows: 手动启用 raw 模式 + VT 输入支持
+    #[cfg(windows)]
+    let result = {
+        let _ = enable_terminal_raw_mode();
+        let r = start_interactive_session_inner(target, extra_args);
+        let _ = disable_terminal_raw_mode();
+        r
+    };
+
     result
 }
 
@@ -223,12 +233,14 @@ fn disable_terminal_raw_mode() -> std::io::Result<()> {
 }
 
 #[cfg(not(windows))]
+#[allow(dead_code)]
 fn enable_terminal_raw_mode() -> std::io::Result<()> {
     // Unix 直接使用 crossterm（它使用 termios）
     crossterm::terminal::enable_raw_mode()
 }
 
 #[cfg(not(windows))]
+#[allow(dead_code)]
 fn disable_terminal_raw_mode() -> std::io::Result<()> {
     crossterm::terminal::disable_raw_mode()
 }
@@ -269,7 +281,7 @@ fn start_interactive_session_inner(target: &SshTarget, extra_args: &[String]) ->
     #[cfg(unix)]
     {
         let status = child.wait().context("等待 ssh 进程结束失败")?;
-        return Ok(status.code().unwrap_or(-1));
+        Ok(status.code().unwrap_or(-1))
     }
 
     // Windows 使用 pipe 转发 stdout/stderr
