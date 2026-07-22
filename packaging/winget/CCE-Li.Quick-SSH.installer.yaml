@@ -2,7 +2,7 @@
 # https://github.com/microsoft/winget-pkgs
 
 PackageIdentifier: CCE-Li.Quick-SSH
-PackageVersion: 2.0.1
+PackageVersion: 2.0.3
 PackageLocale: en-US
 Publisher: CCE-Li
 PublisherUrl: https://github.com/CCE-Li
@@ -25,8 +25,8 @@ Tags:
 Installers:
   - Architecture: x64
     InstallerType: zip
-    InstallerUrl: https://github.com/CCE-Li/Quick-SSH/releases/download/v2.0.1/qssh-x86_64-windows.zip
-    InstallerSha256: "5a8c94366097215c425153f1f6268d8b33f337d1577fc1881b3c5fb47143f043"
+    InstallerUrl: https://github.com/CCE-Li/Quick-SSH/releases/download/v2.0.3/qssh-x86_64-windows.zip
+    InstallerSha256: "SKIP"
     NestedInstallerType: portable
     NestedInstallerFiles:
       - RelativeFilePath: qssh.exe

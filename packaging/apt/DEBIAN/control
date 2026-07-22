@@ -1,5 +1,5 @@
 Package: quick-ssh
-Version: 2.0.1
+Version: 2.0.3
 Section: net
 Priority: optional
 Architecture: amd64
