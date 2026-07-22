@@ -2,14 +2,15 @@
 //!
 //! SSH 进程直接继承父进程的 stdin（`Stdio::inherit()`），
 //! 确保 SSH 可以正常从控制台读取密码输入。
-//! stdout/stderr 使用 pipe 转发到终端显示。
 //!
-//! ## 设计要点
+//! ## 平台差异
 //!
-//! - **stdin 继承**: SSH 直接读取控制台输入，密码认证正常工作
-//! - **stdout 转发**: 转发到终端显示
-//! - **stderr 转发**: 转发到终端显示
+//! - **Unix (Linux/WSL)**: stdout/stderr 直接继承终端，SSH
+//!   通过 isatty() 检测到终端后正确处理 PTY 回显。
+//! - **Windows**: stdout/stderr 使用 pipe 转发，配合 WinAPI
+//!   控制台模式管理，后续可能用于拖拽上传功能。
 
+#[cfg(windows)]
 use std::io::{Read, Write};
 use std::process::{Command, Stdio};
 
@@ -238,6 +239,24 @@ fn start_interactive_session_inner(target: &SshTarget, extra_args: &[String]) ->
 
     // stdin 使用 inherit()，让 SSH 直接从控制台读取输入，
     // 确保 SSH 的密码提示（ReadConsole API）能正常获取键盘输入。
+    //
+    // ── stdout/stderr 策略 ─────────────────────────────────
+    // Unix (Linux/WSL): 使用 inherit() 直接继承终端，SSH 通过
+    //   isatty(stdout) 检测到终端后会自动处理 PTY 回显。
+    //   管道方式会导致 SSH 认为没有本地 TTY，即使有 -tt 也无法
+    //   正确处理键盘输入的回显。
+    // Windows: 使用 pipe 转发，因为 Windows 控制台 API 不同，
+    //   且后续可能用于拖拽上传功能。
+    #[cfg(unix)]
+    let mut child = Command::new("ssh")
+        .args(&args)
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .context("无法启动 ssh 进程，请确保已安装 OpenSSH Client")?;
+
+    #[cfg(windows)]
     let mut child = Command::new("ssh")
         .args(&args)
         .stdin(Stdio::inherit())
@@ -246,31 +265,38 @@ fn start_interactive_session_inner(target: &SshTarget, extra_args: &[String]) ->
         .spawn()
         .context("无法启动 ssh 进程，请确保已安装 OpenSSH Client")?;
 
-    let ssh_stdout = child.stdout.take().context("无法获取 SSH 进程的 stdout")?;
-    let ssh_stderr = child.stderr.take().context("无法获取 SSH 进程的 stderr")?;
+    // Unix 直接等待 SSH 结束（stdout/stderr 已继承，无需转发线程）
+    #[cfg(unix)]
+    {
+        let status = child.wait().context("等待 ssh 进程结束失败")?;
+        return Ok(status.code().unwrap_or(-1));
+    }
 
-    // ── stdout 转发线程 ───────────────────────────────────
-    let stdout_handle = std::thread::Builder::new()
-        .name("ssh-stdout".into())
-        .spawn(move || {
-            forward_stdout(ssh_stdout);
-        })
-        .context("无法创建 stdout 转发线程")?;
+    // Windows 使用 pipe 转发 stdout/stderr
+    #[cfg(windows)]
+    {
+        let ssh_stdout = child.stdout.take().context("无法获取 SSH 进程的 stdout")?;
+        let ssh_stderr = child.stderr.take().context("无法获取 SSH 进程的 stderr")?;
 
-    // ── stderr 转发线程 ───────────────────────────────────
-    let stderr_handle = std::thread::Builder::new()
-        .name("ssh-stderr".into())
-        .spawn(move || {
-            forward_stderr(ssh_stderr);
-        })
-        .context("无法创建 stderr 转发线程")?;
+        let stdout_handle = std::thread::Builder::new()
+            .name("ssh-stdout".into())
+            .spawn(move || {
+                forward_stdout(ssh_stdout);
+            })
+            .context("无法创建 stdout 转发线程")?;
 
-    // ── 等待 ssh 退出 ─────────────────────────────────────
-    // stdin 已继承，SSH 直接从控制台读取输入，无需中间转发。
-    let status = child.wait().context("等待 ssh 进程结束失败")?;
-    let _ = stdout_handle.join();
-    let _ = stderr_handle.join();
-    Ok(status.code().unwrap_or(-1))
+        let stderr_handle = std::thread::Builder::new()
+            .name("ssh-stderr".into())
+            .spawn(move || {
+                forward_stderr(ssh_stderr);
+            })
+            .context("无法创建 stderr 转发线程")?;
+
+        let status = child.wait().context("等待 ssh 进程结束失败")?;
+        let _ = stdout_handle.join();
+        let _ = stderr_handle.join();
+        Ok(status.code().unwrap_or(-1))
+    }
 }
 
 // ── SSH 参数构建 ─────────────────────────────────────────
@@ -278,11 +304,9 @@ fn start_interactive_session_inner(target: &SshTarget, extra_args: &[String]) ->
 /// 构建 SSH 参数，强制分配 PTY
 ///
 /// 使用 `-tt`（双 t）确保 SSH 在远程分配 PTY，使交互式程序正常运作。
-/// 当 stdin 继承自控制台时，单个 `-t` 通常足够，但 `-tt` 更可靠。
 fn build_ssh_args_with_pty(target: &SshTarget) -> Vec<String> {
     let mut args = target.build_ssh_args();
 
-    // stdin 已继承到控制台，但 stdout/stderr 是 pipe，
     // 用 -tt 确保 SSH 在远程分配 PTY，使交互式程序正常运作
     let has_tt = args.iter().any(|a| a == "-tt");
     if !has_tt {
@@ -296,9 +320,10 @@ fn build_ssh_args_with_pty(target: &SshTarget) -> Vec<String> {
     args
 }
 
-// ── stdout 转发线程 ──────────────────────────────────────
+// ── stdout 转发线程 (仅 Windows) ──────────────────────────
 
-/// 转发 SSH 的 stdout 到终端
+/// 转发 SSH 的 stdout 到终端 (Windows: pipe → terminal)
+#[cfg(windows)]
 fn forward_stdout(mut ssh_stdout: impl Read + Send + 'static) {
     let mut buf = [0u8; 8192];
     let mut stdout = std::io::stdout();
@@ -314,9 +339,10 @@ fn forward_stdout(mut ssh_stdout: impl Read + Send + 'static) {
     }
 }
 
-// ── stderr 转发线程 ──────────────────────────────────────
+// ── stderr 转发线程 (仅 Windows) ──────────────────────────
 
-/// 转发 SSH 的 stderr 到终端
+/// 转发 SSH 的 stderr 到终端 (Windows: pipe → terminal)
+#[cfg(windows)]
 fn forward_stderr(mut ssh_stderr: impl Read + Send + 'static) {
     let mut buf = [0u8; 4096];
     let mut stderr = std::io::stderr();
