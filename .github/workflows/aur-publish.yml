@@ -1,0 +1,89 @@
+# 🏔️ Quick-SSH AUR Publish
+# 自动从 PKGBUILD 生成 .SRCINFO 并推送到 AUR
+#
+# 触发方式:
+#   - 发布 Release 时自动触发
+#   - 手动触发 (workflow_dispatch)
+#
+# 所需 Secrets (GitHub → Settings → Secrets and variables → Actions):
+#   AUR_SSH_PRIVATE_KEY    — SSH 私钥 (与 AUR 账号绑定的)
+#   AUR_USERNAME           — AUR 用户名 (如 CCE-Li)
+#   AUR_EMAIL              — 注册邮箱 (如 2766503189@qq.com)
+
+name: Publish to AUR
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号 (留空则从 PKGBUILD 读取)"
+        required: false
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 生成 .SRCINFO ─────────────────────────────────────
+      # GitHub Actions 运行在 Ubuntu 上，需要用 Arch Linux Docker 生成
+      - name: Generate .SRCINFO from PKGBUILD
+        run: |
+          docker run --rm -v "$PWD:/work" archlinux:base-devel bash -c "
+            pacman -Sy --noconfirm &&
+            cd /work/packaging/pacman &&
+            makepkg --printsrcinfo > .SRCINFO
+          "
+          echo "✅ .SRCINFO 已生成:"
+          cat packaging/pacman/.SRCINFO
+
+      # ── 配置 SSH ───────────────────────────────────────────
+      - name: Configure SSH for AUR
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          cat > ~/.ssh/config << 'SSHEOF'
+          Host aur.archlinux.org
+            IdentityFile ~/.ssh/aur
+            User aur
+            StrictHostKeyChecking accept-new
+          SSHEOF
+          echo "✅ SSH 配置完成"
+
+      # ── 推送到 AUR ────────────────────────────────────────
+      - name: Push PKGBUILD and .SRCINFO to AUR
+        run: |
+          # 克隆 AUR 远程仓库
+          # 注意: 对于新包，aur.archlinux.org 会在首次推送时自动创建仓库
+          git clone ssh://aur@aur.archlinux.org/quick-ssh.git aur-repo
+          cd aur-repo
+
+          # 复制 PKGBUILD 和 .SRCINFO (以及可选文件)
+          cp ../packaging/pacman/PKGBUILD ./
+          cp ../packaging/pacman/.SRCINFO ./
+          cp ../LICENSE ./ 2>/dev/null || true
+
+          # 设置 git 用户信息
+          git config user.name "${{ secrets.AUR_USERNAME }}"
+          git config user.email "${{ secrets.AUR_EMAIL }}"
+
+          # 确定版本号用于提交信息
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION="${{ github.ref_name }}"
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="v${{ inputs.version }}"
+          else
+            VERSION=$(grep -oP 'pkgver=\K[^\s]+' PKGBUILD)
+          fi
+
+          # 提交并推送
+          git add -A
+          git commit -m "Update to ${VERSION#v}"
+          git push origin master
+
+          echo "✅ 已成功推送到 AUR: quick-ssh"
