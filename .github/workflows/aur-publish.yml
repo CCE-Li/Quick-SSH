@@ -31,12 +31,15 @@ jobs:
 
       # ── 生成 .SRCINFO ─────────────────────────────────────
       # GitHub Actions 运行在 Ubuntu 上，需要用 Arch Linux Docker 生成
+      # 注意: makepkg 不允许以 root 运行，需要创建普通用户
       - name: Generate .SRCINFO from PKGBUILD
         run: |
           docker run --rm -v "$PWD:/work" archlinux:base-devel bash -c "
             pacman -Sy --noconfirm &&
+            useradd -m builder &&
+            chown -R builder:builder /work &&
             cd /work/packaging/pacman &&
-            makepkg --printsrcinfo > .SRCINFO
+            su builder -c 'makepkg --printsrcinfo' > .SRCINFO
           "
           echo "✅ .SRCINFO 已生成:"
           cat packaging/pacman/.SRCINFO
