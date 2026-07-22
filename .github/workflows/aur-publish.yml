@@ -37,7 +37,7 @@ jobs:
           docker run --rm -v "$PWD:/work" archlinux:base-devel bash -c "
             pacman -Sy --noconfirm &&
             useradd -m builder &&
-            chown -R builder:builder /work &&
+            chown -R builder:builder /work/packaging/pacman &&
             cd /work/packaging/pacman &&
             su builder -c 'makepkg --printsrcinfo' > .SRCINFO
           "
