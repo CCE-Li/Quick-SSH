@@ -29,10 +29,10 @@
 | 平台 | 包管理器 | 状态 | 命令 |
 |------|---------|------|------|
 | **Windows** | **Scoop** | ✅ 已就绪 | `scoop bucket add cceli https://github.com/CCE-Li/scoop-bucket && scoop install quick-ssh` |
-| **Windows** | **WinGet** | ✅ 已就绪 | `winget install CCE-Li.Quick-SSH` |
-| **macOS** | **Homebrew** | ✅ 已就绪 | `brew tap CCE-Li/quick-ssh && brew install quick-ssh`（自建 Tap） |
-| **Arch Linux** | **AUR (pacman)** | ✅ 已就绪 | `yay -S quick-ssh` |
-| **Debian/Ubuntu** | **APT (.deb)** | ✅ 已就绪 | 从 [Release](https://github.com/CCE-Li/Quick-SSH/releases) 下载 `.deb`，执行 `sudo dpkg -i quick-ssh_*.deb` |
+| **Windows** | **WinGet** | ❌ 未就绪 | `winget install CCE-Li.Quick-SSH` |
+| **macOS** | **Homebrew** | ❓ 待就绪 | `brew tap CCE-Li/quick-ssh && brew install quick-ssh`（自建 Tap） |
+| **Arch Linux** | **AUR (pacman)** | ✅ 已就绪 | `yay -S quick-ssh` `paru -S quick-ssh` |
+| **Debian/Ubuntu** | **APT (.deb)** | ❌ 未就绪 | 从 [Release](https://github.com/CCE-Li/Quick-SSH/releases) 下载 `.deb`，执行 `sudo dpkg -i quick-ssh_*.deb` |
 
 > **包管理器工作原理**：以上所有包管理器都引用了 GitHub Release 上的预编译二进制文件。
 > 每次发布新版本后，运行 `.\scripts\update-packaging.ps1` 即可自动更新所有配置。
