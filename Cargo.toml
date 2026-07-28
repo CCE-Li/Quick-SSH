@@ -24,6 +24,13 @@ clap = { version = "4", features = ["derive", "env"] }
 ratatui = "0.29"
 crossterm = "0.28"
 ssh2 = "0.9"
+keyring = { version = "3", features = [
+    "apple-native",
+    "windows-native",
+    "linux-native-sync-persistent",
+    "crypto-rust",
+    "vendored",
+] }
 regex = "1"
 shellexpand = "3"
 colored = "2"

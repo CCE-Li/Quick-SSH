@@ -9,6 +9,10 @@ use clap::Parser;
 use cli::{Cli, Command};
 
 fn main() -> anyhow::Result<()> {
+    if config::credentials::handle_askpass_request()? {
+        return Ok(());
+    }
+
     let cli = Cli::parse();
 
     match cli.command {

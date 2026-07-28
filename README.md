@@ -78,6 +78,7 @@ TUI 默认读取 `~/.ssh/config`。常用键位：
 | `Enter` | 连接选中主机 |
 | `/` | 搜索 |
 | `Space` | 标记/取消标记 |
+| `a` / `e` | 添加 / 编辑主机 |
 | `d` | 删除选中 |
 | `p` | Ping 检测 |
 | `q` / `Esc` | 退出 / 取消搜索 |
@@ -96,6 +97,18 @@ qssh export                              # 导出为 JSON
 qssh import backup.json                  # 从 JSON 导入
 ```
 
+### 记住密码
+
+在 TUI 中按 `a` 添加或按 `e` 编辑主机，在 `Password` 字段输入登录密码并保存。密码输入会以 `*` 遮罩，并存放在系统安全凭据库中，不会写入 `~/.ssh/config`：
+
+- Windows：Credential Manager
+- macOS：Keychain
+- Linux：Secret Service / keyutils
+
+连接时仍由系统 OpenSSH 先尝试配置的密钥和 ssh-agent，失败后才读取已保存密码。编辑已有主机时，密码留空表示保留原值，输入 `!clear` 表示删除；删除主机也会一并清理密码。
+
+首次连接一台新主机时，请先运行 `ssh <主机别名>` 并核对、确认主机指纹。之后再用 `qssh` 连接即可自动填写密码。
+
 ### 文件上传
 
 SSH 连接后，将本地文件或目录**拖入终端窗口**，Quick-SSH 会自动在新窗口中启动 SFTP 上传，显示每文件的进度条和总进度。
@@ -112,7 +125,7 @@ qssh-uploader mysrv ./myfile.zip /remote/path/
 
 所有连接数据保存在 **`~/.ssh/config`**（标准 OpenSSH 格式），Quick-SSH 会保留文件中所有非自己管理的内容。
 
-程序行为可通过 **`~/.qsshrc** 配置：
+程序行为可通过 **`~/.qsshrc`** 配置：
 
 ```ini
 UploadConcurrency=3

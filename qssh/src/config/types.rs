@@ -100,6 +100,34 @@ impl HostBlock {
             }
         })
     }
+
+    /// 获取 Host 块内的完整行注释，不包含开头的 `#`。
+    pub fn comment_lines(&self) -> Vec<&str> {
+        self.raw_text
+            .lines()
+            .skip(1)
+            .filter_map(|line| line.trim().strip_prefix('#').map(str::trim))
+            .filter(|comment| !comment.is_empty())
+            .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::HostBlock;
+
+    #[test]
+    fn extracts_non_empty_host_comments() {
+        let host = HostBlock {
+            alias: "demo".into(),
+            directives: vec![],
+            raw_text:
+                "Host demo\n    # production server\n    HostName example.com\n# owner: ops\n    #"
+                    .into(),
+        };
+
+        assert_eq!(host.comment_lines(), ["production server", "owner: ops"]);
+    }
 }
 
 /// 完整的 SSH 配置

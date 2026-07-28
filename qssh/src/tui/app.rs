@@ -7,9 +7,12 @@ use std::time::{Duration, Instant};
 use crossterm::event::KeyEvent;
 use ratatui::widgets::ListState;
 
+use crate::config::credentials;
 use crate::config::types::{HostBlock, SshConfig};
 use crate::tui::action::{Action, Mode};
-use crate::tui::editor::{EditorOutcome, HostFormMode, HostFormState};
+use crate::tui::editor::{
+    EditorOutcome, HostFormMode, HostFormState, HostFormSubmission, PasswordStorageAction,
+};
 
 #[derive(Debug)]
 enum PingEvent {
@@ -69,6 +72,8 @@ pub struct App {
     /// 后台检测结果通道
     ping_rx: Receiver<PingEvent>,
     ping_tx: Sender<PingEvent>,
+    /// 已保存密码的主机别名
+    pub remembered_password_aliases: HashSet<String>,
     /// 是否运行中
     pub running: bool,
     /// 地址显示/隐藏（默认隐藏）
@@ -83,6 +88,7 @@ impl App {
         if !hosts.is_empty() {
             list_state.select(Some(0));
         }
+        let remembered_password_aliases = load_saved_password_aliases(&hosts);
         Self {
             hosts,
             preamble: config.preamble,
@@ -99,6 +105,7 @@ impl App {
             host_form: None,
             ping_rx,
             ping_tx,
+            remembered_password_aliases,
             running: true,
             show_address: false,
         }
@@ -222,7 +229,54 @@ impl App {
             }
             Action::ConfirmDelete(confirmed) => {
                 if confirmed {
-                    if let Some(idx) = self.selected() {
+                    // 批量删除：如果有标记的主机，删除所有标记项
+                    if !self.marked.is_empty() {
+                        let marked_aliases: Vec<String> = self
+                            .marked
+                            .iter()
+                            .filter_map(|&i| self.hosts.get(i).map(|h| h.alias.clone()))
+                            .collect();
+                        let count = marked_aliases.len();
+
+                        // 从后往前删除，避免索引漂移
+                        let mut sorted = self.marked.clone();
+                        sorted.sort_unstable_by(|a, b| b.cmp(a));
+                        sorted.dedup();
+                        for &i in &sorted {
+                            if i < self.hosts.len() {
+                                self.hosts.remove(i);
+                            }
+                        }
+                        // 清除所有标记中的主机在线状态和已保存密码
+                        for alias in &marked_aliases {
+                            self.host_status.remove(alias);
+                            self.remembered_password_aliases.remove(alias);
+                            let _ = credentials::delete_password(alias);
+                        }
+                        self.marked.clear();
+
+                        // 调整选中位置
+                        let new_len = self.hosts.len();
+                        if new_len > 0 {
+                            let selected = self.selected().unwrap_or(0);
+                            if selected >= new_len {
+                                self.list_state.select(Some(new_len - 1));
+                            }
+                        } else {
+                            self.list_state.select(None);
+                        }
+
+                        // 保存到 SSH 配置文件
+                        if let Err(e) = self.save_config() {
+                            self.set_flash_message(format!("保存失败: {}", e), "red");
+                        } else {
+                            self.set_flash_message(
+                                format!("已批量删除 {} 台主机", count),
+                                "green",
+                            );
+                        }
+                    } else if let Some(idx) = self.selected() {
+                        // 单台删除（原有逻辑）
                         if idx < self.hosts.len() {
                             let alias = self.hosts[idx].alias.clone();
                             self.hosts.remove(idx);
@@ -239,10 +293,24 @@ impl App {
                             if let Err(e) = self.save_config() {
                                 self.set_flash_message(format!("保存失败: {}", e), "red");
                             } else {
-                                self.set_flash_message(
-                                    format!("已删除主机 \"{}\"", alias),
-                                    "green",
-                                );
+                                self.remembered_password_aliases.remove(&alias);
+                                match credentials::delete_password(&alias) {
+                                    Ok(_) => {
+                                        self.set_flash_message(
+                                            format!("已删除主机 \"{}\"", alias),
+                                            "green",
+                                        );
+                                    }
+                                    Err(err) => {
+                                        self.set_flash_message(
+                                            format!(
+                                                "已删除主机 \"{}\"，但清理已保存密码失败: {}",
+                                                alias, err
+                                            ),
+                                            "yellow",
+                                        );
+                                    }
+                                }
                             }
                         }
                     }
@@ -254,7 +322,10 @@ impl App {
                 if let Some(idx) = self.selected() {
                     if idx < self.hosts.len() {
                         let host = &self.hosts[idx];
-                        self.host_form = Some(HostFormState::new_edit(idx, host));
+                        let has_saved_password =
+                            self.remembered_password_aliases.contains(&host.alias);
+                        self.host_form =
+                            Some(HostFormState::new_edit(idx, host, has_saved_password));
                         self.mode = Mode::Edit;
                         self.flash_message = None;
                     }
@@ -299,24 +370,29 @@ impl App {
     }
 
     fn commit_host_form(&mut self) -> anyhow::Result<()> {
-        let (form_mode, built_host) = {
+        let (form_mode, submission) = {
             let form = self
                 .host_form
                 .as_ref()
                 .ok_or_else(|| anyhow::anyhow!("表单未初始化"))?;
-            (form.mode().clone(), form.build_host()?)
+            (form.mode().clone(), form.build_submission()?)
         };
 
         match form_mode {
-            HostFormMode::Add => self.commit_new_host(built_host),
+            HostFormMode::Add => self.commit_new_host(submission),
             HostFormMode::Edit {
                 index,
                 original_alias,
-            } => self.commit_existing_host(index, original_alias, built_host),
+            } => self.commit_existing_host(index, original_alias, submission),
         }
     }
 
-    fn commit_new_host(&mut self, new_host: HostBlock) -> anyhow::Result<()> {
+    fn commit_new_host(&mut self, submission: HostFormSubmission) -> anyhow::Result<()> {
+        let HostFormSubmission {
+            host: new_host,
+            password_action,
+        } = submission;
+
         if self.hosts.iter().any(|host| host.alias == new_host.alias) {
             anyhow::bail!("主机别名 \"{}\" 已存在", new_host.alias);
         }
@@ -336,6 +412,19 @@ impl App {
             return Err(err);
         }
 
+        if let Err(err) = self.apply_new_password_action(&new_alias, &password_action) {
+            self.hosts.pop();
+            if self.hosts.is_empty() {
+                self.list_state.select(None);
+            } else {
+                self.list_state.select(Some(self.hosts.len() - 1));
+            }
+            let _ = self.save_config();
+            return Err(err);
+        }
+
+        self.refresh_password_cache_for_alias(&new_alias);
+
         self.mode = Mode::Normal;
         self.host_form = None;
         self.set_flash_message(format!("已新增主机 \"{}\"", new_alias), "green");
@@ -346,8 +435,13 @@ impl App {
         &mut self,
         idx: usize,
         original_alias: String,
-        updated_host: HostBlock,
+        submission: HostFormSubmission,
     ) -> anyhow::Result<()> {
+        let HostFormSubmission {
+            host: updated_host,
+            password_action,
+        } = submission;
+
         if idx >= self.hosts.len() {
             anyhow::bail!("当前选中的主机不存在");
         }
@@ -370,11 +464,75 @@ impl App {
             return Err(err);
         }
 
+        if let Err(err) =
+            self.apply_existing_password_action(&original_alias, &new_alias, &password_action)
+        {
+            self.hosts[idx] = previous_host;
+            let _ = self.save_config();
+            return Err(err);
+        }
+
         self.host_status.remove(&original_alias);
+        self.refresh_password_cache_for_alias(&original_alias);
+        self.refresh_password_cache_for_alias(&new_alias);
         self.mode = Mode::Normal;
         self.host_form = None;
         self.set_flash_message(format!("已更新主机 \"{}\"", new_alias), "green");
         Ok(())
+    }
+
+    fn apply_new_password_action(
+        &self,
+        alias: &str,
+        password_action: &PasswordStorageAction,
+    ) -> anyhow::Result<()> {
+        match password_action {
+            PasswordStorageAction::Unchanged | PasswordStorageAction::Keep => Ok(()),
+            PasswordStorageAction::Set(password) => credentials::store_password(alias, password),
+            PasswordStorageAction::Clear => credentials::delete_password(alias),
+        }
+    }
+
+    fn apply_existing_password_action(
+        &self,
+        original_alias: &str,
+        new_alias: &str,
+        password_action: &PasswordStorageAction,
+    ) -> anyhow::Result<()> {
+        match password_action {
+            PasswordStorageAction::Unchanged => Ok(()),
+            PasswordStorageAction::Keep => {
+                if original_alias != new_alias {
+                    credentials::move_password(original_alias, new_alias)?;
+                }
+                Ok(())
+            }
+            PasswordStorageAction::Set(password) => {
+                credentials::store_password(new_alias, password)?;
+                if original_alias != new_alias {
+                    credentials::delete_password(original_alias)?;
+                }
+                Ok(())
+            }
+            PasswordStorageAction::Clear => {
+                credentials::delete_password(original_alias)?;
+                if original_alias != new_alias {
+                    credentials::delete_password(new_alias)?;
+                }
+                Ok(())
+            }
+        }
+    }
+
+    fn refresh_password_cache_for_alias(&mut self, alias: &str) {
+        match credentials::has_password(alias) {
+            Ok(true) => {
+                self.remembered_password_aliases.insert(alias.to_string());
+            }
+            Ok(false) | Err(_) => {
+                self.remembered_password_aliases.remove(alias);
+            }
+        }
     }
 
     fn start_single_ping(&mut self, alias: String, hostname: String, port: u16) {
@@ -552,6 +710,16 @@ fn run_ping_check(hostname: &str, port: u16) -> (bool, Option<String>) {
         Ok(online) => (online, None),
         Err(error) => (false, Some(error.to_string())),
     }
+}
+
+fn load_saved_password_aliases(hosts: &[HostBlock]) -> HashSet<String> {
+    hosts
+        .iter()
+        .filter_map(|host| match credentials::has_password(&host.alias) {
+            Ok(true) => Some(host.alias.clone()),
+            Ok(false) | Err(_) => None,
+        })
+        .collect()
 }
 
 #[cfg(test)]

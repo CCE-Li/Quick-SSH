@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 
-use crate::config::{self, SshConfig};
+use crate::config::{self, credentials, SshConfig};
 
 /// 删除 SSH 主机
 pub fn run(alias: &str) -> Result<()> {
@@ -19,6 +19,10 @@ pub fn run(alias: &str) -> Result<()> {
     std::fs::write(&config_path, content)
         .with_context(|| format!("无法写入 SSH 配置文件: {}", config_path.display()))?;
 
-    println!(" 主机 \"{}\" 已删除", alias);
+    if let Err(err) = credentials::delete_password(alias) {
+        eprintln!(" 主机 \"{}\" 已删除，但清理已保存密码失败: {}", alias, err);
+    } else {
+        println!(" 主机 \"{}\" 已删除", alias);
+    }
     Ok(())
 }

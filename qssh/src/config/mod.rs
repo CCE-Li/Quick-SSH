@@ -1,3 +1,4 @@
+pub mod credentials;
 pub mod parser;
 pub mod settings;
 pub mod types;

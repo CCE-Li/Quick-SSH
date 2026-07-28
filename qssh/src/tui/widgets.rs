@@ -96,7 +96,7 @@ pub fn render_host_form_popup(frame: &mut Frame, area: Rect, app: &App) {
             Constraint::Length(3),
             Constraint::Length(3),
             Constraint::Length(3),
-            Constraint::Min(7),
+            Constraint::Min(6),
             Constraint::Length(2),
         ])
         .split(inner);
@@ -108,6 +108,14 @@ pub fn render_host_form_popup(frame: &mut Frame, area: Rect, app: &App) {
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(sections[1]);
+    let row3 = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(sections[2]);
+    let row4 = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(sections[3]);
 
     let hint = Paragraph::new(popup.footer_hint()).style(Style::default().fg(Color::Gray));
 
@@ -117,7 +125,9 @@ pub fn render_host_form_popup(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(popup.field(1), row1[1]);
     frame.render_widget(popup.field(2), row2[0]);
     frame.render_widget(popup.field(3), row2[1]);
-    frame.render_widget(popup.field(4), sections[2]);
-    frame.render_widget(popup.field(5), sections[3]);
+    frame.render_widget(popup.field(4), row3[0]);
+    frame.render_widget(popup.field(5), row3[1]);
+    frame.render_widget(popup.field(6), row4[0]);
+    frame.render_widget(popup.field(7), row4[1]);
     frame.render_widget(hint, sections[4]);
 }

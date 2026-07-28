@@ -79,12 +79,22 @@ fn render_host_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 }
             };
 
-            let content = Line::from(vec![
+            let mut spans = vec![
                 Span::raw(prefix),
                 status_span,
                 Span::raw(" "),
                 Span::styled(&host.alias, Style::default().add_modifier(Modifier::BOLD)),
-            ]);
+            ];
+            if let Some(comment) = host.comment_lines().into_iter().next() {
+                // 注释最多显示 10 个字符
+                let display_comment: String = comment.chars().take(10).collect();
+                spans.push(Span::styled(
+                    format!("  {}", display_comment),
+                    Style::default().fg(Color::DarkGray),
+                ));
+            }
+
+            let content = Line::from(spans);
 
             ListItem::new(content)
         })
@@ -112,6 +122,19 @@ fn render_detail(frame: &mut Frame, area: Rect, app: &App) {
                 .identity_file()
                 .map(|p| p.display().to_string())
                 .unwrap_or_else(|| "(agent)".to_string());
+            let has_saved_password = app.remembered_password_aliases.contains(&host.alias);
+            let auth = match (host.identity_file().is_some(), has_saved_password) {
+                (true, true) => "密钥优先",
+                (true, false) => "密钥登录",
+                (false, true) => "密码登录",
+                (false, false) => "手动输入",
+            };
+            let comments = host.comment_lines();
+            let comment_display = if comments.is_empty() {
+                "-".to_string()
+            } else {
+                comments.join("\n      ")
+            };
 
             let addr_display = if app.show_address {
                 format!("{}{}:{}", user, hostname, port)
@@ -120,10 +143,11 @@ fn render_detail(frame: &mut Frame, area: Rect, app: &App) {
             };
 
             format!(
-                "别名: {}\n地址: {}\n密钥: {}\n状态: {}",
+                "别名: {}\n地址: {}\n密钥: {}\n认证: {}\n状态: {}\n注释: {}",
                 host.alias,
                 addr_display,
                 key,
+                auth,
                 if app.pending_pings.contains(&host.alias) {
                     "◔ 检测中"
                 } else {
@@ -132,7 +156,8 @@ fn render_detail(frame: &mut Frame, area: Rect, app: &App) {
                         Some(false) => "● 离线",
                         None => "○ 未检测",
                     }
-                }
+                },
+                comment_display
             )
         } else {
             "选择主机查看详情".to_string()
@@ -141,7 +166,9 @@ fn render_detail(frame: &mut Frame, area: Rect, app: &App) {
         "选择主机查看详情".to_string()
     };
 
-    let detail = Paragraph::new(detail).block(Block::default().borders(Borders::ALL).title("详情"));
+    let detail = Paragraph::new(detail)
+        .block(Block::default().borders(Borders::ALL).title("详情"))
+        .wrap(ratatui::widgets::Wrap { trim: false });
     frame.render_widget(detail, area);
 }
 
@@ -165,4 +192,47 @@ fn render_status_bar(frame: &mut Frame, area: Rect, app: &App) {
     };
     let status = Paragraph::new(message).style(style);
     frame.render_widget(status, area);
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    use super::render;
+    use crate::config::types::{HostBlock, SshConfig, SshDirective};
+    use crate::tui::app::App;
+
+    #[test]
+    fn renders_host_comments_in_list_and_detail() {
+        let config = SshConfig {
+            hosts: vec![HostBlock {
+                alias: "demo".into(),
+                directives: vec![SshDirective::HostName("example.com".into())],
+                raw_text:
+                    "Host demo\n    HostName example.com\n    # production server\n    # owner: ops"
+                        .into(),
+            }],
+            preamble: String::new(),
+        };
+        let mut app = App::new(config, PathBuf::from("unused-test-config"));
+        let backend = TestBackend::new(100, 20);
+        let mut terminal = Terminal::new(backend).expect("test terminal should initialize");
+
+        terminal
+            .draw(|frame| render(frame, &mut app))
+            .expect("TUI should render");
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(rendered.contains("production server"));
+        assert!(rendered.contains("owner: ops"));
+    }
 }

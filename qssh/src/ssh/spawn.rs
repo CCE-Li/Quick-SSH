@@ -17,6 +17,7 @@ use std::process::{Command, Stdio};
 use anyhow::{Context, Result};
 
 use super::session::SshTarget;
+use crate::config::credentials;
 
 // ── 主入口 ───────────────────────────────────────────────
 
@@ -31,15 +32,31 @@ use super::session::SshTarget;
 ///
 /// TUI 调用者需确保调用前已用 `ratatui::try_restore()` 退出 TUI 模式。
 pub fn start_interactive_session(target: &SshTarget, extra_args: &[String]) -> Result<i32> {
+    let use_saved_password = match credentials::has_password(&target.alias) {
+        Ok(has_password) => has_password,
+        Err(err) => {
+            eprintln!("⚠️  无法读取已保存密码，将回退到系统 ssh: {err}");
+            false
+        }
+    };
+
+    start_openssh_session(target, extra_args, use_saved_password)
+}
+
+fn start_openssh_session(
+    target: &SshTarget,
+    extra_args: &[String],
+    use_saved_password: bool,
+) -> Result<i32> {
     // Unix: SSH 自己管理终端，不预先设置 raw 模式
     #[cfg(unix)]
-    let result = start_interactive_session_inner(target, extra_args);
+    let result = start_interactive_session_inner(target, extra_args, use_saved_password);
 
     // Windows: 手动启用 raw 模式 + VT 输入支持
     #[cfg(windows)]
     let result = {
         let _ = enable_terminal_raw_mode();
-        let r = start_interactive_session_inner(target, extra_args);
+        let r = start_interactive_session_inner(target, extra_args, use_saved_password);
         let _ = disable_terminal_raw_mode();
         r
     };
@@ -245,9 +262,20 @@ fn disable_terminal_raw_mode() -> std::io::Result<()> {
     crossterm::terminal::disable_raw_mode()
 }
 
-fn start_interactive_session_inner(target: &SshTarget, extra_args: &[String]) -> Result<i32> {
+fn start_interactive_session_inner(
+    target: &SshTarget,
+    extra_args: &[String],
+    use_saved_password: bool,
+) -> Result<i32> {
     let mut args = build_ssh_args_with_pty(target);
     args.extend_from_slice(extra_args);
+
+    let mut command = Command::new("ssh");
+    command.args(&args).stdin(Stdio::inherit());
+
+    if use_saved_password {
+        configure_askpass(&mut command, &target.alias)?;
+    }
 
     // stdin 使用 inherit()，让 SSH 直接从控制台读取输入，
     // 确保 SSH 的密码提示（ReadConsole API）能正常获取键盘输入。
@@ -260,18 +288,14 @@ fn start_interactive_session_inner(target: &SshTarget, extra_args: &[String]) ->
     // Windows: 使用 pipe 转发，因为 Windows 控制台 API 不同，
     //   且后续可能用于拖拽上传功能。
     #[cfg(unix)]
-    let mut child = Command::new("ssh")
-        .args(&args)
-        .stdin(Stdio::inherit())
+    let mut child = command
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .spawn()
         .context("无法启动 ssh 进程，请确保已安装 OpenSSH Client")?;
 
     #[cfg(windows)]
-    let mut child = Command::new("ssh")
-        .args(&args)
-        .stdin(Stdio::inherit())
+    let mut child = command
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -309,6 +333,21 @@ fn start_interactive_session_inner(target: &SshTarget, extra_args: &[String]) ->
         let _ = stderr_handle.join();
         Ok(status.code().unwrap_or(-1))
     }
+}
+
+fn configure_askpass(command: &mut Command, alias: &str) -> Result<()> {
+    let executable = std::env::current_exe().context("无法定位 qssh 可执行文件")?;
+    command
+        .env("SSH_ASKPASS", executable)
+        .env("SSH_ASKPASS_REQUIRE", "force")
+        .env(credentials::ASKPASS_ACTIVE_ENV, "1")
+        .env(credentials::ASKPASS_ALIAS_ENV, alias);
+
+    if std::env::var_os("DISPLAY").is_none() {
+        command.env("DISPLAY", "qssh-askpass");
+    }
+
+    Ok(())
 }
 
 // ── SSH 参数构建 ─────────────────────────────────────────

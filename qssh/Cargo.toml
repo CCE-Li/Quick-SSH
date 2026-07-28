@@ -22,6 +22,7 @@ clap.workspace = true
 ratatui.workspace = true
 crossterm.workspace = true
 ssh2.workspace = true
+keyring.workspace = true
 regex.workspace = true
 shellexpand.workspace = true
 colored.workspace = true
