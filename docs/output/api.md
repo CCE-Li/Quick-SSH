@@ -25,6 +25,15 @@ pub struct HostBlock {
     pub raw_text: String,
 }
 
+impl HostBlock {
+    pub fn hostname(&self) -> Option<&str>;
+    pub fn user(&self) -> Option<&str>;
+    pub fn port(&self) -> u16;
+    pub fn identity_file(&self) -> Option<&PathBuf>;
+    pub fn comment_lines(&self) -> Vec<&str>;
+    pub fn render(&self) -> String;
+}
+
 // SSH 配置
 pub struct SshConfig {
     pub hosts: Vec<HostBlock>,
@@ -64,6 +73,20 @@ pub struct QsshSettings {
 
 pub fn load_settings() -> Result<QsshSettings>;
 pub fn save_settings(settings: &QsshSettings) -> Result<()>;
+```
+
+### credentials
+
+```rust
+pub const ASKPASS_ACTIVE_ENV: &str = "QSSH_ASKPASS_ACTIVE";
+pub const ASKPASS_ALIAS_ENV: &str = "QSSH_ASKPASS_ALIAS";
+
+pub fn load_password(alias: &str) -> Result<Option<String>>;
+pub fn has_password(alias: &str) -> Result<bool>;
+pub fn store_password(alias: &str, password: &str) -> Result<()>;
+pub fn delete_password(alias: &str) -> Result<()>;
+pub fn move_password(old_alias: &str, new_alias: &str) -> Result<bool>;
+pub fn handle_askpass_request() -> Result<bool>;
 ```
 
 ## ssh 模块
@@ -164,13 +187,19 @@ impl Mode {
 ```rust
 pub enum EditorOutcome { Continue, Save, Cancel }
 pub enum HostFormMode { Add, Edit { index: usize, original_alias: String } }
+pub enum PasswordStorageAction { Unchanged, Keep, Set(String), Clear }
+
+pub struct HostFormSubmission {
+    pub host: HostBlock,
+    pub password_action: PasswordStorageAction,
+}
 
 pub struct HostFormState { /* ... */ }
 impl HostFormState {
     pub fn new_add() -> Self;
-    pub fn new_edit(index: usize, host: &HostBlock) -> Self;
+    pub fn new_edit(index: usize, host: &HostBlock, saved_password_exists: bool) -> Self;
     pub fn handle_key(&mut self, key: KeyEvent) -> EditorOutcome;
-    pub fn build_host(&self) -> anyhow::Result<HostBlock>;
+    pub fn build_submission(&self) -> anyhow::Result<HostFormSubmission>;
 }
 ```
 

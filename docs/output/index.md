@@ -3,14 +3,14 @@
 **Quick-SSH** 是一个跨平台 SSH 连接管理工具，提供 **TUI 界面**与 **Docker 风格 CLI** 双模式操作。基于 Rust 实现，无需 Node.js 运行时，即下即用。
 
 <Callout title="项目状态">
-  Quick-SSH v2.0 已完成 Rust 完整重写，支持 Windows / Linux / macOS 三大平台，提供 6 种包管理器安装方式。
+  当前版本为 Quick-SSH v2.0.4。项目支持 Windows / Linux / macOS 三大平台，并维护 Scoop、WinGet、Homebrew、AUR 和 APT 打包配置。
 </Callout>
 
 ## 核心特性
 
 <CardGroup cols={2}>
   <Card title="TUI 界面" icon="LayoutPanelLeft">
-    事件驱动的终端 UI，支持主机列表浏览、搜索、标记、连接和 Ping 检测，支持新增/编辑主机弹窗表单。
+    事件驱动的终端 UI，支持搜索、标记、批量删除、连接和 Ping 检测，并在列表与详情中展示主机注释和认证方式。
   </Card>
   <Card title="CLI 命令" icon="Terminal">
     Docker 风格的命令行接口，支持 ps/add/rm/connect/export/import 等子命令，一键连接主机。
@@ -21,8 +21,11 @@
   <Card title="渐进式配置解析" icon="FileJson">
     兼容标准 OpenSSH 格式，只管理 Host/HostName/User/Port/IdentityFile，其余指令完整保留。
   </Card>
+  <Card title="安全保存密码" icon="KeyRound">
+    密码保存在系统安全凭据库中，不写入 SSH 配置，并通过 OpenSSH AskPass 在需要时自动填写。
+  </Card>
   <Card title="多包管理器支持" icon="Blocks">
-    支持 Scoop、WinGet、Homebrew、AUR、APT 等 6 种包管理器，一键安装。
+    Scoop 和 AUR 已可安装；仓库同时维护 WinGet、Homebrew 和 APT 配置，供对应渠道发布使用。
   </Card>
   <Card title="纯 Rust 实现" icon="Code">
     单一二进制文件，无外部运行时依赖，高性能低内存，跨平台编译。

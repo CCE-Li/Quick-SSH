@@ -16,11 +16,12 @@ quick-ssh/
 │       │   ├── types.rs         # SshDirective, HostBlock, SshConfig 类型定义
 │       │   ├── parser.rs        # 渐进式 SSH 解析器
 │       │   ├── writer.rs        # SSH 配置渲染器
+│       │   ├── credentials.rs   # 系统凭据库与 OpenSSH AskPass
 │       │   └── settings.rs      # ~/.qsshrc 加载/保存
 │       ├── ssh/                 # SSH 会话 + SFTP 上传
 │       │   ├── mod.rs
 │       │   ├── session.rs       # SshTarget 解析与构建
-│       │   ├── spawn.rs         # spawn ssh 进程（跨平台 raw 模式）
+│       │   ├── spawn.rs         # spawn ssh 进程与 AskPass 配置
 │       │   ├── upload.rs        # 内联 SCP 上传（预留）
 │       │   └── drag_detect.rs   # 拖拽文件路径检测
 │       ├── network/             # TCP 在线检测
@@ -100,14 +101,15 @@ Workspace 共享的依赖包括：`tokio`、`serde`、`clap`、`ratatui`、`cros
 ### SSH 连接
 
 ```
-目标输入 → session::resolve_target() → SshTarget → build_ssh_args() → spawn::start_interactive_session() → SSH 交互
+目标输入 → resolve_target() → SshTarget → 查询系统凭据 → 配置 AskPass（可选）→ spawn ssh → SSH 交互
 ```
 
 1. 用户输入目标（别名或 `user@host`）
 2. [`resolve_target()`](/qssh/src/ssh/session.rs:78) 优先作为别名查找，否则视为直接连接
-3. 构建 SSH 命令行参数（包括 `-tt` 强制 PTY）
-4. 启动 SSH 子进程（stdin 继承，stdout/stderr 转发）
-5. SSH 退出后返回退出码
+3. 按目标别名查询系统安全凭据库；失败时警告并回退到普通 SSH
+4. 构建 SSH 命令行参数（包括 `-tt` 强制 PTY），有密码时配置 OpenSSH AskPass
+5. 启动 SSH 子进程：Unix 继承标准流，Windows 继承 stdin 并转发 stdout/stderr
+6. SSH 退出后返回退出码
 
 ### 文件上传
 
@@ -141,18 +143,24 @@ Workspace 共享的依赖包括：`tokio`、`serde`、`clap`、`ratatui`、`cros
 - 支持所有 SSH 特性（跳板机、多因子认证、SSH 代理等）
 - 减少依赖和攻击面
 - 无需处理 SSH 协议的复杂性
-- stdin 继承使得密码认证正常工作
+- 通过 stdin 继承保留完整交互能力
+- 通过标准 AskPass 协议按需提供系统凭据库中的登录密码
 
-### 4. Config 模块类型/解析/渲染分离
+### 4. 密码与 SSH 配置分离
+
+密码不写入 `~/.ssh/config`，而是使用 `keyring` crate 保存到 Windows Credential Manager、macOS Keychain 或 Linux Secret Service/keyutils。凭据以主机别名为键，并在主机重命名或删除时同步迁移或清理。AskPass 只响应登录密码提示，不自动处理私钥口令与主机指纹确认。
+
+### 5. Config 模块类型/解析/渲染分离
 
 - [`types.rs`](/qssh/src/config/types.rs)：只定义数据结构和查询方法
 - [`parser.rs`](/qssh/src/config/parser.rs)：只负责文本→数据结构
 - [`writer.rs`](/qssh/src/config/writer.rs)：只负责数据结构→文本渲染
+- [`credentials.rs`](/qssh/src/config/credentials.rs)：只负责系统凭据和 AskPass 请求
 - [`settings.rs`](/qssh/src/config/settings.rs)：程序自身配置（独立于 SSH 配置）
 
-### 5. 跨平台终端 Raw 模式
+### 6. 跨平台终端策略
 
-Windows 平台使用 WinAPI 直接操作控制台模式（`GetConsoleMode` / `SetConsoleMode`），Unix 平台使用 crossterm 的 termios 封装。Windows 实现确保了：
+SSH 会话在 Unix 上直接继承终端标准流；Windows 平台使用 WinAPI 操作控制台模式（`GetConsoleMode` / `SetConsoleMode`），并用线程转发 stdout/stderr。Windows 实现确保了：
 
 - 禁用 ECHO、LINE_INPUT、PROCESSED_INPUT
 - 启用 ENABLE_VIRTUAL_TERMINAL_INPUT（使 `std::io::stdin().read()` 能正确读取按键字节序列）

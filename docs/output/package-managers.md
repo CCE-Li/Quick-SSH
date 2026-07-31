@@ -10,14 +10,12 @@
 
 ### 提交流程
 
-1. Fork [ScoopInstaller/Main](https://github.com/ScoopInstaller/Main)
-2. 将 `packaging/scoop/quick-ssh.json` 复制到 `bucket/quick-ssh.json`
-3. 提交 PR
+Release 工作流会自动更新 [CCE-Li/scoop-bucket](https://github.com/CCE-Li/scoop-bucket) 中的 manifest。仓库内的 `packaging/scoop/quick-ssh.json` 用于开发和校验。
 
 ### 用户安装
 
 ```powershell
-scoop bucket add extras
+scoop bucket add cceli https://github.com/CCE-Li/scoop-bucket
 scoop install quick-ssh
 ```
 
@@ -53,6 +51,10 @@ wingetcreate submit packaging/winget/CCE-Li.Quick-SSH.installer.yaml
 
 ### 用户安装
 
+<Warning>
+  当前 manifest 尚未发布到 WinGet 公共仓库，以下命令需等待提交审核通过后使用。
+</Warning>
+
 ```powershell
 winget install CCE-Li.Quick-SSH
 ```
@@ -77,7 +79,7 @@ gh repo create CCE-Li/homebrew-quick-ssh --public
 git clone https://github.com/CCE-Li/homebrew-quick-ssh.git
 cp packaging/homebrew/quick-ssh.rb homebrew-quick-ssh/Formula/
 cd homebrew-quick-ssh
-git add . && git commit -m "Add quick-ssh v2.0.1"
+git add . && git commit -m "Add quick-ssh v2.0.4"
 git push
 ```
 
@@ -92,6 +94,10 @@ git push
 3. 需满足 Homebrew 审核标准（项目稳定、有 GitHub Release 等）
 
 ### 用户安装
+
+<Warning>
+  当前 Homebrew Tap 尚未发布；完成上方自建 Tap 流程后，以下命令才可用。
+</Warning>
 
 ```bash
 brew tap CCE-Li/quick-ssh
@@ -120,7 +126,7 @@ makepkg --printsrcinfo > .SRCINFO
 
 # 3. 提交
 git add PKGBUILD .SRCINFO
-git commit -m "Update quick-ssh to v2.0.1"
+git commit -m "Update quick-ssh to v2.0.4"
 git push
 ```
 
@@ -136,6 +142,10 @@ paru -S quick-ssh
 
 ## APT (Debian/Ubuntu)
 
+<Warning>
+  APT 目前仅有打包配置。v2.0.4 Release 不包含 `.deb`，不能直接执行下方安装命令。
+</Warning>
+
 ### 配置位置
 
 [`packaging/apt/`](/packaging/apt/)
@@ -145,16 +155,16 @@ paru -S quick-ssh
 ```bash
 # 构建 .deb 包（需要 Linux 环境或 Docker）
 cd packaging/apt
-make VERSION=2.0.1
+make VERSION=2.0.4
 
-# 产物: quick-ssh_2.0.1_amd64.deb
+# 产物: quick-ssh_2.0.4_amd64.deb
 # 将 .deb 上传到 GitHub Release 的 Assets 中
 ```
 
 ### 用户安装
 
 ```bash
-sudo dpkg -i quick-ssh_2.0.1_amd64.deb
+sudo dpkg -i quick-ssh_2.0.4_amd64.deb
 ```
 
 ---
@@ -163,8 +173,8 @@ sudo dpkg -i quick-ssh_2.0.1_amd64.deb
 
 | 包管理器 | 平台 | 状态 | 配置位置 | 提交目标 |
 |---------|------|------|---------|---------|
-| **Scoop** | Windows | ✅ 就绪 | `packaging/scoop/quick-ssh.json` | [ScoopInstaller/Main](https://github.com/ScoopInstaller/Main) |
-| **WinGet** | Windows | ✅ 就绪 | `packaging/winget/` | [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) |
-| **Homebrew** | macOS | ✅ 就绪 | `packaging/homebrew/quick-ssh.rb` | 自建 Tap 或 Homebrew Core |
-| **AUR** | Arch Linux | ✅ 就绪 | `packaging/pacman/PKGBUILD` | [aur.archlinux.org](https://aur.archlinux.org) |
-| **APT** | Debian/Ubuntu | ✅ 就绪 | `packaging/apt/` | GitHub Release Assets |
+| **Scoop** | Windows | ✅ 已发布 | `packaging/scoop/quick-ssh.json` | [CCE-Li/scoop-bucket](https://github.com/CCE-Li/scoop-bucket) |
+| **WinGet** | Windows | ❌ 待发布 | `packaging/winget/` | [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) |
+| **Homebrew** | macOS | ⏳ 待发布 | `packaging/homebrew/quick-ssh.rb` | 自建 Tap 或 Homebrew Core |
+| **AUR** | Arch Linux | ✅ 已发布 | `packaging/pacman/PKGBUILD` | [aur.archlinux.org](https://aur.archlinux.org) |
+| **APT** | Debian/Ubuntu | ❌ 仅打包配置 | `packaging/apt/` | GitHub Release Assets |

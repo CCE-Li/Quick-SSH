@@ -1,6 +1,6 @@
 ﻿# 配置模块
 
-配置模块位于 [`qssh/src/config/`](/qssh/src/config/)，由四个子模块组成，遵循职责单一原则。
+配置模块位于 [`qssh/src/config/`](/qssh/src/config/)，由五个子模块组成，遵循职责单一原则。
 
 ## 模块结构
 
@@ -10,6 +10,7 @@ config/
 ├── types.rs        # 数据结构定义
 ├── parser.rs       # SSH 配置解析
 ├── writer.rs       # SSH 配置渲染
+├── credentials.rs  # 系统凭据库与 OpenSSH AskPass
 └── settings.rs     # 程序设置 (~/.qsshrc)
 ```
 
@@ -45,7 +46,7 @@ pub struct HostBlock {
 }
 ```
 
-提供便捷查询方法：`hostname()`、`user()`、`port()`、`identity_file()` 和 `render()`。
+提供便捷查询方法：`hostname()`、`user()`、`port()`、`identity_file()`、`comment_lines()` 和 `render()`。`comment_lines()` 从 Host 块原文中提取非空注释，并移除开头的 `#`。
 
 ### SshConfig
 
@@ -112,6 +113,25 @@ pub struct SshConfig {
    - 如果 `raw_text` 非空（有原始文本）→ 直接输出原始文本（保证注释和空白格式不变）
    - 如果 `raw_text` 为空 → 使用结构化指令渲染（`Host` + 各指令行）
 3. **自动处理换行**：确保块之间有正确的空行分隔
+
+## credentials.rs — 系统凭据与 AskPass
+
+密码通过 `keyring` crate 保存到操作系统安全凭据库，服务名固定为 `quick-ssh`，主机别名作为凭据用户名。该模块提供：
+
+| 函数 | 说明 |
+|------|------|
+| `load_password(alias)` | 读取密码，不存在时返回 `None` |
+| `has_password(alias)` | 检查别名是否已有密码 |
+| `store_password(alias, password)` | 保存或覆盖密码 |
+| `delete_password(alias)` | 删除密码；条目不存在也视为成功 |
+| `move_password(old_alias, new_alias)` | 修改主机别名时迁移密码 |
+| `handle_askpass_request()` | 处理 OpenSSH 对当前 qssh 进程的 AskPass 调用 |
+
+AskPass 子进程通过 `QSSH_ASKPASS_ACTIVE=1` 和 `QSSH_ASKPASS_ALIAS` 识别请求。仅包含 `password`、`密码` 或 `口令` 的提示会被响应；私钥口令和主机指纹确认会被拒绝，避免错误自动回答安全提示。
+
+<Note>
+  密码独立于 `SshConfig`，不会写入 SSH 配置、序列化到导出 JSON 或由 parser/writer 处理。
+</Note>
 
 ## settings.rs — 程序设置
 

@@ -99,6 +99,7 @@ pub struct App {
     pub pending_pings: HashSet<String>,
     pub flash_message: Option<FlashMessage>,
     pub host_form: Option<HostFormState>,
+    pub remembered_password_aliases: HashSet<String>,
     pub running: bool,
     pub show_address: bool,
     // 内部通道
@@ -112,7 +113,7 @@ pub struct App {
 | 方法 | 说明 |
 |------|------|
 | `new(config, config_path)` | 初始化应用状态 |
-| `apply(action)` | 核心状态变更方法，处理所有 Action |
+| `apply(action)` | 核心状态变更方法，处理所有 Action；删除时按标记集合批量执行 |
 | `handle_form_key(key)` | 处理编辑表单中的键盘事件 |
 | `poll_background_tasks()` | 轮询后台 Ping 检测结果 |
 | `save_config()` | 将内存中的 hosts 写回 SSH 配置文件 |
@@ -170,7 +171,7 @@ while app.running:
 
 | 模式 | 按键 → Action |
 |------|-------------|
-| Normal | `j/↓` → MoveDown, `k/↑` → MoveUp, `Enter` → Connect, `/` → StartSearch... |
+| Normal | `j/↓/Ctrl+N` → MoveDown, `k/↑/Ctrl+P` → MoveUp, `Enter` → Connect, `/` → StartSearch... |
 | Search | `Esc` → CancelSearch, `Enter` → SearchSubmit, `Char` → SearchInput... |
 | Confirm | `y/Y` → ConfirmDelete(true), `n/N/Esc` → ConfirmDelete(false) |
 | Help | `q/Esc` → HideHelp |
@@ -206,7 +207,7 @@ while app.running:
 
 ### HostFormState
 
-包含 6 个表单字段：
+包含 8 个表单字段：
 
 | 索引 | 字段 | 模式 | 说明 |
 |------|------|------|------|
@@ -215,7 +216,11 @@ while app.running:
 | 2 | User | 单行 | 登录用户名 |
 | 3 | Port | 单行 | SSH 端口 |
 | 4 | IdentityFile | 单行 | 密钥路径（自动预填充） |
-| 5 | 其他指令/注释 | 多行 | 额外 SSH 配置或注释 |
+| 5 | Password | 单行（遮罩） | 系统凭据库中的登录密码 |
+| 6 | 注释 | 多行 | 保存为 `#` 开头的 Host 块注释 |
+| 7 | 其他 SSH 指令 | 多行 | 额外 SSH 配置 |
+
+`build_submission()` 同时返回 `HostBlock` 和 `PasswordStorageAction`。密码动作分为 `Unchanged`、`Keep`、`Set(String)` 与 `Clear`，从而区分新增时留空、编辑时保留、设置新密码和输入 `!clear` 清除四种语义。`App::commit_host_form()` 负责执行凭据写入，并在别名变化时迁移密码。
 
 ### 验证逻辑
 

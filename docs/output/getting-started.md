@@ -16,13 +16,14 @@ TUI 界面默认读取 `~/.ssh/config` 文件中的主机配置。
 
 | 按键 | 功能 |
 |------|------|
-| `↑` / `↓` 或 `j` / `k` | 选择主机 |
+| `↑` / `k` / `Ctrl+P` | 选择上一台主机 |
+| `↓` / `j` / `Ctrl+N` | 选择下一台主机 |
 | `Enter` | 连接选中主机 |
 | `/` | 搜索过滤 |
 | `Space` | 标记/取消标记 |
 | `a` | 添加新主机 |
 | `e` | 编辑当前主机 |
-| `d` | 删除选中主机 |
+| `d` | 删除选中主机；存在标记时批量删除所有标记主机 |
 | `p` | Ping 检测当前主机 |
 | `P` | Ping 检测所有主机 |
 | `.` | 切换地址显示/隐藏 |
@@ -32,6 +33,20 @@ TUI 界面默认读取 `~/.ssh/config` 文件中的主机配置。
 <Callout title="地址隐私保护">
   默认情况下，主机地址以 `********` 显示，防止旁人窥屏。按 `.` 键可切换显示/隐藏。
 </Callout>
+
+## 保存登录密码
+
+在 TUI 中按 `a` 添加或按 `e` 编辑主机，在 **Password** 字段输入密码并保存。输入内容会以 `*` 遮罩，密码保存在系统安全凭据库中，不会写入 `~/.ssh/config`：
+
+- Windows：Credential Manager
+- macOS：Keychain
+- Linux：Secret Service / keyutils
+
+编辑已有主机时，密码留空表示保留原值，输入 `!clear` 表示删除。删除主机时，对应密码也会同步清理。连接时仍由系统 OpenSSH 优先尝试密钥和 ssh-agent，只有出现登录密码提示时才通过 AskPass 自动填写。
+
+<Warning>
+  首次连接新主机时，请先运行 `ssh <主机别名>` 并核对、确认主机指纹。Quick-SSH 不会自动回答主机指纹或私钥口令提示。
+</Warning>
 
 ## CLI 命令操作
 
@@ -102,7 +117,7 @@ qssh-uploader mysrv ./myfile.zip /remote/path/
 
 ## 配置查看
 
-所有连接数据保存在 `~/.ssh/config`（标准 OpenSSH 格式），Quick-SSH 会保留文件中所有非自己管理的内容。程序行为可通过 `~/.qsshrc` 配置（详见 [配置说明](/configuration)）。
+主机配置保存在 `~/.ssh/config`（标准 OpenSSH 格式），Quick-SSH 会保留文件中所有非自己管理的内容；保存的密码独立存放在系统安全凭据库中。程序行为设置预留在 `~/.qsshrc`（详见 [配置说明](/configuration)）。
 
 ## 下一步
 

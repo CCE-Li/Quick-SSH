@@ -24,7 +24,7 @@ qssh mysrv
     添加新的 SSH 主机到配置文件中
   </Property>
   <Property name="rm / remove" type="删除主机">
-    从配置文件中删除指定主机
+    从配置文件中删除指定主机，并清理对应的已保存密码
   </Property>
   <Property name="connect / cn" type="连接主机">
     连接 SSH 主机（别名或 user@host）
@@ -122,7 +122,7 @@ qssh add server 192.168.1.200
 
 ## `qssh rm` — 删除主机
 
-从 SSH 配置文件中删除指定主机。
+从 SSH 配置文件中删除指定主机，并清理系统安全凭据库中以该别名保存的密码。
 
 ```bash
 qssh rm <alias>
@@ -147,6 +147,8 @@ qssh rm mysrv
 ## `qssh connect` — 连接主机
 
 连接 SSH 主机，支持别名和 `user@host` 两种输入方式。
+
+使用配置别名连接时，如果该主机在 TUI 中保存了密码，Quick-SSH 会通过 OpenSSH AskPass 自动填写登录密码。直接使用 `user@host` 连接不会关联已保存的别名凭据。
 
 ```bash
 qssh connect <target> [-- <ssh_args>]

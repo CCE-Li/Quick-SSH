@@ -9,8 +9,8 @@ This file lists the source-ready Markdown and OpenAPI artifacts for this documen
 - [架构设计](/Quick-SSH/architecture.md): Quick-SSH 的 Rust 模块化架构设计详解，包括项目结构、数据流和设计决策。
 - [变更日志](/Quick-SSH/changelog.md): Quick-SSH 的版本发布历史记录。
 - [CLI 命令参考](/Quick-SSH/cli-reference.md): Quick-SSH 命令行工具的子命令完整参考文档。
-- [配置模块](/Quick-SSH/config-module.md): Quick-SSH 配置模块的详细文档，包含类型系统、解析器、渲染器和程序设置的实现。
-- [配置说明](/Quick-SSH/configuration.md): Quick-SSH 的配置系统说明，包括 SSH 配置格式和程序设置。
+- [配置模块](/Quick-SSH/config-module.md): Quick-SSH 配置模块的详细文档，包含类型系统、解析器、渲染器、系统凭据和程序设置。
+- [配置说明](/Quick-SSH/configuration.md): Quick-SSH 的配置系统说明，包括 SSH 配置、系统凭据和程序设置。
 - [文件上传](/Quick-SSH/file-upload.md): Quick-SSH 的文件上传功能说明，支持拖拽上传和独立上传工具。
 - [快速入门](/Quick-SSH/getting-started.md): 5 分钟上手 Quick-SSH 的基本操作，包括 TUI 界面使用和 CLI 命令操作。
 - [概述](/Quick-SSH/index.md): Quick-SSH — 跨平台 SSH 连接管理工具，提供 TUI 界面与 Docker 风格 CLI，基于 Rust 实现。
