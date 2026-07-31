@@ -72,9 +72,9 @@ TUI 编辑器中的 **Password** 字段使用操作系统提供的安全存储�
 
 连接时，Quick-SSH 将自身配置为 OpenSSH 的 AskPass 程序。OpenSSH 仍会优先尝试密钥和 ssh-agent；只有提示登录密码时才会读取对应别名的凭据。私钥口令、主机指纹确认和其他交互提示不会被自动处理。
 
-<Warning>
+<Callout title="首次连接">
   首次连接新主机时，请先执行 `ssh <主机别名>` 并手动核对、确认主机指纹。
-</Warning>
+</Callout>
 
 ## 程序设置 (~/.qsshrc)
 

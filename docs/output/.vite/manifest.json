@@ -68,7 +68,7 @@
     "src": "_vendor-DtEesxfB.css"
   },
   "index.html": {
-    "file": "assets/index-BshlvFd0.js",
+    "file": "assets/index-CUfKVyiQ.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -152,7 +152,7 @@
     ]
   },
   "virtual:clarify-page/configuration": {
-    "file": "assets/configuration-q3HlsFbp.js",
+    "file": "assets/configuration-DDYVII7j.js",
     "name": "configuration",
     "src": "virtual:clarify-page/configuration",
     "isDynamicEntry": true,
@@ -172,7 +172,7 @@
     ]
   },
   "virtual:clarify-page/getting-started": {
-    "file": "assets/getting-started-C3ww8S1O.js",
+    "file": "assets/getting-started-6dQ69uOO.js",
     "name": "getting-started",
     "src": "virtual:clarify-page/getting-started",
     "isDynamicEntry": true,
@@ -192,7 +192,7 @@
     ]
   },
   "virtual:clarify-page/installation": {
-    "file": "assets/installation-BFmQZBTV.js",
+    "file": "assets/installation-DENqtM8H.js",
     "name": "installation",
     "src": "virtual:clarify-page/installation",
     "isDynamicEntry": true,
@@ -232,7 +232,7 @@
     ]
   },
   "virtual:clarify-page/package-managers": {
-    "file": "assets/package-managers-DQhPE0x1.js",
+    "file": "assets/package-managers-Bkv8ZVAR.js",
     "name": "package-managers",
     "src": "virtual:clarify-page/package-managers",
     "isDynamicEntry": true,
@@ -282,7 +282,7 @@
     ]
   },
   "virtual:clarify-page/tui-guide": {
-    "file": "assets/tui-guide-D21XtS7M.js",
+    "file": "assets/tui-guide-8qGOdB_s.js",
     "name": "tui-guide",
     "src": "virtual:clarify-page/tui-guide",
     "isDynamicEntry": true,

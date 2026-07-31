@@ -44,9 +44,9 @@ TUI 界面默认读取 `~/.ssh/config` 文件中的主机配置。
 
 编辑已有主机时，密码留空表示保留原值，输入 `!clear` 表示删除。删除主机时，对应密码也会同步清理。连接时仍由系统 OpenSSH 优先尝试密钥和 ssh-agent，只有出现登录密码提示时才通过 AskPass 自动填写。
 
-<Warning>
+<Callout title="首次连接">
   首次连接新主机时，请先运行 `ssh <主机别名>` 并核对、确认主机指纹。Quick-SSH 不会自动回答主机指纹或私钥口令提示。
-</Warning>
+</Callout>
 
 ## CLI 命令操作
 

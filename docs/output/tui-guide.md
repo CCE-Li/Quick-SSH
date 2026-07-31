@@ -154,9 +154,9 @@ TUI 支持多种交互模式，通过状态栏可识别当前所处模式：
 3. 启动 SSH 交互式会话，OpenSSH 按自身认证顺序尝试密钥、agent 和密码
 4. SSH 退出后自动重新进入 TUI 界面
 
-<Warning>
+<Callout title="首次连接">
   AskPass 只响应登录密码提示，不会自动确认首次连接的主机指纹，也不会填写私钥口令。首次连接请先使用 `ssh <主机别名>` 手动确认指纹。
-</Warning>
+</Callout>
 
 <Callout title="拖拽上传">
   在 SSH 会话期间，将文件拖入终端窗口即可触发文件上传。详见 [文件上传](/file-upload)。
