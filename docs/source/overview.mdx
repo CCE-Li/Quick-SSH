@@ -14,17 +14,17 @@ keywords:
 
 # 打包总览
 
-Quick-SSH 为 6 种主流包管理器提供开箱即用的配置，覆盖三大操作系统。
+Quick-SSH 为 5 类包管理器维护配置，覆盖三大操作系统。当前 Scoop 与 AUR 已可直接安装，其余渠道仍待发布。
 
 ## 支持的包管理器
 
 | 包管理器 | 平台 | 状态 | 配置位置 |
 |---------|------|------|---------|
-| **Scoop** | Windows | ✅ 就绪 | [`packaging/scoop/quick-ssh.json`](/packaging/scoop/quick-ssh.json) |
-| **WinGet** | Windows | ✅ 就绪 | [`packaging/winget/`](/packaging/winget/) |
-| **Homebrew** | macOS | ✅ 就绪 | [`packaging/homebrew/quick-ssh.rb`](/packaging/homebrew/quick-ssh.rb) |
-| **AUR** | Arch Linux | ✅ 就绪 | [`packaging/pacman/PKGBUILD`](/packaging/pacman/PKGBUILD) |
-| **APT** | Debian/Ubuntu | ✅ 就绪 | [`packaging/apt/`](/packaging/apt/) |
+| **Scoop** | Windows | ✅ 已发布 | [`packaging/scoop/quick-ssh.json`](/packaging/scoop/quick-ssh.json) |
+| **WinGet** | Windows | ❌ 待发布 | [`packaging/winget/`](/packaging/winget/) |
+| **Homebrew** | macOS | ⏳ 待发布 | [`packaging/homebrew/quick-ssh.rb`](/packaging/homebrew/quick-ssh.rb) |
+| **AUR** | Arch Linux | ✅ 已发布 | [`packaging/pacman/PKGBUILD`](/packaging/pacman/PKGBUILD) |
+| **APT** | Debian/Ubuntu | ❌ 仅打包配置 | [`packaging/apt/`](/packaging/apt/) |
 
 ## 配置目录结构
 
@@ -57,7 +57,7 @@ packaging/
     ↓
 各包管理器配置文件中的版本号和 SHA256 校验和同步更新
     ↓
-提交到各包管理器仓库 / 上传 .deb 到 Release Assets
+提交到各包管理器仓库；APT 需另外构建并上传 .deb
 ```
 
 ### 自动化脚本
@@ -73,7 +73,7 @@ packaging/
 ```powershell
 # 常用命令
 .\scripts\update-packaging.ps1                    # 自动模式
-.\scripts\update-packaging.ps1 -Version "2.0.1"    # 指定版本
+.\scripts\update-packaging.ps1 -Version "2.0.4"    # 指定版本
 .\scripts\update-packaging.ps1 -Help               # 查看帮助
 
 # 离线使用（事先下载好归档文件）

@@ -28,21 +28,6 @@ Quick-SSH 提供多种安装方式，覆盖主流操作系统和包管理器。
       ```
     </CodeGroup>
   </Card>
-  <Card title="Windows — WinGet" icon="Terminal">
-    ```powershell
-    winget install CCE-Li.Quick-SSH
-    ```
-  </Card>
-  <Card title="macOS — Homebrew" icon="Terminal">
-    <CodeGroup title="Homebrew 安装">
-      ```bash title="添加 Tap"
-      brew tap CCE-Li/quick-ssh
-      ```
-      ```bash title="安装"
-      brew install quick-ssh
-      ```
-    </CodeGroup>
-  </Card>
   <Card title="Arch Linux — AUR" icon="Terminal">
     ```bash
     yay -S quick-ssh
@@ -51,17 +36,11 @@ Quick-SSH 提供多种安装方式，覆盖主流操作系统和包管理器。
       也可使用 `paru -S quick-ssh`
     </Note>
   </Card>
-  <Card title="Debian/Ubuntu — APT" icon="Terminal">
-    ```bash
-    # 从 GitHub Release 下载 .deb 包
-    sudo dpkg -i quick-ssh_*.deb
-    ```
-  </Card>
 </CardGroup>
 
-<Callout title="包管理器原理">
-  以上所有包管理器都引用了 GitHub Release 上的预编译二进制文件。每次发布新版本后，运行 `scripts/update-packaging.ps1` 即可自动更新所有配置。
-</Callout>
+<Warning>
+  WinGet、Homebrew 和 APT 配置目前尚未发布到可直接安装的渠道；v2.0.4 GitHub Release 也不包含 `.deb`。这些平台请先使用下方的预编译归档或从源码安装。
+</Warning>
 
 ## 直接下载
 
@@ -70,21 +49,22 @@ Quick-SSH 提供多种安装方式，覆盖主流操作系统和包管理器。
 <CodeGroup title="平台归档">
   ```bash title="Linux x86_64"
   tar xzf qssh-x86_64-linux.tar.gz
-  sudo cp qssh/qssh /usr/local/bin/
-  sudo cp qssh/qssh-uploader /usr/local/bin/
+  sudo cp qssh-x86_64-linux/qssh /usr/local/bin/
+  sudo cp qssh-x86_64-linux/qssh-uploader /usr/local/bin/
   ```
   ```bash title="macOS x86_64"
   tar xzf qssh-x86_64-macos.tar.gz
-  sudo cp qssh/qssh /usr/local/bin/
-  sudo cp qssh/qssh-uploader /usr/local/bin/
+  sudo cp qssh-x86_64-macos/qssh /usr/local/bin/
+  sudo cp qssh-x86_64-macos/qssh-uploader /usr/local/bin/
   ```
   ```bash title="macOS ARM64"
   tar xzf qssh-aarch64-macos.tar.gz
-  sudo cp qssh/qssh /usr/local/bin/
-  sudo cp qssh/qssh-uploader /usr/local/bin/
+  sudo cp qssh-aarch64-macos/qssh /usr/local/bin/
+  sudo cp qssh-aarch64-macos/qssh-uploader /usr/local/bin/
   ```
   ```powershell title="Windows x86_64"
-  # 解压 qssh-x86_64-windows.zip，将 qssh.exe 所在目录加入 PATH
+  # 解压 qssh-x86_64-windows.zip
+  # 将 qssh-x86_64-windows 目录加入 PATH
   ```
 </CodeGroup>
 

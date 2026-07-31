@@ -39,15 +39,15 @@ GitHub Actions 自动构建
 
 ```toml
 [workspace.package]
-version = "2.1.0"  # 更新此处
+version = "2.0.4"  # 示例：发布 v2.0.4
 ```
 
 ### 步骤 2：提交并打标签
 
 ```bash
 git add .
-git commit -m "chore: bump version to v2.1.0"
-git tag v2.1.0
+git commit -m "chore: release v2.0.4"
+git tag v2.0.4
 git push && git push --tags
 ```
 
@@ -100,6 +100,8 @@ git push && git push --tags
 - 生成归档并计算 SHA256
 - 上传到 GitHub Release
 - 生成 Shell 补全脚本
+- 根据提交记录自动生成 Release notes
+- 自动更新并推送 CCE-Li/scoop-bucket
 
 ## 手动发布（备选）
 
@@ -110,14 +112,14 @@ git push && git push --tags
 cargo build --release
 
 # 2. 创建归档
-mkdir -p dist/Quick-SSH-v2.0.1-x86_64-pc-windows-msvc
-cp target/release/qssh.exe dist/
-cp target/release/qssh-uploader.exe dist/
-cp LICENSE README.md dist/
-cd dist && zip -r Quick-SSH-v2.0.1-x86_64-pc-windows-msvc.zip ./
+mkdir -p dist/qssh-x86_64-windows
+cp target/release/qssh.exe dist/qssh-x86_64-windows/
+cp target/release/qssh-uploader.exe dist/qssh-x86_64-windows/
+cp LICENSE README.md dist/qssh-x86_64-windows/
+cd dist && zip -r qssh-x86_64-windows.zip qssh-x86_64-windows/
 
 # 3. 创建 GitHub Release
-gh release create v2.0.1 dist/*.zip dist/*.tar.gz --generate-notes
+gh release create v2.0.4 dist/*.zip dist/*.tar.gz --generate-notes
 
 # 4. 更新 packaging 配置
 .\scripts\update-packaging.ps1

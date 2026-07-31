@@ -1,6 +1,6 @@
 ---
 title: 配置说明
-description: Quick-SSH 的配置系统说明，包括 SSH 配置格式和程序设置。
+description: Quick-SSH 的配置系统说明，包括 SSH 配置、系统凭据和程序设置。
 keywords:
   - 配置
   - ssh config
@@ -10,11 +10,11 @@ keywords:
 
 # 配置说明
 
-Quick-SSH 使用两种配置：标准 OpenSSH 格式的 SSH 主机配置和 JSON 格式的程序设置。
+Quick-SSH 将数据分为三类：标准 OpenSSH 格式的主机配置、系统安全凭据库中的密码，以及预留的 JSON 程序设置。
 
 ## SSH 配置 (~/.ssh/config)
 
-Quick-SSH 的所有连接数据保存在 `~/.ssh/config` 文件中，使用标准 OpenSSH 格式。
+Quick-SSH 的主机连接配置保存在 `~/.ssh/config` 文件中，使用标准 OpenSSH 格式。登录密码不写入此文件。
 
 ### 格式
 
@@ -58,9 +58,27 @@ Quick-SSH 主动管理的字段（TUI 编辑器和 CLI 命令可读写）：
 
 默认路径为 `~/.ssh/config`。如果文件或目录不存在，Quick-SSH 会在首次操作时自动创建。
 
+## 系统安全凭据库
+
+TUI 编辑器中的 **Password** 字段使用操作系统提供的安全存储：
+
+| 平台 | 存储后端 |
+|------|---------|
+| Windows | Credential Manager |
+| macOS | Keychain |
+| Linux | Secret Service / keyutils |
+
+凭据以服务名 `quick-ssh` 和主机别名为键保存。编辑主机别名时凭据会迁移，删除主机时会同步清理。密码不会出现在 `~/.ssh/config`、导出 JSON 或日志中。
+
+连接时，Quick-SSH 将自身配置为 OpenSSH 的 AskPass 程序。OpenSSH 仍会优先尝试密钥和 ssh-agent；只有提示登录密码时才会读取对应别名的凭据。私钥口令、主机指纹确认和其他交互提示不会被自动处理。
+
+<Warning>
+  首次连接新主机时，请先执行 `ssh <主机别名>` 并手动核对、确认主机指纹。
+</Warning>
+
 ## 程序设置 (~/.qsshrc)
 
-Quick-SSH 的程序行为可通过 `~/.qsshrc` 文件配置。该文件使用 JSON 格式。
+Quick-SSH 为程序行为设置预留了 `~/.qsshrc` 文件。该文件使用 JSON 格式。
 
 ### 配置项
 
@@ -91,7 +109,7 @@ Quick-SSH 的程序行为可通过 `~/.qsshrc` 文件配置。该文件使用 JS
 ```
 
 <Note>
-  当前版本中 `~/.qsshrc` 已预留但部分设置尚未启用，将在后续版本中逐步激活。
+  v2.0.4 中 `~/.qsshrc` API 已预留，但这些设置尚未接入主要命令流程，将在后续版本中逐步启用。
 </Note>
 
 ## 配置工作原理

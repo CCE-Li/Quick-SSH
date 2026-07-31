@@ -81,7 +81,7 @@ export default defineConfig({
     ],
   },
   footer: {
-    copyright: '© 2025 CCE-Li. Built with Clarify.',
+    copyright: '© 2026 CCE-Li. Built with Clarify.',
     links: [
       { label: '快速入门', href: '/getting-started' },
       { label: '安装指南', href: '/installation' },

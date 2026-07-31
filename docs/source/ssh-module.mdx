@@ -20,7 +20,7 @@ SSH 模块位于 [`qssh/src/ssh/`](/qssh/src/ssh/)，负责 SSH 连接的全流�
 ssh/
 ├── mod.rs           # 模块声明
 ├── session.rs       # SshTarget 解析与 SSH 参数构建
-├── spawn.rs         # 交互式 SSH 会话（跨平台 raw 模式）
+├── spawn.rs         # 交互式 SSH 会话与 AskPass 配置
 ├── drag_detect.rs   # 拖拽文件路径检测
 └── upload.rs        # 内联 SCP 上传（预留）
 ```
@@ -77,31 +77,50 @@ pub struct SshTarget {
 
 ### 设计要点
 
-- **stdin 继承**：SSH 直接读取控制台输入，密码认证正常工作
-- **stdout/stderr 转发**：通过独立线程转发到终端显示
+- **stdin 继承**：SSH 直接读取控制台输入
+- **平台输出策略**：Unix 直接继承 stdout/stderr；Windows 使用管道和转发线程
 - **强制 PTY**：使用 `-tt` 确保 SSH 在远程分配 PTY
+- **保存密码**：存在凭据时，将当前 qssh 可执行文件配置为 OpenSSH AskPass
 
 ### 启动流程
 
 ```
 start_interactive_session()
-  → enable_terminal_raw_mode()    // 启用终端 raw 模式
+  → credentials::has_password()  // 查询当前别名的保存状态
+  → Windows: enable_terminal_raw_mode()
   → start_interactive_session_inner()
     → build_ssh_args_with_pty()   // 构建带 -tt 的参数
+    → configure_askpass()         // 有密码时设置 AskPass 环境变量
     → Command::new("ssh").spawn() // 启动 SSH 进程
-    → forward_stdout() (线程)     // stdout 转发
-    → forward_stderr() (线程)     // stderr 转发
+    → Unix: 继承 stdout/stderr
+    → Windows: 线程转发 stdout/stderr
     → child.wait()                // 等待 SSH 退出
-  → disable_terminal_raw_mode()   // 恢复终端模式
+  → Windows: disable_terminal_raw_mode()
   → 返回退出码
 ```
+
+读取系统凭据失败不会阻止连接，程序会显示警告并回退到普通系统 SSH。
+
+### OpenSSH AskPass
+
+保存密码存在时，`configure_askpass()` 设置以下环境变量：
+
+| 环境变量 | 值 |
+|---------|----|
+| `SSH_ASKPASS` | 当前 `qssh` 可执行文件路径 |
+| `SSH_ASKPASS_REQUIRE` | `force` |
+| `QSSH_ASKPASS_ACTIVE` | `1` |
+| `QSSH_ASKPASS_ALIAS` | 当前主机别名 |
+| `DISPLAY` | 缺失时设置为 `qssh-askpass` |
+
+OpenSSH 仍按自身顺序优先尝试密钥和 ssh-agent。AskPass 入口只返回登录密码，不处理私钥口令或首次连接的主机指纹确认。
 
 ### 跨平台终端 Raw 模式
 
 | 平台 | 实现方式 |
 |------|---------|
 | **Windows** | 使用 WinAPI `GetConsoleMode` / `SetConsoleMode` 直接操作控制台 |
-| **Unix** | 使用 crossterm 的 termios 封装 |
+| **Unix** | SSH 会话直接继承终端，不额外切换 raw 模式 |
 
 **Windows 实现细节：**
 
