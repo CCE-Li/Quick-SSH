@@ -19,16 +19,16 @@ class QuickSsh < Formula
   desc "🚀 Quick-SSH - Docker-style SSH connection manager with TUI (Rust native binary)"
   homepage "https://github.com/CCE-Li/Quick-SSH"
   license "MIT"
-  version "2.0.3"
+  version "2.0.4"
 
   depends_on :macos
 
   on_macos do
     if Hardware::CPU.intel?
-      url "https://github.com/CCE-Li/Quick-SSH/releases/download/v2.0.3/qssh-x86_64-macos.tar.gz"
+      url "https://github.com/CCE-Li/Quick-SSH/releases/download/v2.0.4/qssh-x86_64-macos.tar.gz"
       sha256 "SKIP"
     elsif Hardware::CPU.arm?
-      url "https://github.com/CCE-Li/Quick-SSH/releases/download/v2.0.3/qssh-aarch64-macos.tar.gz"
+      url "https://github.com/CCE-Li/Quick-SSH/releases/download/v2.0.4/qssh-aarch64-macos.tar.gz"
       sha256 "SKIP"
     end
   end

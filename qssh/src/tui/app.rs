@@ -270,10 +270,7 @@ impl App {
                         if let Err(e) = self.save_config() {
                             self.set_flash_message(format!("保存失败: {}", e), "red");
                         } else {
-                            self.set_flash_message(
-                                format!("已批量删除 {} 台主机", count),
-                                "green",
-                            );
+                            self.set_flash_message(format!("已批量删除 {} 台主机", count), "green");
                         }
                     } else if let Some(idx) = self.selected() {
                         // 单台删除（原有逻辑）
