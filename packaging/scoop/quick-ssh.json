@@ -7,7 +7,7 @@
     "architecture": {
         "64bit": {
             "url": "https://github.com/CCE-Li/Quick-SSH/releases/download/v2.0.4/qssh-x86_64-windows.zip",
-            "hash": "sha256:SKIP"
+            "hash": "sha256:18ba146df32045191766307875abe4dbd0f3b9fe031d1b01033b299926217cae"
         }
     },
     "bin": [

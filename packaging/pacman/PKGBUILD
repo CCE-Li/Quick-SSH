@@ -21,7 +21,7 @@ depends=('glibc' 'openssh')
 provides=('quick-ssh')
 conflicts=('quick-ssh')
 source=("$url/releases/download/v$pkgver/qssh-x86_64-linux.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('45038db96e8a2f027c2a519072f8b9e9d446a15c0d6475ecd8bb61a7e44d3614')
 # 注: 发布前请从 Release 的 SHA256SUMS 中获取真实哈希值替换 SKIP
 
 package() {

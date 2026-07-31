@@ -26,7 +26,7 @@ Installers:
   - Architecture: x64
     InstallerType: zip
     InstallerUrl: https://github.com/CCE-Li/Quick-SSH/releases/download/v2.0.4/qssh-x86_64-windows.zip
-    InstallerSha256: "SKIP"
+    InstallerSha256: "18ba146df32045191766307875abe4dbd0f3b9fe031d1b01033b299926217cae"
     NestedInstallerType: portable
     NestedInstallerFiles:
       - RelativeFilePath: qssh.exe

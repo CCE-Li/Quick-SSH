@@ -26,10 +26,10 @@ class QuickSsh < Formula
   on_macos do
     if Hardware::CPU.intel?
       url "https://github.com/CCE-Li/Quick-SSH/releases/download/v2.0.4/qssh-x86_64-macos.tar.gz"
-      sha256 "SKIP"
+      sha256 "8ed5118a6ecdb082bedb926a553bba53a2ab7d1734325fa12fd6dc9966975896"
     elsif Hardware::CPU.arm?
       url "https://github.com/CCE-Li/Quick-SSH/releases/download/v2.0.4/qssh-aarch64-macos.tar.gz"
-      sha256 "SKIP"
+      sha256 "c783d05a2c6b53371df12edd5478feb5e25e7117176ecbd2682e7d5f9bc2eafb"
     end
   end
 
