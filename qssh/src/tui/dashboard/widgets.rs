@@ -100,6 +100,7 @@ impl MockWidget {
             WidgetId::Process => render_processes(&snap.processes),
             WidgetId::Docker => render_docker(&snap.docker),
             WidgetId::Services => render_services(&snap.services),
+            WidgetId::Files => render_files(&snap.files, &snap.file_cwd),
             // 尚未接入真实数据源的模块：保留 Mock 展示
             _ => self.lines.iter().map(|line| line.to_string()).collect(),
         };
@@ -217,6 +218,30 @@ fn render_docker(containers: &[crate::monitor::docker::DockerContainer]) -> Vec<
         lines.push(format!(
             "{marker} {:<16} {:>12}  {}",
             container.name, container.status, container.image
+        ));
+    }
+    lines
+}
+
+/// 远程文件列表（Phase 6）
+fn render_files(files: &[crate::monitor::files::RemoteFile], cwd: &str) -> Vec<String> {
+    if files.is_empty() {
+        return vec![format!("Files: {cwd} — 目录为空或 ls 不可用")];
+    }
+    let mut lines = vec![format!("Files: {cwd}  ({} 项)", files.len())];
+    for file in crate::monitor::files::dir_entries(files.to_vec())
+        .into_iter()
+        .take(10)
+    {
+        let marker = if file.is_dir { "d" } else { "-" };
+        let size = if file.is_dir {
+            "-".to_string()
+        } else {
+            crate::monitor::files::format_file_size(file.size)
+        };
+        lines.push(format!(
+            "{marker} {:<20} {:>8} {}",
+            file.name, size, file.mtime
         ));
     }
     lines

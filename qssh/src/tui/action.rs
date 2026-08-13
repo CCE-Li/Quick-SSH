@@ -1,6 +1,7 @@
 use strum::{Display, EnumString};
 
 use crate::monitor::docker::DockerAction;
+use crate::monitor::files::FileAction;
 use crate::monitor::services::ServiceAction;
 use crate::tui::dashboard::WidgetId;
 
@@ -98,6 +99,20 @@ pub enum Action {
     ServiceActionSelected(ServiceAction),
     /// 确认/取消服务操作（y/n）
     ConfirmService(bool),
+    /// 打开文件浏览面板
+    OpenFileOps,
+    /// 关闭文件浏览面板
+    CloseFileOps,
+    /// 文件列表移动选择
+    FileOpsMove(isize),
+    /// 进入选中的目录
+    FileOpsEnter,
+    /// 返回上级目录
+    FileOpsUp,
+    /// 选择文件操作（下载）
+    FileActionSelected(FileAction),
+    /// 确认/取消文件操作（y/n）
+    ConfirmFile(bool),
     Quit,
 }
 
@@ -150,4 +165,10 @@ pub enum Mode {
     /// 服务危险操作确认
     #[strum(to_string = "SERVICE_CONFIRM")]
     ServiceConfirm,
+    /// 文件浏览面板
+    #[strum(to_string = "FILE_OPS")]
+    FileOps,
+    /// 文件操作确认
+    #[strum(to_string = "FILE_CONFIRM")]
+    FileConfirm,
 }

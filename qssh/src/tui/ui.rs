@@ -56,6 +56,12 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         Mode::ServiceConfirm => {
             render_service_confirm_popup(frame, area, app);
         }
+        Mode::FileOps => {
+            render_file_ops_popup(frame, area, app);
+        }
+        Mode::FileConfirm => {
+            render_file_confirm_popup(frame, area, app);
+        }
         _ => {}
     }
 }
@@ -315,6 +321,96 @@ fn render_service_confirm_popup(frame: &mut Frame, area: Rect, app: &App) {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(color))
         .title(" 服务危险操作确认 ");
+    frame.render_widget(Paragraph::new(lines).block(block), popup);
+}
+
+/// 文件浏览弹窗：列出当前目录文件，支持目录导航
+fn render_file_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
+    use crate::tui::widgets::centered_rect;
+
+    let popup = centered_rect(80, 65, area);
+    frame.render_widget(ratatui::widgets::Clear, popup);
+
+    let Some(snapshot) = app.docker_snapshot() else {
+        let paragraph = Paragraph::new("暂无文件数据")
+            .block(Block::default().borders(Borders::ALL).title(" 文件浏览 "));
+        frame.render_widget(paragraph, popup);
+        return;
+    };
+
+    let mut items: Vec<ListItem> = Vec::new();
+    for (idx, file) in snapshot.files.iter().enumerate() {
+        let marker = if idx == app.file_selected_index() {
+            "┃ "
+        } else {
+            "  "
+        };
+        let dir_icon = if file.is_dir { "📁" } else { "📄" };
+        let size = if file.is_dir {
+            "DIR".to_string()
+        } else {
+            crate::monitor::files::format_file_size(file.size)
+        };
+        let line = Line::from(vec![
+            Span::raw(marker),
+            Span::raw(dir_icon),
+            Span::raw(" "),
+            Span::styled(&file.name, Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(
+                format!("  {:>9}  {}", size, file.mtime),
+                Style::default().fg(Color::DarkGray),
+            ),
+        ]);
+        items.push(ListItem::new(line));
+    }
+
+    let title = format!(
+        " 文件浏览 {} — {} ",
+        snapshot.file_cwd,
+        app.monitor_target_alias().unwrap_or("-")
+    );
+    let list = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title(title))
+        .highlight_style(
+            Style::default()
+                .bg(Color::Blue)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("");
+    frame.render_widget(list, popup);
+}
+
+/// 文件操作确认弹窗（下载）
+fn render_file_confirm_popup(frame: &mut Frame, area: Rect, app: &App) {
+    use crate::tui::widgets::centered_rect;
+
+    let popup = centered_rect(50, 25, area);
+    frame.render_widget(ratatui::widgets::Clear, popup);
+
+    let action = app.file_pending_action();
+    let file = app
+        .docker_snapshot()
+        .and_then(|s| s.files.get(app.file_selected_index()));
+
+    let (action_text, color) = match action {
+        Some(a) => (a.label(), Color::Yellow),
+        None => ("未知操作", Color::Red),
+    };
+    let file_name = file.map(|f| f.name.as_str()).unwrap_or("-");
+
+    let lines: Vec<Line> = vec![
+        Line::from(""),
+        Line::from(format!("  将要 {} 文件: {}", action_text, file_name)),
+        Line::from(""),
+        Line::from("  下载到当前目录（本地工作目录）"),
+        Line::from(""),
+        Line::from("  y/Y 确认执行    n/N/Esc 取消"),
+    ];
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(color))
+        .title(" 文件操作确认 ");
     frame.render_widget(Paragraph::new(lines).block(block), popup);
 }
 

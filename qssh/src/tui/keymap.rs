@@ -2,6 +2,7 @@ use crossterm::event::{KeyEvent, KeyModifiers};
 
 use super::action::{Action, Mode};
 use crate::monitor::docker::DockerAction;
+use crate::monitor::files::FileAction;
 use crate::monitor::services::ServiceAction;
 use crate::tui::app::App;
 
@@ -47,6 +48,10 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
                 },
                 KeyCode::Char('s') => match app.view {
                     crate::tui::action::View::Dashboard => Action::OpenServiceOps,
+                    _ => Action::None,
+                },
+                KeyCode::Char('f') => match app.view {
+                    crate::tui::action::View::Dashboard => Action::OpenFileOps,
                     _ => Action::None,
                 },
                 KeyCode::Char('q') | KeyCode::Esc => Action::Quit,
@@ -137,6 +142,21 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
             KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Action::ConfirmService(false),
             _ => Action::None,
         },
+        Mode::FileOps => match key.code {
+            KeyCode::Char('j') | KeyCode::Down => Action::FileOpsMove(1),
+            KeyCode::Char('k') | KeyCode::Up => Action::FileOpsMove(-1),
+            KeyCode::Enter => Action::FileOpsEnter,
+            KeyCode::Char('h') | KeyCode::Left => Action::FileOpsUp,
+            KeyCode::Char('l') | KeyCode::Right => Action::FileOpsEnter,
+            KeyCode::Char('d') => Action::FileActionSelected(FileAction::Download),
+            KeyCode::Char('q') | KeyCode::Esc => Action::CloseFileOps,
+            _ => Action::None,
+        },
+        Mode::FileConfirm => match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => Action::ConfirmFile(true),
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Action::ConfirmFile(false),
+            _ => Action::None,
+        },
         _ => Action::None,
     }
 }
@@ -181,6 +201,8 @@ impl Mode {
             Mode::DockerConfirm => " DOCKER_CONFIRM ",
             Mode::ServiceOps => " SERVICE_OPS ",
             Mode::ServiceConfirm => " SERVICE_CONFIRM ",
+            Mode::FileOps => " FILE_OPS ",
+            Mode::FileConfirm => " FILE_CONFIRM ",
         }
     }
 
@@ -206,6 +228,8 @@ impl Mode {
             Mode::DockerConfirm => "确认危险操作？y/Y 执行，n/N/Esc 取消",
             Mode::ServiceOps => "j↓ k↑ 选择服务 | a启动 s停止 r重启 | q/Esc关闭",
             Mode::ServiceConfirm => "确认服务操作？y/Y 执行，n/N/Esc 取消",
+            Mode::FileOps => "j↓ k↑ 选择 | Enter/l 进入目录 h/← 上级 d 下载 | q/Esc关闭",
+            Mode::FileConfirm => "确认文件操作？y/Y 执行，n/N/Esc 取消",
         }
     }
 }

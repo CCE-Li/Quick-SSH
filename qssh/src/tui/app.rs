@@ -11,6 +11,9 @@ use crate::config::credentials;
 use crate::config::types::{HostBlock, SshConfig};
 use crate::monitor::docker::{container_action_command, DockerAction};
 use crate::monitor::executor::RemoteExecutor;
+use crate::monitor::files::{
+    dir_entries, join_dir, ls_l_command, parse_ls_l, shell_quote, FileAction,
+};
 use crate::monitor::scheduler::{BackgroundEvent, MonitorScheduler};
 use crate::monitor::services::{service_action_command, ServiceAction};
 use crate::monitor::snapshot::ServerSnapshot;
@@ -108,6 +111,10 @@ pub struct App {
     service_selected: usize,
     /// 待确认的服务操作（None = 未处于确认流程）
     service_action: Option<ServiceAction>,
+    /// 文件列表选中索引
+    file_selected: usize,
+    /// 待确认的文件操作（None = 未处于确认流程）
+    file_action: Option<FileAction>,
     /// 已保存密码的主机别名
     pub remembered_password_aliases: HashSet<String>,
     /// 是否运行中
@@ -157,6 +164,8 @@ impl App {
             docker_action: None,
             service_selected: 0,
             service_action: None,
+            file_selected: 0,
+            file_action: None,
             remembered_password_aliases,
             running: true,
             show_address: false,
@@ -553,6 +562,227 @@ impl App {
                     self.set_flash_message(outcome, "green");
                 } else {
                     self.set_flash_message("操作超时", "red");
+                }
+            }
+            // ── 文件浏览操作 ────────────────────────────
+            Action::OpenFileOps => {
+                if self.latest_snapshot.is_some() {
+                    self.file_selected = 0;
+                    self.mode = Mode::FileOps;
+                } else {
+                    self.set_flash_message(
+                        "暂无文件数据，请先在 Dashboard 视图等待监控采集",
+                        "yellow",
+                    );
+                }
+            }
+            Action::CloseFileOps => {
+                self.mode = Mode::Normal;
+                self.file_action = None;
+            }
+            Action::FileOpsMove(delta) => {
+                let count = self
+                    .latest_snapshot
+                    .as_ref()
+                    .map(|s| s.files.len())
+                    .unwrap_or(0);
+                if count > 0 {
+                    let len = count as isize;
+                    let next = self.file_selected as isize + delta;
+                    self.file_selected = next.rem_euclid(len) as usize;
+                }
+            }
+            Action::FileOpsEnter => {
+                let Some(alias) = self.monitor_target.clone() else {
+                    self.set_flash_message("未在监控状态，无法浏览文件", "red");
+                    return;
+                };
+                let Some(host) = self.hosts.iter().find(|h| h.alias == alias).cloned() else {
+                    self.set_flash_message("主机已不存在", "red");
+                    return;
+                };
+                let Some(file) = self
+                    .latest_snapshot
+                    .as_ref()
+                    .and_then(|s| s.files.get(self.file_selected))
+                    .cloned()
+                else {
+                    self.set_flash_message("文件列表已刷新，请重新选择", "yellow");
+                    return;
+                };
+                if !file.is_dir {
+                    return;
+                }
+                let new_cwd = join_dir(
+                    &self
+                        .latest_snapshot
+                        .as_ref()
+                        .map(|s| s.file_cwd.clone())
+                        .unwrap_or_else(|| "~".to_string()),
+                    &file.name,
+                );
+                let target = SshTarget::from_host(&host);
+                let executor =
+                    SshProcessExecutor::new(target).with_timeouts(5, Duration::from_secs(10));
+                let command = ls_l_command(&new_cwd);
+                let (result_tx, result_rx) = mpsc::channel();
+                let _ = thread::spawn(move || {
+                    let outcome = executor
+                        .exec(&command)
+                        .map(|out| (out.stdout, out.stderr, out.exit_code));
+                    let _ = result_tx.send(outcome);
+                });
+                if let Ok(Ok((stdout, stderr, exit_code))) =
+                    result_rx.recv_timeout(Duration::from_secs(15))
+                {
+                    if let Some(snap) = self.latest_snapshot.as_mut() {
+                        if exit_code == Some(0) {
+                            snap.files = dir_entries(parse_ls_l(&stdout));
+                            snap.file_cwd = new_cwd.clone();
+                            self.file_selected = 0;
+                        } else {
+                            self.set_flash_message(
+                                format!(
+                                    "进入目录失败: {}",
+                                    stderr.trim_end().lines().next().unwrap_or("未知错误")
+                                ),
+                                "red",
+                            );
+                        }
+                    }
+                } else {
+                    self.set_flash_message("进入目录超时", "red");
+                }
+            }
+            Action::FileOpsUp => {
+                let Some(alias) = self.monitor_target.clone() else {
+                    self.set_flash_message("未在监控状态，无法浏览文件", "red");
+                    return;
+                };
+                let Some(host) = self.hosts.iter().find(|h| h.alias == alias).cloned() else {
+                    self.set_flash_message("主机已不存在", "red");
+                    return;
+                };
+                let Some(cwd) = self.latest_snapshot.as_ref().map(|s| s.file_cwd.clone()) else {
+                    return;
+                };
+                let new_cwd = crate::monitor::files::parent_dir(&cwd);
+                if new_cwd == cwd {
+                    return;
+                }
+                let target = SshTarget::from_host(&host);
+                let executor =
+                    SshProcessExecutor::new(target).with_timeouts(5, Duration::from_secs(10));
+                let command = ls_l_command(&new_cwd);
+                let (result_tx, result_rx) = mpsc::channel();
+                let _ = thread::spawn(move || {
+                    let outcome = executor
+                        .exec(&command)
+                        .map(|out| (out.stdout, out.stderr, out.exit_code));
+                    let _ = result_tx.send(outcome);
+                });
+                if let Ok(Ok((stdout, stderr, exit_code))) =
+                    result_rx.recv_timeout(Duration::from_secs(15))
+                {
+                    if let Some(snap) = self.latest_snapshot.as_mut() {
+                        if exit_code == Some(0) {
+                            snap.files = dir_entries(parse_ls_l(&stdout));
+                            snap.file_cwd = new_cwd.clone();
+                            self.file_selected = 0;
+                        } else {
+                            self.set_flash_message(
+                                format!(
+                                    "返回上级失败: {}",
+                                    stderr.trim_end().lines().next().unwrap_or("未知错误")
+                                ),
+                                "red",
+                            );
+                        }
+                    }
+                } else {
+                    self.set_flash_message("返回上级超时", "red");
+                }
+            }
+            Action::FileActionSelected(action) => {
+                self.file_action = Some(action);
+                self.mode = Mode::FileConfirm;
+            }
+            Action::ConfirmFile(confirmed) => {
+                let pending = self.file_action.take();
+                self.mode = Mode::Normal;
+                if !confirmed {
+                    return;
+                }
+                let Some(action) = pending else { return };
+                let Some(file) = self
+                    .latest_snapshot
+                    .as_ref()
+                    .and_then(|s| s.files.get(self.file_selected))
+                    .cloned()
+                else {
+                    self.set_flash_message("文件列表已刷新，请重新选择", "yellow");
+                    return;
+                };
+                let Some(alias) = self.monitor_target.clone() else {
+                    self.set_flash_message("未在监控状态，无法下载文件", "red");
+                    return;
+                };
+                let Some(host) = self.hosts.iter().find(|h| h.alias == alias).cloned() else {
+                    self.set_flash_message("主机已不存在", "red");
+                    return;
+                };
+                let target = SshTarget::from_host(&host);
+                let remote_path = format!(
+                    "{}/{}",
+                    self.latest_snapshot
+                        .as_ref()
+                        .map(|s| s.file_cwd.as_str())
+                        .unwrap_or("~"),
+                    file.name
+                );
+                match action {
+                    FileAction::Download => {
+                        let user_part = match target.user {
+                            Some(ref u) => format!("{}@", u),
+                            None => String::new(),
+                        };
+                        let remote_target = format!(
+                            "{}{}:{}",
+                            user_part,
+                            target.hostname,
+                            shell_quote(&remote_path)
+                        );
+                        let dest = std::env::current_dir()
+                            .map(|d| d.join(&file.name))
+                            .unwrap_or_else(|_| PathBuf::from(&file.name));
+                        let flash = format!("下载 {} → {}…", remote_path, dest.display());
+                        self.set_flash_message(flash, "yellow");
+                        let (result_tx, result_rx) = mpsc::channel();
+                        let _ = thread::spawn(move || {
+                            let mut cmd = std::process::Command::new("scp");
+                            if target.port != 22 {
+                                cmd.arg("-P").arg(target.port.to_string());
+                            }
+                            if let Some(ref key_path) = target.identity_file {
+                                cmd.arg("-i").arg(key_path.as_os_str());
+                            }
+                            cmd.arg("-o").arg("ControlMaster=no");
+                            cmd.arg("-q");
+                            cmd.arg(&remote_target);
+                            cmd.arg(&dest);
+                            let outcome = match cmd.status() {
+                                Ok(st) if st.success() => "下载成功".to_string(),
+                                Ok(st) => format!("下载失败: 退出码 {:?}", st.code().unwrap_or(-1)),
+                                Err(e) => format!("下载失败: {}", e),
+                            };
+                            let _ = result_tx.send(outcome);
+                        });
+                        if let Ok(outcome) = result_rx.recv_timeout(Duration::from_secs(60)) {
+                            self.set_flash_message(outcome, "green");
+                        } else {
+                            self.set_flash_message("下载超时", "red");
+                        }
+                    }
                 }
             }
             // ── 命令面板 ─────────────────────────────────
@@ -1122,6 +1352,18 @@ impl App {
     /// 待确认的服务操作（None = 未处于确认流程）
     pub fn service_pending_action(&self) -> Option<ServiceAction> {
         self.service_action
+    }
+
+    // ── 文件浏览面板访问器（UI 层只读）───────────────────
+
+    /// 文件列表当前选中索引
+    pub fn file_selected_index(&self) -> usize {
+        self.file_selected
+    }
+
+    /// 待确认的文件操作（None = 未处于确认流程）
+    pub fn file_pending_action(&self) -> Option<FileAction> {
+        self.file_action
     }
 
     fn set_flash_message(&mut self, message: impl Into<String>, color: impl Into<String>) {

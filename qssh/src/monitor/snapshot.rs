@@ -1,6 +1,7 @@
 //! 监控数据模型：`ServerSnapshot` + 各指标结构 + 采集错误
 
 use super::docker::DockerContainer;
+use super::files::RemoteFile;
 use super::network::ConnCounts;
 use super::services::ServiceInfo;
 
@@ -24,6 +25,10 @@ pub struct ServerSnapshot {
     pub services: Vec<ServiceInfo>,
     /// TCP 连接状态统计（`ss` 不可用时为 None）
     pub conn_counts: Option<ConnCounts>,
+    /// 远程文件列表（FileOps 浏览的当前目录内容）
+    pub files: Vec<RemoteFile>,
+    /// 文件浏览当前目录（默认 `~`）
+    pub file_cwd: String,
     /// 本次采集的警告/错误信息
     pub warnings: Vec<String>,
 }
@@ -33,6 +38,7 @@ impl ServerSnapshot {
         Self {
             alias: alias.into(),
             collected_at: now_unix(),
+            file_cwd: "~".to_string(),
             ..Default::default()
         }
     }

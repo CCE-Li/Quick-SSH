@@ -45,6 +45,7 @@ echo "===PROC==="; ps -eo pid,comm,%cpu,rss --sort=-%cpu | head -n 10;
 echo "===DOCKER==="; docker ps -a --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.Ports}}' 2>/dev/null || true;
 echo "===SERVICES==="; systemctl list-units --type=service --all --no-pager --no-legend --plain 2>/dev/null | awk '{print $1"|"$2"|"$3"|"$4}' || true;
 echo "===CONNS==="; ss -tan state all 2>/dev/null | awk 'NR>1 {print $1}' | sort | uniq -c | awk '{print $2"|"$1}' || true;
+echo "===FILES==="; LC_ALL=C ls -lA --time-style=long-iso 2>/dev/null | sed 's/  */ /g' || true;
 "#;
 
 /// 解析 Linux 采集命令输出到快照
@@ -83,6 +84,9 @@ fn parse_linux_output(out: &ExecOutput, snap: &mut ServerSnapshot) {
     }
     if let Some(conns) = sections.get("CONNS") {
         snap.conn_counts = Some(super::network::parse_ss_tan(conns));
+    }
+    if let Some(files) = sections.get("FILES") {
+        snap.files = super::files::parse_ls_l(files);
     }
 }
 
@@ -282,6 +286,12 @@ LISTEN|5
 ESTAB|23
 TIME-WAIT|12
 CLOSE-WAIT|3
+===FILES===
+total 8
+drwxr-xr-x 2 user group 4096 2026-08-13 16:00 .
+drwxr-xr-x 4 user group 4096 2026-08-12 10:00 ..
+-rw-r--r-- 1 user group 1234 2026-08-13 16:00 app.log
+drwxr-xr-x 2 user group 4096 2026-08-13 15:00 logs
 "#;
         ExecOutput {
             stdout: stdout.to_string(),
@@ -310,6 +320,9 @@ CLOSE-WAIT|3
         assert_eq!(conns.time_wait, 12);
         assert_eq!(conns.close_wait, 3);
         assert_eq!(conns.total, 43);
+        assert_eq!(snap.files.len(), 4);
+        assert!(snap.files.iter().any(|f| f.name == "app.log"));
+        assert!(snap.files.iter().any(|f| f.is_dir && f.name == "logs"));
     }
 
     #[test]
