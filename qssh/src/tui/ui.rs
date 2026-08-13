@@ -62,6 +62,12 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         Mode::FileConfirm => {
             render_file_confirm_popup(frame, area, app);
         }
+        Mode::LogOps => {
+            render_log_ops_popup(frame, area, app);
+        }
+        Mode::LogFilter => {
+            render_log_filter_popup(frame, area, app);
+        }
         _ => {}
     }
 }
@@ -411,6 +417,80 @@ fn render_file_confirm_popup(frame: &mut Frame, area: Rect, app: &App) {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(color))
         .title(" 文件操作确认 ");
+    frame.render_widget(Paragraph::new(lines).block(block), popup);
+}
+
+/// 日志面板弹窗：展示 journalctl 日志，支持 unit 筛选
+fn render_log_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
+    use crate::tui::widgets::centered_rect;
+
+    let popup = centered_rect(80, 70, area);
+    frame.render_widget(ratatui::widgets::Clear, popup);
+
+    let logs = app.filtered_logs();
+    let mut items: Vec<ListItem> = Vec::new();
+    for (idx, log) in logs.iter().enumerate() {
+        let marker = if idx == app.log_selected_index() {
+            "┃ "
+        } else {
+            "  "
+        };
+        let line = Line::from(vec![
+            Span::raw(marker),
+            Span::styled(log.timestamp.clone(), Style::default().fg(Color::DarkGray)),
+            Span::styled(format!(" [{}]", log.unit), Style::default().fg(Color::Cyan)),
+            Span::raw(" "),
+            Span::styled(log.message.clone(), Style::default()),
+        ]);
+        items.push(ListItem::new(line));
+    }
+
+    let unit_label = if app.log_unit().trim().is_empty() {
+        "全部".to_string()
+    } else {
+        app.log_unit().trim().to_string()
+    };
+    let title = format!(
+        " 系统日志 ({}) unit: {} — {} ",
+        logs.len(),
+        unit_label,
+        app.monitor_target_alias().unwrap_or("-")
+    );
+    let list = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title(title))
+        .highlight_style(
+            Style::default()
+                .bg(Color::Blue)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("");
+    frame.render_widget(list, popup);
+}
+
+/// 日志 unit 筛选输入弹窗
+fn render_log_filter_popup(frame: &mut Frame, area: Rect, app: &App) {
+    use crate::tui::widgets::centered_rect;
+
+    let popup = centered_rect(50, 25, area);
+    frame.render_widget(ratatui::widgets::Clear, popup);
+
+    let lines: Vec<Line> = vec![
+        Line::from(""),
+        Line::from("  输入要筛选的 unit 名称（留空 = 全部）："),
+        Line::from(""),
+        Line::from(Span::styled(
+            format!("  > {}", app.log_unit()),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        Line::from("  Enter 应用    Esc 取消"),
+    ];
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" 日志筛选 unit ");
     frame.render_widget(Paragraph::new(lines).block(block), popup);
 }
 

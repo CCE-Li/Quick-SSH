@@ -113,6 +113,16 @@ pub enum Action {
     FileActionSelected(FileAction),
     /// 确认/取消文件操作（y/n）
     ConfirmFile(bool),
+    /// 打开日志面板
+    OpenLogOps,
+    /// 关闭日志面板
+    CloseLogOps,
+    /// 日志列表移动选择
+    LogOpsMove(isize),
+    /// 刷新日志（重拉当前 unit）
+    LogOpsRefresh,
+    /// 设置日志筛选 unit
+    LogUnitFilter(String),
     Quit,
 }
 
@@ -171,4 +181,10 @@ pub enum Mode {
     /// 文件操作确认
     #[strum(to_string = "FILE_CONFIRM")]
     FileConfirm,
+    /// 日志面板
+    #[strum(to_string = "LOG_OPS")]
+    LogOps,
+    /// 日志筛选输入
+    #[strum(to_string = "LOG_FILTER")]
+    LogFilter,
 }

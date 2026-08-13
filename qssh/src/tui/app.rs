@@ -14,6 +14,7 @@ use crate::monitor::executor::RemoteExecutor;
 use crate::monitor::files::{
     dir_entries, join_dir, ls_l_command, parse_ls_l, shell_quote, FileAction,
 };
+use crate::monitor::logs::{journalctl_command, parse_journalctl, LogEntry, MAX_LOG_LINES};
 use crate::monitor::scheduler::{BackgroundEvent, MonitorScheduler};
 use crate::monitor::services::{service_action_command, ServiceAction};
 use crate::monitor::snapshot::ServerSnapshot;
@@ -115,6 +116,12 @@ pub struct App {
     file_selected: usize,
     /// 待确认的文件操作（None = 未处于确认流程）
     file_action: Option<FileAction>,
+    /// 日志列表选中索引
+    log_selected: usize,
+    /// 日志 unit 筛选输入缓冲
+    log_unit: String,
+    /// 日志原始（未筛选）列表
+    log_raw: Vec<LogEntry>,
     /// 已保存密码的主机别名
     pub remembered_password_aliases: HashSet<String>,
     /// 是否运行中
@@ -166,6 +173,9 @@ impl App {
             service_action: None,
             file_selected: 0,
             file_action: None,
+            log_selected: 0,
+            log_unit: String::new(),
+            log_raw: Vec::new(),
             remembered_password_aliases,
             running: true,
             show_address: false,
@@ -785,6 +795,99 @@ impl App {
                     }
                 }
             }
+            // ── 日志面板 ────────────────────────────────
+            Action::OpenLogOps => {
+                if self.latest_snapshot.is_some() {
+                    self.log_raw = self
+                        .latest_snapshot
+                        .as_ref()
+                        .map(|s| s.logs.clone())
+                        .unwrap_or_default();
+                    self.log_selected = 0;
+                    self.mode = Mode::LogOps;
+                } else {
+                    self.set_flash_message(
+                        "暂无日志数据，请先在 Dashboard 视图等待监控采集",
+                        "yellow",
+                    );
+                }
+            }
+            Action::CloseLogOps => {
+                self.mode = Mode::Normal;
+            }
+            Action::LogOpsMove(delta) => {
+                let count = self.log_selected_count();
+                if count > 0 {
+                    let len = count as isize;
+                    let next = self.log_selected as isize + delta;
+                    self.log_selected = next.rem_euclid(len) as usize;
+                }
+            }
+            Action::LogOpsRefresh => {
+                self.mode = Mode::LogOps;
+                let Some(alias) = self.monitor_target.clone() else {
+                    self.set_flash_message("未在监控状态，无法获取日志", "red");
+                    return;
+                };
+                let Some(host) = self.hosts.iter().find(|h| h.alias == alias).cloned() else {
+                    self.set_flash_message("主机已不存在", "red");
+                    return;
+                };
+                let target = SshTarget::from_host(&host);
+                let executor =
+                    SshProcessExecutor::new(target).with_timeouts(5, Duration::from_secs(15));
+                let unit = if self.log_unit.trim().is_empty() {
+                    None
+                } else {
+                    Some(self.log_unit.trim().to_string())
+                };
+                let command = journalctl_command(unit.as_deref(), MAX_LOG_LINES);
+                let (result_tx, result_rx) = mpsc::channel();
+                let _ = thread::spawn(move || {
+                    let outcome = executor
+                        .exec(&command)
+                        .map(|out| (out.stdout, out.stderr, out.exit_code));
+                    let _ = result_tx.send(outcome);
+                });
+                if let Ok(Ok((stdout, stderr, exit_code))) =
+                    result_rx.recv_timeout(Duration::from_secs(20))
+                {
+                    if exit_code == Some(0) {
+                        let parsed = parse_journalctl(&stdout);
+                        if let Some(snap) = self.latest_snapshot.as_mut() {
+                            snap.logs = parsed.clone();
+                            snap.log_unit = self.log_unit.clone();
+                        }
+                        self.log_raw = parsed;
+                        self.log_selected = 0;
+                        self.set_flash_message(
+                            format!(
+                                "已刷新日志 {} 条{}",
+                                self.log_raw.len(),
+                                if self.log_unit.trim().is_empty() {
+                                    String::new()
+                                } else {
+                                    format!("（unit: {}）", self.log_unit.trim())
+                                }
+                            ),
+                            "green",
+                        );
+                    } else {
+                        self.set_flash_message(
+                            format!(
+                                "获取日志失败: {}",
+                                stderr.trim_end().lines().next().unwrap_or("未知错误")
+                            ),
+                            "red",
+                        );
+                    }
+                } else {
+                    self.set_flash_message("获取日志超时", "red");
+                }
+            }
+            Action::LogUnitFilter(input) => {
+                self.log_unit = input;
+            }
             // ── 命令面板 ─────────────────────────────────
             Action::OpenPalette => {
                 self.mode = Mode::Palette;
@@ -1364,6 +1467,37 @@ impl App {
     /// 待确认的文件操作（None = 未处于确认流程）
     pub fn file_pending_action(&self) -> Option<FileAction> {
         self.file_action
+    }
+
+    // ── 日志面板访问器（UI 层只读）──────────────────────
+
+    /// 日志列表当前选中索引
+    pub fn log_selected_index(&self) -> usize {
+        self.log_selected
+    }
+
+    /// 当前筛选 unit（空 = 全部）
+    pub fn log_unit(&self) -> &str {
+        &self.log_unit
+    }
+
+    /// 日志条目数（已按 unit 过滤）
+    pub fn log_selected_count(&self) -> usize {
+        self.filtered_logs().len()
+    }
+
+    /// 按当前 unit 过滤后的日志
+    pub fn filtered_logs(&self) -> Vec<LogEntry> {
+        let unit = self.log_unit.trim();
+        if unit.is_empty() {
+            self.log_raw.clone()
+        } else {
+            self.log_raw
+                .iter()
+                .filter(|log| log.unit.contains(unit))
+                .cloned()
+                .collect()
+        }
     }
 
     fn set_flash_message(&mut self, message: impl Into<String>, color: impl Into<String>) {

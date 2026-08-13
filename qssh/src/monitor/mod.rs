@@ -11,6 +11,7 @@
 pub mod docker;
 pub mod executor;
 pub mod files;
+pub mod logs;
 pub mod network;
 pub mod platform;
 pub mod scheduler;
@@ -28,6 +29,8 @@ pub use files::{
     dir_entries, format_file_size, join_dir, ls_l_command, parent_dir, parse_ls_l, shell_quote,
     FileAction, RemoteFile,
 };
+#[allow(unused_imports)]
+pub use logs::{journalctl_command, parse_journalctl, LogEntry, MAX_LOG_LINES};
 #[allow(unused_imports)]
 pub use network::{parse_ss_tan, ss_connections_command, ConnCounts};
 #[allow(unused_imports)]

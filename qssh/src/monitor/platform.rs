@@ -46,6 +46,7 @@ echo "===DOCKER==="; docker ps -a --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.Sta
 echo "===SERVICES==="; systemctl list-units --type=service --all --no-pager --no-legend --plain 2>/dev/null | awk '{print $1"|"$2"|"$3"|"$4}' || true;
 echo "===CONNS==="; ss -tan state all 2>/dev/null | awk 'NR>1 {print $1}' | sort | uniq -c | awk '{print $2"|"$1}' || true;
 echo "===FILES==="; LC_ALL=C ls -lA --time-style=long-iso 2>/dev/null | sed 's/  */ /g' || true;
+echo "===LOGS==="; journalctl -n 50 --no-pager -o short-iso 2>/dev/null || true;
 "#;
 
 /// 解析 Linux 采集命令输出到快照
@@ -87,6 +88,9 @@ fn parse_linux_output(out: &ExecOutput, snap: &mut ServerSnapshot) {
     }
     if let Some(files) = sections.get("FILES") {
         snap.files = super::files::parse_ls_l(files);
+    }
+    if let Some(logs) = sections.get("LOGS") {
+        snap.logs = super::logs::parse_journalctl(logs);
     }
 }
 
@@ -292,6 +296,9 @@ drwxr-xr-x 2 user group 4096 2026-08-13 16:00 .
 drwxr-xr-x 4 user group 4096 2026-08-12 10:00 ..
 -rw-r--r-- 1 user group 1234 2026-08-13 16:00 app.log
 drwxr-xr-x 2 user group 4096 2026-08-13 15:00 logs
+===LOGS===
+2026-08-13T16:00:00.123456+0800 web01 sshd[1234]: Server listening on 0.0.0.0 port 22
+2026-08-13T16:00:01.000001+0800 web01 systemd[1]: Started Session 42 of user root.
 "#;
         ExecOutput {
             stdout: stdout.to_string(),
@@ -323,6 +330,9 @@ drwxr-xr-x 2 user group 4096 2026-08-13 15:00 logs
         assert_eq!(snap.files.len(), 4);
         assert!(snap.files.iter().any(|f| f.name == "app.log"));
         assert!(snap.files.iter().any(|f| f.is_dir && f.name == "logs"));
+        assert_eq!(snap.logs.len(), 2);
+        assert_eq!(snap.logs[0].unit, "sshd[1234]");
+        assert!(snap.logs[1].message.contains("Session 42"));
     }
 
     #[test]

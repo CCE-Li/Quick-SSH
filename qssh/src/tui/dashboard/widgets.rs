@@ -101,6 +101,7 @@ impl MockWidget {
             WidgetId::Docker => render_docker(&snap.docker),
             WidgetId::Services => render_services(&snap.services),
             WidgetId::Files => render_files(&snap.files, &snap.file_cwd),
+            WidgetId::Logs => render_logs(&snap.logs),
             // 尚未接入真实数据源的模块：保留 Mock 展示
             _ => self.lines.iter().map(|line| line.to_string()).collect(),
         };
@@ -245,6 +246,17 @@ fn render_files(files: &[crate::monitor::files::RemoteFile], cwd: &str) -> Vec<S
         ));
     }
     lines
+}
+
+/// 系统日志列表（Phase 7）
+fn render_logs(logs: &[crate::monitor::logs::LogEntry]) -> Vec<String> {
+    if logs.is_empty() {
+        return vec!["journalctl 不可用或无日志".to_string()];
+    }
+    logs.iter()
+        .take(8)
+        .map(|log| format!("{} {} {}", log.timestamp, log.unit, log.message))
+        .collect()
 }
 
 fn render_processes(processes: &[crate::monitor::snapshot::ProcessInfo]) -> Vec<String> {

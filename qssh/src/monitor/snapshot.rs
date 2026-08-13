@@ -2,6 +2,7 @@
 
 use super::docker::DockerContainer;
 use super::files::RemoteFile;
+use super::logs::LogEntry;
 use super::network::ConnCounts;
 use super::services::ServiceInfo;
 
@@ -29,6 +30,10 @@ pub struct ServerSnapshot {
     pub files: Vec<RemoteFile>,
     /// 文件浏览当前目录（默认 `~`）
     pub file_cwd: String,
+    /// 系统日志列表（journalctl 不可用/空时为空）
+    pub logs: Vec<LogEntry>,
+    /// 日志筛选 unit（空 = 全部）
+    pub log_unit: String,
     /// 本次采集的警告/错误信息
     pub warnings: Vec<String>,
 }
@@ -39,6 +44,7 @@ impl ServerSnapshot {
             alias: alias.into(),
             collected_at: now_unix(),
             file_cwd: "~".to_string(),
+            log_unit: String::new(),
             ..Default::default()
         }
     }

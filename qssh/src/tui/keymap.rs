@@ -54,6 +54,10 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
                     crate::tui::action::View::Dashboard => Action::OpenFileOps,
                     _ => Action::None,
                 },
+                KeyCode::Char('l') => match app.view {
+                    crate::tui::action::View::Dashboard => Action::OpenLogOps,
+                    _ => Action::None,
+                },
                 KeyCode::Char('q') | KeyCode::Esc => Action::Quit,
                 KeyCode::Char('?') => Action::ShowHelp,
                 _ => Action::None,
@@ -157,6 +161,29 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
             KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Action::ConfirmFile(false),
             _ => Action::None,
         },
+        Mode::LogOps => match key.code {
+            KeyCode::Char('j') | KeyCode::Down => Action::LogOpsMove(1),
+            KeyCode::Char('k') | KeyCode::Up => Action::LogOpsMove(-1),
+            KeyCode::Char('r') => Action::LogOpsRefresh,
+            KeyCode::Char('f') => Action::LogUnitFilter(app.log_unit().to_string()),
+            KeyCode::Char('q') | KeyCode::Esc => Action::CloseLogOps,
+            _ => Action::None,
+        },
+        Mode::LogFilter => match key.code {
+            KeyCode::Esc => Action::CloseLogOps,
+            KeyCode::Enter => Action::LogOpsRefresh,
+            KeyCode::Backspace => {
+                let mut s = app.log_unit().to_string();
+                s.pop();
+                Action::LogUnitFilter(s)
+            }
+            KeyCode::Char(c) => {
+                let mut s = app.log_unit().to_string();
+                s.push(c);
+                Action::LogUnitFilter(s)
+            }
+            _ => Action::None,
+        },
         _ => Action::None,
     }
 }
@@ -203,6 +230,8 @@ impl Mode {
             Mode::ServiceConfirm => " SERVICE_CONFIRM ",
             Mode::FileOps => " FILE_OPS ",
             Mode::FileConfirm => " FILE_CONFIRM ",
+            Mode::LogOps => " LOG_OPS ",
+            Mode::LogFilter => " LOG_FILTER ",
         }
     }
 
@@ -230,6 +259,8 @@ impl Mode {
             Mode::ServiceConfirm => "确认服务操作？y/Y 执行，n/N/Esc 取消",
             Mode::FileOps => "j↓ k↑ 选择 | Enter/l 进入目录 h/← 上级 d 下载 | q/Esc关闭",
             Mode::FileConfirm => "确认文件操作？y/Y 执行，n/N/Esc 取消",
+            Mode::LogOps => "j↓ k↑ 浏览 | r 刷新 f 筛选 unit | q/Esc关闭",
+            Mode::LogFilter => "输入 unit 名称（如 sshd）过滤日志，Enter 应用，Esc 取消",
         }
     }
 }
