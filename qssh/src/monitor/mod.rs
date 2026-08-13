@@ -12,6 +12,7 @@ pub mod docker;
 pub mod executor;
 pub mod platform;
 pub mod scheduler;
+pub mod services;
 pub mod snapshot;
 
 // 统一对外 re-export：当前为 bin crate，部分 API 尚未被 UI 消费，
@@ -24,6 +25,8 @@ pub use executor::{ExecError, ExecOutput, RemoteExecutor, SshProcessExecutor};
 pub use platform::Collector;
 #[allow(unused_imports)]
 pub use scheduler::{BackgroundEvent, MonitorScheduler};
+#[allow(unused_imports)]
+pub use services::{collect_services, service_action_command, ServiceAction, ServiceInfo};
 #[allow(unused_imports)]
 pub use snapshot::{
     CpuInfo, DiskInfo, MemoryInfo, NetworkInfo, ProcessInfo, ServerSnapshot, SystemInfo,

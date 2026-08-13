@@ -50,6 +50,12 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         Mode::DockerConfirm => {
             render_docker_confirm_popup(frame, area, app);
         }
+        Mode::ServiceOps => {
+            render_service_ops_popup(frame, area, app);
+        }
+        Mode::ServiceConfirm => {
+            render_service_confirm_popup(frame, area, app);
+        }
         _ => {}
     }
 }
@@ -204,6 +210,111 @@ fn render_docker_confirm_popup(frame: &mut Frame, area: Rect, app: &App) {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(color))
         .title(" Docker 危险操作确认 ");
+    frame.render_widget(Paragraph::new(lines).block(block), popup);
+}
+
+/// 系统服务操作面板弹窗：列出服务 + 高亮选中项 + 操作提示
+fn render_service_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
+    use crate::tui::widgets::centered_rect;
+
+    let popup = centered_rect(70, 60, area);
+    frame.render_widget(ratatui::widgets::Clear, popup);
+
+    let Some(snapshot) = app.docker_snapshot() else {
+        let paragraph = Paragraph::new("暂无服务数据").block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" 系统服务操作 "),
+        );
+        frame.render_widget(paragraph, popup);
+        return;
+    };
+
+    let mut items: Vec<ListItem> = Vec::new();
+    for (idx, s) in snapshot.services.iter().enumerate() {
+        let marker = if idx == app.service_selected_index() {
+            "┃ "
+        } else {
+            "  "
+        };
+        let status_icon = if s.is_running() { "●" } else { "○" };
+        let status_color = if s.active == "failed" {
+            Color::Red
+        } else if s.is_running() {
+            Color::Green
+        } else {
+            Color::DarkGray
+        };
+        let status = if s.active == "failed" {
+            "failed"
+        } else if s.is_running() {
+            "running"
+        } else {
+            s.sub.as_str()
+        };
+        let line = Line::from(vec![
+            Span::raw(marker),
+            Span::styled(status_icon, Style::default().fg(status_color)),
+            Span::raw(" "),
+            Span::styled(&s.name, Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(
+                format!("  {} / {}", s.active, status),
+                Style::default().fg(status_color),
+            ),
+        ]);
+        items.push(ListItem::new(line));
+    }
+
+    let title = format!(
+        " 系统服务操作 ({}) — {} ",
+        snapshot.services.len(),
+        app.monitor_target_alias().unwrap_or("-")
+    );
+    let list = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title(title))
+        .highlight_style(
+            Style::default()
+                .bg(Color::Blue)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("");
+    frame.render_widget(list, popup);
+}
+
+/// 服务危险操作确认弹窗：显示将要执行的操作 + 目标服务
+fn render_service_confirm_popup(frame: &mut Frame, area: Rect, app: &App) {
+    use crate::tui::widgets::centered_rect;
+
+    let popup = centered_rect(50, 25, area);
+    frame.render_widget(ratatui::widgets::Clear, popup);
+
+    let action = app.service_pending_action();
+    let service = app
+        .docker_snapshot()
+        .and_then(|s| s.services.get(app.service_selected_index()));
+
+    let (action_text, color) = match action {
+        Some(a) => (a.label(), Color::Yellow),
+        None => ("未知操作", Color::Red),
+    };
+    let service_name = service.map(|s| s.name.as_str()).unwrap_or("-");
+
+    let lines: Vec<Line> = vec![
+        Line::from(""),
+        Line::from(format!("  将要 {} 服务: {}", action_text, service_name)),
+        Line::from(""),
+        Line::from(Span::styled(
+            "  ⚠ 该操作将直接作用于远程主机，请确认",
+            Style::default().fg(Color::Yellow),
+        )),
+        Line::from(""),
+        Line::from("  y/Y 确认执行    n/N/Esc 取消"),
+    ];
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(color))
+        .title(" 服务危险操作确认 ");
     frame.render_widget(Paragraph::new(lines).block(block), popup);
 }
 

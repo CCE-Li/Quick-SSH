@@ -1,6 +1,7 @@
 //! 监控数据模型：`ServerSnapshot` + 各指标结构 + 采集错误
 
 use super::docker::DockerContainer;
+use super::services::ServiceInfo;
 
 /// 一次采集的全部监控数据快照
 #[derive(Debug, Clone, Default)]
@@ -18,6 +19,8 @@ pub struct ServerSnapshot {
     pub processes: Vec<ProcessInfo>,
     /// Docker 容器列表（Docker 不可用时为空）
     pub docker: Vec<DockerContainer>,
+    /// 系统服务列表（systemd 不可用时为空）
+    pub services: Vec<ServiceInfo>,
     /// 本次采集的警告/错误信息
     pub warnings: Vec<String>,
 }

@@ -12,6 +12,7 @@ use crate::config::types::{HostBlock, SshConfig};
 use crate::monitor::docker::{container_action_command, DockerAction};
 use crate::monitor::executor::RemoteExecutor;
 use crate::monitor::scheduler::{BackgroundEvent, MonitorScheduler};
+use crate::monitor::services::{service_action_command, ServiceAction};
 use crate::monitor::snapshot::ServerSnapshot;
 use crate::monitor::{Collector, SshProcessExecutor};
 use crate::ssh::session::SshTarget;
@@ -97,12 +98,16 @@ pub struct App {
     monitor_rx: Receiver<BackgroundEvent>,
     /// 当前正在监控的主机别名（None = 未监控）
     monitor_target: Option<String>,
-    /// 最近一次监控快照（Docker 操作面板使用）
+    /// 最近一次监控快照（Docker/服务操作面板使用）
     latest_snapshot: Option<ServerSnapshot>,
     /// Docker 容器列表选中索引
     docker_selected: usize,
     /// 待确认的 Docker 操作（None = 未处于确认流程）
     docker_action: Option<DockerAction>,
+    /// 服务列表选中索引
+    service_selected: usize,
+    /// 待确认的服务操作（None = 未处于确认流程）
+    service_action: Option<ServiceAction>,
     /// 已保存密码的主机别名
     pub remembered_password_aliases: HashSet<String>,
     /// 是否运行中
@@ -150,6 +155,8 @@ impl App {
             latest_snapshot: None,
             docker_selected: 0,
             docker_action: None,
+            service_selected: 0,
+            service_action: None,
             remembered_password_aliases,
             running: true,
             show_address: false,
@@ -436,6 +443,94 @@ impl App {
                     "执行 docker {} {} ({})…",
                     action.subcommand(),
                     container.name,
+                    alias
+                );
+                self.set_flash_message(flash, "yellow");
+                let (result_tx, result_rx) = mpsc::channel();
+                let _ = thread::spawn(move || {
+                    let outcome = match executor.exec(&command) {
+                        Ok(out) if out.exit_code == Some(0) => {
+                            format!("{} 成功", action.label())
+                        }
+                        Ok(out) => format!(
+                            "{} 失败: {}",
+                            action.label(),
+                            out.stderr.trim_end().lines().next().unwrap_or("未知错误")
+                        ),
+                        Err(e) => format!("{} 失败: {}", action.label(), e),
+                    };
+                    let _ = result_tx.send(outcome);
+                });
+                if let Ok(outcome) = result_rx.recv_timeout(Duration::from_secs(15)) {
+                    self.set_flash_message(outcome, "green");
+                } else {
+                    self.set_flash_message("操作超时", "red");
+                }
+            }
+            // ── 系统服务操作 ────────────────────────────
+            Action::OpenServiceOps => {
+                if self.latest_snapshot.is_some() {
+                    self.service_selected = 0;
+                    self.mode = Mode::ServiceOps;
+                } else {
+                    self.set_flash_message(
+                        "暂无服务数据，请先在 Dashboard 视图等待监控采集",
+                        "yellow",
+                    );
+                }
+            }
+            Action::CloseServiceOps => {
+                self.mode = Mode::Normal;
+                self.service_action = None;
+            }
+            Action::ServiceOpsMove(delta) => {
+                let count = self
+                    .latest_snapshot
+                    .as_ref()
+                    .map(|s| s.services.len())
+                    .unwrap_or(0);
+                if count > 0 {
+                    let len = count as isize;
+                    let next = self.service_selected as isize + delta;
+                    self.service_selected = next.rem_euclid(len) as usize;
+                }
+            }
+            Action::ServiceActionSelected(action) => {
+                self.service_action = Some(action);
+                self.mode = Mode::ServiceConfirm;
+            }
+            Action::ConfirmService(confirmed) => {
+                let pending = self.service_action.take();
+                self.mode = Mode::Normal;
+                if !confirmed {
+                    return;
+                }
+                let Some(action) = pending else { return };
+                let Some(service) = self
+                    .latest_snapshot
+                    .as_ref()
+                    .and_then(|s| s.services.get(self.service_selected))
+                    .cloned()
+                else {
+                    self.set_flash_message("服务列表已刷新，请重新选择", "yellow");
+                    return;
+                };
+                let Some(alias) = self.monitor_target.clone() else {
+                    self.set_flash_message("未在监控状态，无法执行服务操作", "red");
+                    return;
+                };
+                let Some(host) = self.hosts.iter().find(|h| h.alias == alias).cloned() else {
+                    self.set_flash_message("主机已不存在", "red");
+                    return;
+                };
+                let target = SshTarget::from_host(&host);
+                let executor =
+                    SshProcessExecutor::new(target).with_timeouts(5, Duration::from_secs(10));
+                let command = service_action_command(action, &service.name);
+                let flash = format!(
+                    "执行 systemctl {} {} ({})…",
+                    action.subcommand(),
+                    service.name,
                     alias
                 );
                 self.set_flash_message(flash, "yellow");
@@ -1015,6 +1110,18 @@ impl App {
     /// 当前监控目标别名
     pub fn monitor_target_alias(&self) -> Option<&str> {
         self.monitor_target.as_deref()
+    }
+
+    // ── 系统服务操作面板访问器（UI 层只读）───────────────
+
+    /// 服务列表当前选中索引
+    pub fn service_selected_index(&self) -> usize {
+        self.service_selected
+    }
+
+    /// 待确认的服务操作（None = 未处于确认流程）
+    pub fn service_pending_action(&self) -> Option<ServiceAction> {
+        self.service_action
     }
 
     fn set_flash_message(&mut self, message: impl Into<String>, color: impl Into<String>) {

@@ -93,6 +93,7 @@ impl MockWidget {
             WidgetId::SystemInfo => snap.system.as_ref().map(render_system).unwrap_or_default(),
             WidgetId::Process => render_processes(&snap.processes),
             WidgetId::Docker => render_docker(&snap.docker),
+            WidgetId::Services => render_services(&snap.services),
             // 尚未接入真实数据源的模块：保留 Mock 展示
             _ => self.lines.iter().map(|line| line.to_string()).collect(),
         };
@@ -150,6 +151,30 @@ fn render_system(sys: &crate::monitor::snapshot::SystemInfo) -> Vec<String> {
         format!("Host: {}", sys.hostname),
         format!("Uptime: {}s", sys.uptime_secs),
     ]
+}
+
+fn render_services(services: &[crate::monitor::services::ServiceInfo]) -> Vec<String> {
+    if services.is_empty() {
+        return vec!["systemd 不可用或无服务".to_string()];
+    }
+    let running = services.iter().filter(|s| s.is_running()).count();
+    let mut lines = vec![format!(
+        "Services: {} running / {} total",
+        running,
+        services.len()
+    )];
+    for service in services.iter().take(10) {
+        let marker = if service.is_running() { "●" } else { "○" };
+        let status = if service.active == "failed" {
+            "failed"
+        } else if service.is_running() {
+            "running"
+        } else {
+            service.sub.as_str()
+        };
+        lines.push(format!("{marker} {:<24} {:>10}", service.name, status));
+    }
+    lines
 }
 
 fn render_docker(containers: &[crate::monitor::docker::DockerContainer]) -> Vec<String> {

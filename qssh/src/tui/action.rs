@@ -1,6 +1,7 @@
 use strum::{Display, EnumString};
 
 use crate::monitor::docker::DockerAction;
+use crate::monitor::services::ServiceAction;
 use crate::tui::dashboard::WidgetId;
 
 // ── View：主界面视图 ─────────────────
@@ -87,6 +88,16 @@ pub enum Action {
     DockerActionSelected(DockerAction),
     /// 确认/取消容器操作（y/n）
     ConfirmDocker(bool),
+    /// 打开系统服务操作面板
+    OpenServiceOps,
+    /// 关闭系统服务操作面板
+    CloseServiceOps,
+    /// 服务列表移动选择
+    ServiceOpsMove(isize),
+    /// 选择服务操作类型（start / stop / restart）
+    ServiceActionSelected(ServiceAction),
+    /// 确认/取消服务操作（y/n）
+    ConfirmService(bool),
     Quit,
 }
 
@@ -133,4 +144,10 @@ pub enum Mode {
     /// Docker 危险操作确认
     #[strum(to_string = "DOCKER_CONFIRM")]
     DockerConfirm,
+    /// 系统服务操作面板
+    #[strum(to_string = "SERVICE_OPS")]
+    ServiceOps,
+    /// 服务危险操作确认
+    #[strum(to_string = "SERVICE_CONFIRM")]
+    ServiceConfirm,
 }

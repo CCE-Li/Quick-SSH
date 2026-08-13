@@ -43,6 +43,7 @@ echo "===NET==="; cat /proc/net/dev | tail -n +3;
 echo "===SYS==="; uname -sr; hostname; cat /proc/uptime | cut -d' ' -f1;
 echo "===PROC==="; ps -eo pid,comm,%cpu,rss --sort=-%cpu | head -n 10;
 echo "===DOCKER==="; docker ps -a --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.Ports}}' 2>/dev/null || true;
+echo "===SERVICES==="; systemctl list-units --type=service --all --no-pager --no-legend --plain 2>/dev/null | awk '{print $1"|"$2"|"$3"|"$4}' || true;
 "#;
 
 /// 解析 Linux 采集命令输出到快照
@@ -75,6 +76,9 @@ fn parse_linux_output(out: &ExecOutput, snap: &mut ServerSnapshot) {
     }
     if let Some(docker) = sections.get("DOCKER") {
         snap.docker = super::docker::parse_docker_ps(docker);
+    }
+    if let Some(services) = sections.get("SERVICES") {
+        snap.services = super::services::parse_systemctl(services);
     }
 }
 
@@ -265,6 +269,10 @@ web01
 ===PROC===
 1234 sshd 0.2 12288
 2345 node 1.1 245760
+===SERVICES===
+ssh.service|loaded|active|running
+cron.service|loaded|active|running
+nginx.service|loaded|inactive|dead
 "#;
         ExecOutput {
             stdout: stdout.to_string(),
@@ -284,6 +292,9 @@ web01
         assert!(snap.network.is_some());
         assert!(snap.system.is_some());
         assert_eq!(snap.processes.len(), 2);
+        assert_eq!(snap.services.len(), 3);
+        assert!(snap.services[0].is_running());
+        assert_eq!(snap.services[2].active, "inactive");
     }
 
     #[test]

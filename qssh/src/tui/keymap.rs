@@ -2,6 +2,7 @@ use crossterm::event::{KeyEvent, KeyModifiers};
 
 use super::action::{Action, Mode};
 use crate::monitor::docker::DockerAction;
+use crate::monitor::services::ServiceAction;
 use crate::tui::app::App;
 
 /// 键盘事件 → Action 映射
@@ -43,6 +44,10 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
                 KeyCode::Char('d') => match app.view {
                     crate::tui::action::View::Dashboard => Action::OpenDockerOps,
                     _ => Action::Delete,
+                },
+                KeyCode::Char('s') => match app.view {
+                    crate::tui::action::View::Dashboard => Action::OpenServiceOps,
+                    _ => Action::None,
                 },
                 KeyCode::Char('q') | KeyCode::Esc => Action::Quit,
                 KeyCode::Char('?') => Action::ShowHelp,
@@ -118,6 +123,20 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
             KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Action::ConfirmDocker(false),
             _ => Action::None,
         },
+        Mode::ServiceOps => match key.code {
+            KeyCode::Char('j') | KeyCode::Down => Action::ServiceOpsMove(1),
+            KeyCode::Char('k') | KeyCode::Up => Action::ServiceOpsMove(-1),
+            KeyCode::Char('a') => Action::ServiceActionSelected(ServiceAction::Start),
+            KeyCode::Char('s') => Action::ServiceActionSelected(ServiceAction::Stop),
+            KeyCode::Char('r') => Action::ServiceActionSelected(ServiceAction::Restart),
+            KeyCode::Char('q') | KeyCode::Esc => Action::CloseServiceOps,
+            _ => Action::None,
+        },
+        Mode::ServiceConfirm => match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => Action::ConfirmService(true),
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Action::ConfirmService(false),
+            _ => Action::None,
+        },
         _ => Action::None,
     }
 }
@@ -160,6 +179,8 @@ impl Mode {
             Mode::DashboardConfig => " DASHBOARD_CFG ",
             Mode::DockerOps => " DOCKER_OPS ",
             Mode::DockerConfirm => " DOCKER_CONFIRM ",
+            Mode::ServiceOps => " SERVICE_OPS ",
+            Mode::ServiceConfirm => " SERVICE_CONFIRM ",
         }
     }
 
@@ -183,6 +204,8 @@ impl Mode {
             }
             Mode::DockerOps => "j↓ k↑ 选择容器 | r重启 s停止 x删除 | q/Esc关闭",
             Mode::DockerConfirm => "确认危险操作？y/Y 执行，n/N/Esc 取消",
+            Mode::ServiceOps => "j↓ k↑ 选择服务 | a启动 s停止 r重启 | q/Esc关闭",
+            Mode::ServiceConfirm => "确认服务操作？y/Y 执行，n/N/Esc 取消",
         }
     }
 }
