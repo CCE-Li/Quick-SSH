@@ -92,6 +92,7 @@ impl MockWidget {
                 .unwrap_or_default(),
             WidgetId::SystemInfo => snap.system.as_ref().map(render_system).unwrap_or_default(),
             WidgetId::Process => render_processes(&snap.processes),
+            WidgetId::Docker => render_docker(&snap.docker),
             // 尚未接入真实数据源的模块：保留 Mock 展示
             _ => self.lines.iter().map(|line| line.to_string()).collect(),
         };
@@ -149,6 +150,26 @@ fn render_system(sys: &crate::monitor::snapshot::SystemInfo) -> Vec<String> {
         format!("Host: {}", sys.hostname),
         format!("Uptime: {}s", sys.uptime_secs),
     ]
+}
+
+fn render_docker(containers: &[crate::monitor::docker::DockerContainer]) -> Vec<String> {
+    if containers.is_empty() {
+        return vec!["Docker 未安装或不可用".to_string()];
+    }
+    let running = containers.iter().filter(|c| c.running).count();
+    let mut lines = vec![format!(
+        "Containers: {} running / {} total",
+        running,
+        containers.len()
+    )];
+    for container in containers.iter().take(8) {
+        let marker = if container.running { "●" } else { "○" };
+        lines.push(format!(
+            "{marker} {:<16} {:>12}  {}",
+            container.name, container.status, container.image
+        ));
+    }
+    lines
 }
 
 fn render_processes(processes: &[crate::monitor::snapshot::ProcessInfo]) -> Vec<String> {

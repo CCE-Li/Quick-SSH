@@ -1,5 +1,6 @@
 use strum::{Display, EnumString};
 
+use crate::monitor::docker::DockerAction;
 use crate::tui::dashboard::WidgetId;
 
 // ── View：主界面视图 ─────────────────
@@ -76,6 +77,16 @@ pub enum Action {
     ToggleDashboardModule(WidgetId),
     /// 保存 Dashboard 配置并关闭弹窗
     SaveDashboardConfig,
+    /// 打开 Docker 容器操作面板
+    OpenDockerOps,
+    /// 关闭 Docker 容器操作面板
+    CloseDockerOps,
+    /// Docker 容器列表移动选择
+    DockerOpsMove(isize),
+    /// 选择容器操作类型（restart / stop / delete）
+    DockerActionSelected(DockerAction),
+    /// 确认/取消容器操作（y/n）
+    ConfirmDocker(bool),
     Quit,
 }
 
@@ -116,4 +127,10 @@ pub enum Mode {
     /// Dashboard 模块配置弹窗
     #[strum(to_string = "DASHBOARD_CFG")]
     DashboardConfig,
+    /// Docker 容器操作面板
+    #[strum(to_string = "DOCKER_OPS")]
+    DockerOps,
+    /// Docker 危险操作确认
+    #[strum(to_string = "DOCKER_CONFIRM")]
+    DockerConfirm,
 }

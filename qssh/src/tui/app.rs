@@ -9,7 +9,10 @@ use ratatui::widgets::ListState;
 
 use crate::config::credentials;
 use crate::config::types::{HostBlock, SshConfig};
+use crate::monitor::docker::{container_action_command, DockerAction};
+use crate::monitor::executor::RemoteExecutor;
 use crate::monitor::scheduler::{BackgroundEvent, MonitorScheduler};
+use crate::monitor::snapshot::ServerSnapshot;
 use crate::monitor::{Collector, SshProcessExecutor};
 use crate::ssh::session::SshTarget;
 use crate::tui::action::{Action, Mode, View};
@@ -94,6 +97,12 @@ pub struct App {
     monitor_rx: Receiver<BackgroundEvent>,
     /// 当前正在监控的主机别名（None = 未监控）
     monitor_target: Option<String>,
+    /// 最近一次监控快照（Docker 操作面板使用）
+    latest_snapshot: Option<ServerSnapshot>,
+    /// Docker 容器列表选中索引
+    docker_selected: usize,
+    /// 待确认的 Docker 操作（None = 未处于确认流程）
+    docker_action: Option<DockerAction>,
     /// 已保存密码的主机别名
     pub remembered_password_aliases: HashSet<String>,
     /// 是否运行中
@@ -138,6 +147,9 @@ impl App {
             monitor_scheduler,
             monitor_rx,
             monitor_target: None,
+            latest_snapshot: None,
+            docker_selected: 0,
+            docker_action: None,
             remembered_password_aliases,
             running: true,
             show_address: false,
@@ -258,6 +270,7 @@ impl App {
                 for widget in &mut self.dashboard_widgets {
                     widget.set_snapshot(Some(&snapshot));
                 }
+                self.latest_snapshot = Some(snapshot.clone());
                 if snapshot.warnings.is_empty() {
                     return;
                 }
@@ -357,6 +370,95 @@ impl App {
             Action::SaveDashboardConfig => {
                 self.mode = Mode::Normal;
                 self.save_dashboard();
+            }
+            // ── Docker 容器操作 ──────────────────────────
+            Action::OpenDockerOps => {
+                if self.latest_snapshot.is_some() {
+                    self.docker_selected = 0;
+                    self.mode = Mode::DockerOps;
+                } else {
+                    self.set_flash_message(
+                        "暂无容器数据，请先在 Dashboard 视图等待监控采集",
+                        "yellow",
+                    );
+                }
+            }
+            Action::CloseDockerOps => {
+                self.mode = Mode::Normal;
+                self.docker_action = None;
+            }
+            Action::DockerOpsMove(delta) => {
+                let count = self
+                    .latest_snapshot
+                    .as_ref()
+                    .map(|s| s.docker.len())
+                    .unwrap_or(0);
+                if count > 0 {
+                    let len = count as isize;
+                    let next = self.docker_selected as isize + delta;
+                    self.docker_selected = next.rem_euclid(len) as usize;
+                }
+            }
+            Action::DockerActionSelected(action) => {
+                self.docker_action = Some(action);
+                self.mode = Mode::DockerConfirm;
+            }
+            Action::ConfirmDocker(confirmed) => {
+                let pending = self.docker_action.take();
+                self.mode = Mode::Normal;
+                if !confirmed {
+                    return;
+                }
+                let Some(action) = pending else { return };
+                let Some(container) = self
+                    .latest_snapshot
+                    .as_ref()
+                    .and_then(|s| s.docker.get(self.docker_selected))
+                    .cloned()
+                else {
+                    self.set_flash_message("容器列表已刷新，请重新选择", "yellow");
+                    return;
+                };
+                // 复用当前监控目标的执行器执行危险操作
+                let Some(alias) = self.monitor_target.clone() else {
+                    self.set_flash_message("未在监控状态，无法执行容器操作", "red");
+                    return;
+                };
+                let Some(host) = self.hosts.iter().find(|h| h.alias == alias).cloned() else {
+                    self.set_flash_message("主机已不存在", "red");
+                    return;
+                };
+                let target = SshTarget::from_host(&host);
+                let executor =
+                    SshProcessExecutor::new(target).with_timeouts(5, Duration::from_secs(10));
+                let command = container_action_command(action, &container.id);
+                let flash = format!(
+                    "执行 docker {} {} ({})…",
+                    action.subcommand(),
+                    container.name,
+                    alias
+                );
+                self.set_flash_message(flash, "yellow");
+                let (result_tx, result_rx) = mpsc::channel();
+                let _ = thread::spawn(move || {
+                    let outcome = match executor.exec(&command) {
+                        Ok(out) if out.exit_code == Some(0) => {
+                            format!("{} 成功", action.label())
+                        }
+                        Ok(out) => format!(
+                            "{} 失败: {}",
+                            action.label(),
+                            out.stderr.trim_end().lines().next().unwrap_or("未知错误")
+                        ),
+                        Err(e) => format!("{} 失败: {}", action.label(), e),
+                    };
+                    let _ = result_tx.send(outcome);
+                });
+                if let Ok(outcome) = result_rx.recv_timeout(Duration::from_secs(15)) {
+                    self.set_flash_message(outcome, "green");
+                } else {
+                    self.set_flash_message("操作超时", "red");
+                }
             }
             // ── 命令面板 ─────────────────────────────────
             Action::OpenPalette => {
@@ -891,6 +993,28 @@ impl App {
 
     fn host_exists(&self, alias: &str) -> bool {
         self.hosts.iter().any(|host| host.alias == alias)
+    }
+
+    // ── Docker 操作面板访问器（UI 层只读）─────────────────
+
+    /// 最近一次监控快照（含容器列表）
+    pub fn docker_snapshot(&self) -> Option<&ServerSnapshot> {
+        self.latest_snapshot.as_ref()
+    }
+
+    /// 容器列表当前选中索引
+    pub fn docker_selected_index(&self) -> usize {
+        self.docker_selected
+    }
+
+    /// 待确认的 Docker 操作（None = 未处于确认流程）
+    pub fn docker_pending_action(&self) -> Option<DockerAction> {
+        self.docker_action
+    }
+
+    /// 当前监控目标别名
+    pub fn monitor_target_alias(&self) -> Option<&str> {
+        self.monitor_target.as_deref()
     }
 
     fn set_flash_message(&mut self, message: impl Into<String>, color: impl Into<String>) {

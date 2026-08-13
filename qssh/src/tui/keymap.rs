@@ -1,6 +1,7 @@
 use crossterm::event::{KeyEvent, KeyModifiers};
 
 use super::action::{Action, Mode};
+use crate::monitor::docker::DockerAction;
 use crate::tui::app::App;
 
 /// 键盘事件 → Action 映射
@@ -25,7 +26,6 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
                 KeyCode::Char('G') => Action::MoveBottom,
                 KeyCode::Enter => Action::Connect,
                 KeyCode::Char(' ') => Action::ToggleSelect,
-                KeyCode::Char('d') => Action::Delete,
                 KeyCode::Char('e') => Action::StartEdit,
                 KeyCode::Char('a') => Action::StartAdd,
                 KeyCode::Char('p') => Action::Ping,
@@ -39,6 +39,10 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
                 KeyCode::Char('c') => match app.view {
                     crate::tui::action::View::Dashboard => Action::EditDashboard,
                     _ => Action::None,
+                },
+                KeyCode::Char('d') => match app.view {
+                    crate::tui::action::View::Dashboard => Action::OpenDockerOps,
+                    _ => Action::Delete,
                 },
                 KeyCode::Char('q') | KeyCode::Esc => Action::Quit,
                 KeyCode::Char('?') => Action::ShowHelp,
@@ -100,6 +104,20 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
             }
             _ => Action::None,
         },
+        Mode::DockerOps => match key.code {
+            KeyCode::Char('j') | KeyCode::Down => Action::DockerOpsMove(1),
+            KeyCode::Char('k') | KeyCode::Up => Action::DockerOpsMove(-1),
+            KeyCode::Char('r') => Action::DockerActionSelected(DockerAction::Restart),
+            KeyCode::Char('s') => Action::DockerActionSelected(DockerAction::Stop),
+            KeyCode::Char('x') => Action::DockerActionSelected(DockerAction::Delete),
+            KeyCode::Char('q') | KeyCode::Esc => Action::CloseDockerOps,
+            _ => Action::None,
+        },
+        Mode::DockerConfirm => match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => Action::ConfirmDocker(true),
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Action::ConfirmDocker(false),
+            _ => Action::None,
+        },
         _ => Action::None,
     }
 }
@@ -140,6 +158,8 @@ impl Mode {
             Mode::Help => " HELP ",
             Mode::Palette => " PALETTE ",
             Mode::DashboardConfig => " DASHBOARD_CFG ",
+            Mode::DockerOps => " DOCKER_OPS ",
+            Mode::DockerConfirm => " DOCKER_CONFIRM ",
         }
     }
 
@@ -161,6 +181,8 @@ impl Mode {
             Mode::DashboardConfig => {
                 "1CPU 2内存 3磁盘 4网络 5Docker 6进程 7服务 8文件 9日志 0系统 aAgent | s保存 q/Esc关闭"
             }
+            Mode::DockerOps => "j↓ k↑ 选择容器 | r重启 s停止 x删除 | q/Esc关闭",
+            Mode::DockerConfirm => "确认危险操作？y/Y 执行，n/N/Esc 取消",
         }
     }
 }

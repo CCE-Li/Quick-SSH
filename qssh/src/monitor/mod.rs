@@ -8,6 +8,7 @@
 //! - [`platform`]：Linux 采集命令层 + 输出解析
 //! - [`scheduler`]：后台调度器，事件经 mpsc 通道投递到 UI
 
+pub mod docker;
 pub mod executor;
 pub mod platform;
 pub mod scheduler;
@@ -15,6 +16,8 @@ pub mod snapshot;
 
 // 统一对外 re-export：当前为 bin crate，部分 API 尚未被 UI 消费，
 // 保留公共 API 便于 Phase 2.4 集成与后续拆 crate。
+#[allow(unused_imports)]
+pub use docker::{collect_containers, container_action_command, DockerContainer};
 #[allow(unused_imports)]
 pub use executor::{ExecError, ExecOutput, RemoteExecutor, SshProcessExecutor};
 #[allow(unused_imports)]

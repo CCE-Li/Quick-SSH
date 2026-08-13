@@ -42,6 +42,7 @@ echo "===DISK==="; df -B1 --output=target,used,size | tail -n +2;
 echo "===NET==="; cat /proc/net/dev | tail -n +3;
 echo "===SYS==="; uname -sr; hostname; cat /proc/uptime | cut -d' ' -f1;
 echo "===PROC==="; ps -eo pid,comm,%cpu,rss --sort=-%cpu | head -n 10;
+echo "===DOCKER==="; docker ps -a --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.Ports}}' 2>/dev/null || true;
 "#;
 
 /// 解析 Linux 采集命令输出到快照
@@ -71,6 +72,9 @@ fn parse_linux_output(out: &ExecOutput, snap: &mut ServerSnapshot) {
     }
     if let Some(proc) = sections.get("PROC") {
         snap.processes = parse_processes(proc);
+    }
+    if let Some(docker) = sections.get("DOCKER") {
+        snap.docker = super::docker::parse_docker_ps(docker);
     }
 }
 
