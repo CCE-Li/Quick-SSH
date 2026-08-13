@@ -13,6 +13,7 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
                 match key.code {
                     KeyCode::Char('p' | 'P') => return Action::MoveUp,
                     KeyCode::Char('n' | 'N') => return Action::MoveDown,
+                    KeyCode::Char('k' | 'K') => return Action::OpenPalette,
                     _ => {}
                 }
             }
@@ -31,11 +32,36 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
                 KeyCode::Char('P') => Action::PingAll,
                 KeyCode::Char('/') => Action::StartSearch,
                 KeyCode::Char('.') => Action::ToggleAddress,
+                KeyCode::Char('b') => match app.view {
+                    crate::tui::action::View::HostList => Action::ShowDashboard,
+                    crate::tui::action::View::Dashboard => Action::ShowHostList,
+                },
+                KeyCode::Char('c') => match app.view {
+                    crate::tui::action::View::Dashboard => Action::EditDashboard,
+                    _ => Action::None,
+                },
                 KeyCode::Char('q') | KeyCode::Esc => Action::Quit,
                 KeyCode::Char('?') => Action::ShowHelp,
                 _ => Action::None,
             }
         }
+        Mode::Palette => match key.code {
+            KeyCode::Esc => Action::ClosePalette,
+            KeyCode::Enter => Action::PaletteSelect,
+            KeyCode::Up => Action::PaletteMove(-1),
+            KeyCode::Down => Action::PaletteMove(1),
+            KeyCode::Backspace => {
+                let mut s = app.palette_query.clone();
+                s.pop();
+                Action::PaletteInput(s)
+            }
+            KeyCode::Char(c) => {
+                let mut s = app.palette_query.clone();
+                s.push(c);
+                Action::PaletteInput(s)
+            }
+            _ => Action::None,
+        },
         Mode::Search => match key.code {
             KeyCode::Esc => Action::CancelSearch,
             KeyCode::Enter => Action::SearchSubmit,
@@ -62,7 +88,38 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
             KeyCode::Char('q') | KeyCode::Esc => Action::HideHelp,
             _ => Action::None,
         },
+        Mode::DashboardConfig => match key.code {
+            KeyCode::Char('q') | KeyCode::Esc => Action::CloseDashboardConfig,
+            KeyCode::Char('s') | KeyCode::Char('S') | KeyCode::Enter => Action::SaveDashboardConfig,
+            KeyCode::Char(c) => {
+                if let Some(id) = module_key(c) {
+                    Action::ToggleDashboardModule(id)
+                } else {
+                    Action::None
+                }
+            }
+            _ => Action::None,
+        },
         _ => Action::None,
+    }
+}
+
+/// DashboardConfig 模式下 1-9/0 数字键 → 模块映射
+fn module_key(c: char) -> Option<crate::tui::dashboard::WidgetId> {
+    use crate::tui::dashboard::WidgetId;
+    match c {
+        '1' => Some(WidgetId::Cpu),
+        '2' => Some(WidgetId::Memory),
+        '3' => Some(WidgetId::Disk),
+        '4' => Some(WidgetId::Network),
+        '5' => Some(WidgetId::Docker),
+        '6' => Some(WidgetId::Process),
+        '7' => Some(WidgetId::Services),
+        '8' => Some(WidgetId::Files),
+        '9' => Some(WidgetId::Logs),
+        '0' => Some(WidgetId::SystemInfo),
+        'a' | 'A' => Some(WidgetId::Agent),
+        _ => None,
     }
 }
 
@@ -81,6 +138,8 @@ impl Mode {
             Mode::Import => " IMPORT ",
             Mode::Confirm => " CONFIRM ",
             Mode::Help => " HELP ",
+            Mode::Palette => " PALETTE ",
+            Mode::DashboardConfig => " DASHBOARD_CFG ",
         }
     }
 
@@ -88,7 +147,7 @@ impl Mode {
     pub fn hint(&self) -> &str {
         match self {
             Mode::Normal => {
-                "j↓ k↑ Ctrl+N↓ Ctrl+P↑ gg↕ G↕ /搜索 a添加 e编辑 d删除 p检测 P全检 Enter连接 空格标记 .地址 q退出 ?帮助"
+                "j↓ k↑ Ctrl+N↓ Ctrl+P↑ gg↕ G↕ /搜索 a添加 e编辑 d删除 p检测 P全检 b监控 Ctrl+K面板 Enter连接 空格标记 .地址 q退出 ?帮助"
             }
             Mode::Search => "输入搜索关键词，Enter 确认，Esc 取消",
             Mode::Add => "字段添加弹窗: Tab 切换字段，Enter 下一项，Ctrl+S 保存，Esc 取消",
@@ -98,6 +157,10 @@ impl Mode {
             Mode::Import => "输入导入文件路径，Enter 确认，Esc 取消",
             Mode::Confirm => "确认删除？y/Y 确认，n/N/Esc 取消",
             Mode::Help => "按 q/Esc 关闭帮助",
+            Mode::Palette => "输入命令关键字，↑/↓ 选择，Enter 执行，Esc 关闭",
+            Mode::DashboardConfig => {
+                "1CPU 2内存 3磁盘 4网络 5Docker 6进程 7服务 8文件 9日志 0系统 aAgent | s保存 q/Esc关闭"
+            }
         }
     }
 }

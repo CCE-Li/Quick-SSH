@@ -1,5 +1,17 @@
 use strum::{Display, EnumString};
 
+use crate::tui::dashboard::WidgetId;
+
+// ── View：主界面视图 ─────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum View {
+    /// 主机列表（原有界面）
+    HostList,
+    /// Dashboard 监控面板
+    Dashboard,
+}
+
 // ── Action：用户意图 ─────────────────
 
 #[derive(Debug, Clone)]
@@ -42,6 +54,28 @@ pub enum Action {
     PingAll,
     ShowHelp,
     HideHelp,
+    /// 切换到 Dashboard 视图
+    ShowDashboard,
+    /// 切换回主机列表视图
+    ShowHostList,
+    /// 打开 Dashboard 配置弹窗（Phase 1.6 实现）
+    EditDashboard,
+    /// 打开命令面板（Ctrl+K）
+    OpenPalette,
+    /// 关闭命令面板
+    ClosePalette,
+    /// 命令面板输入
+    PaletteInput(String),
+    /// 命令面板移动选择（正数向下，负数向上）
+    PaletteMove(isize),
+    /// 命令面板执行当前选中项
+    PaletteSelect,
+    /// 关闭 Dashboard 配置弹窗
+    CloseDashboardConfig,
+    /// 切换 Dashboard 模块勾选状态
+    ToggleDashboardModule(WidgetId),
+    /// 保存 Dashboard 配置并关闭弹窗
+    SaveDashboardConfig,
     Quit,
 }
 
@@ -76,4 +110,10 @@ pub enum Mode {
     /// 帮助页面
     #[strum(to_string = "HELP")]
     Help,
+    /// 命令面板（Ctrl+K 呼出）
+    #[strum(to_string = "PALETTE")]
+    Palette,
+    /// Dashboard 模块配置弹窗
+    #[strum(to_string = "DASHBOARD_CFG")]
+    DashboardConfig,
 }

@@ -9,7 +9,10 @@ use ratatui::widgets::ListState;
 
 use crate::config::credentials;
 use crate::config::types::{HostBlock, SshConfig};
-use crate::tui::action::{Action, Mode};
+use crate::tui::action::{Action, Mode, View};
+use crate::tui::dashboard::palette::{filter_palette, PaletteAction, PALETTE_ACTIONS};
+use crate::tui::dashboard::widgets::WidgetModule;
+use crate::tui::dashboard::{load_dashboard_config, save_dashboard_config, DashboardConfig};
 use crate::tui::editor::{
     EditorOutcome, HostFormMode, HostFormState, HostFormSubmission, PasswordStorageAction,
 };
@@ -55,6 +58,8 @@ pub struct App {
     pub scroll_offset: usize,
     /// 当前模式
     pub mode: Mode,
+    /// 当前视图（主机列表 / Dashboard）
+    pub view: View,
     /// 输入缓存
     pub input_buffer: String,
     /// 搜索结果过滤
@@ -69,6 +74,14 @@ pub struct App {
     pub flash_message: Option<FlashMessage>,
     /// 新增 / 编辑表单弹窗状态
     pub host_form: Option<HostFormState>,
+    /// Dashboard 配置（多 Profile）
+    pub dashboard_config: DashboardConfig,
+    /// Dashboard 当前渲染的 Widget 实例
+    pub dashboard_widgets: Vec<Box<dyn WidgetModule>>,
+    /// 命令面板输入
+    pub palette_query: String,
+    /// 命令面板选中项索引
+    pub palette_selected: usize,
     /// 后台检测结果通道
     ping_rx: Receiver<PingEvent>,
     ping_tx: Sender<PingEvent>,
@@ -89,6 +102,8 @@ impl App {
             list_state.select(Some(0));
         }
         let remembered_password_aliases = load_saved_password_aliases(&hosts);
+        let dashboard_config = load_dashboard_config();
+        let dashboard_widgets = Self::build_widgets(&dashboard_config);
         Self {
             hosts,
             preamble: config.preamble,
@@ -96,6 +111,7 @@ impl App {
             list_state,
             scroll_offset: 0,
             mode: Mode::Normal,
+            view: View::HostList,
             input_buffer: String::new(),
             search_keyword: String::new(),
             marked: Vec::new(),
@@ -103,11 +119,41 @@ impl App {
             pending_pings: HashSet::new(),
             flash_message: None,
             host_form: None,
+            dashboard_config,
+            dashboard_widgets,
+            palette_query: String::new(),
+            palette_selected: 0,
             ping_rx,
             ping_tx,
             remembered_password_aliases,
             running: true,
             show_address: false,
+        }
+    }
+
+    /// 根据配置的活动 Profile 重建 Widget 实例（Mock 数据）
+    fn build_widgets(config: &DashboardConfig) -> Vec<Box<dyn WidgetModule>> {
+        let profile = config
+            .profiles
+            .get(&config.active_profile)
+            .map(|profile| &profile.enabled)
+            .cloned()
+            .unwrap_or_default();
+        profile
+            .into_iter()
+            .map(|id| {
+                Box::new(crate::tui::dashboard::widgets::mock_widget(id)) as Box<dyn WidgetModule>
+            })
+            .collect()
+    }
+
+    /// 保存 Dashboard 配置到磁盘
+    pub fn save_dashboard(&mut self) {
+        if let Err(e) = save_dashboard_config(&self.dashboard_config) {
+            self.set_flash_message(format!("Dashboard 配置保存失败: {}", e), "red");
+        } else {
+            self.dashboard_widgets = Self::build_widgets(&self.dashboard_config);
+            self.set_flash_message("Dashboard 配置已保存", "green");
         }
     }
 
@@ -201,6 +247,95 @@ impl App {
             Action::ShowHelp => self.mode = Mode::Help,
             Action::HideHelp | Action::CancelSearch => {
                 self.mode = Mode::Normal;
+            }
+            // ── Dashboard 视图切换 ────────────────────────
+            Action::ShowDashboard => {
+                self.view = View::Dashboard;
+                self.mode = Mode::Normal;
+            }
+            Action::ShowHostList => {
+                self.view = View::HostList;
+                self.mode = Mode::Normal;
+            }
+            Action::EditDashboard => {
+                self.mode = Mode::DashboardConfig;
+            }
+            // ── Dashboard 配置弹窗 ────────────────────────
+            Action::CloseDashboardConfig => {
+                self.mode = Mode::Normal;
+            }
+            Action::ToggleDashboardModule(id) => {
+                if let Some(profile) = self
+                    .dashboard_config
+                    .profiles
+                    .get_mut(&self.dashboard_config.active_profile)
+                {
+                    if let Some(pos) = profile.enabled.iter().position(|w| *w == id) {
+                        profile.enabled.remove(pos);
+                    } else {
+                        profile.enabled.push(id);
+                    }
+                    profile.layout = crate::tui::dashboard::default_layout_for(&profile.enabled);
+                }
+            }
+            Action::SaveDashboardConfig => {
+                self.mode = Mode::Normal;
+                self.save_dashboard();
+            }
+            // ── 命令面板 ─────────────────────────────────
+            Action::OpenPalette => {
+                self.mode = Mode::Palette;
+                self.palette_query.clear();
+                self.palette_selected = 0;
+            }
+            Action::ClosePalette => {
+                self.mode = Mode::Normal;
+            }
+            Action::PaletteInput(query) => {
+                self.palette_query = query;
+                self.palette_selected = 0;
+            }
+            Action::PaletteMove(delta) => {
+                let count = filter_palette(PALETTE_ACTIONS, &self.palette_query).len();
+                if count > 0 {
+                    let len = count as isize;
+                    let next = self.palette_selected as isize + delta;
+                    self.palette_selected = next.rem_euclid(len) as usize;
+                }
+            }
+            Action::PaletteSelect => {
+                let items = filter_palette(PALETTE_ACTIONS, &self.palette_query);
+                if let Some(item) =
+                    items.get(self.palette_selected.min(items.len().saturating_sub(1)))
+                {
+                    self.mode = Mode::Normal;
+                    match item.action {
+                        PaletteAction::ShowDashboard => {
+                            self.view = View::Dashboard;
+                        }
+                        PaletteAction::ShowHostList => {
+                            self.view = View::HostList;
+                        }
+                        PaletteAction::EditDashboard => {
+                            self.mode = Mode::DashboardConfig;
+                        }
+                        PaletteAction::RefreshAll => {
+                            self.start_ping_all();
+                        }
+                        PaletteAction::AddHost => {
+                            self.mode = Mode::Add;
+                            self.host_form = Some(HostFormState::new_add());
+                            self.flash_message = None;
+                        }
+                        PaletteAction::SearchHost => {
+                            self.mode = Mode::Search;
+                            self.input_buffer.clear();
+                        }
+                        PaletteAction::Quit => {
+                            self.running = false;
+                        }
+                    }
+                }
             }
             Action::StartSearch => {
                 self.mode = Mode::Search;

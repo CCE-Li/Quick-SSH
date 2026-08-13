@@ -1,5 +1,6 @@
 pub mod action;
 pub mod app;
+pub mod dashboard;
 pub mod editor;
 pub mod event;
 pub mod keymap;

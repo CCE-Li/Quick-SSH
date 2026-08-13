@@ -4,7 +4,9 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
 use ratatui::Frame;
 
+use crate::tui::action::Mode;
 use crate::tui::app::App;
+use crate::tui::dashboard::ui::render_palette_popup;
 use crate::tui::widgets::render_host_form_popup;
 
 /// 渲染主界面
@@ -21,18 +23,89 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         .split(area);
 
     render_header(frame, chunks[0], app);
-    render_body(frame, chunks[1], app);
+    match app.view {
+        crate::tui::action::View::HostList => render_body(frame, chunks[1], app),
+        crate::tui::action::View::Dashboard => {
+            render_dashboard_body(frame, chunks[1], app);
+        }
+    }
     render_status_bar(frame, chunks[2], app);
 
     match app.mode {
-        crate::tui::action::Mode::Add | crate::tui::action::Mode::Edit => {
+        Mode::Add | Mode::Edit => {
             render_host_form_popup(frame, area, app);
         }
-        crate::tui::action::Mode::Help => {
+        Mode::Help => {
             crate::tui::widgets::render_help_popup(frame, area);
+        }
+        Mode::Palette => {
+            render_palette_popup(frame, &app.palette_query, app.palette_selected);
+        }
+        Mode::DashboardConfig => {
+            render_dashboard_config_popup(frame, area, app);
         }
         _ => {}
     }
+}
+
+/// Dashboard 主体：按活动 Profile 布局渲染各 Widget
+fn render_dashboard_body(frame: &mut Frame, area: Rect, app: &mut App) {
+    let Some(profile) = app
+        .dashboard_config
+        .profiles
+        .get(&app.dashboard_config.active_profile)
+    else {
+        return;
+    };
+    crate::tui::dashboard::ui::render_dashboard(frame, area, profile, &app.dashboard_widgets);
+}
+
+/// Dashboard 配置弹窗：勾选模块（Phase 1.6）
+fn render_dashboard_config_popup(frame: &mut Frame, area: Rect, app: &App) {
+    use crate::tui::widgets::centered_rect;
+
+    let popup = centered_rect(60, 70, area);
+    frame.render_widget(ratatui::widgets::Clear, popup);
+
+    let enabled = app
+        .dashboard_config
+        .profiles
+        .get(&app.dashboard_config.active_profile)
+        .map(|profile| &profile.enabled)
+        .cloned()
+        .unwrap_or_default();
+
+    let mut lines: Vec<Line> = Vec::new();
+    let active_profile = &app.dashboard_config.active_profile;
+    lines.push(Line::from(format!(
+        "  Profile: {}  (q/Esc 关闭，s 保存)",
+        active_profile
+    )));
+    lines.push(Line::from(""));
+
+    for (idx, id) in crate::tui::dashboard::ALL_WIDGETS.iter().enumerate() {
+        let checked = enabled.contains(id);
+        let marker = if checked { "[x]" } else { "[ ]" };
+        let key = match idx {
+            0..=8 => format!("{}", idx + 1),
+            9 => "0".to_string(),
+            _ => "a".to_string(),
+        };
+        let mut span = Span::raw(format!("  {} {}  {}", key, marker, id.title()));
+        if checked {
+            span = Span::styled(
+                format!("  {} {}  {}", key, marker, id.title()),
+                Style::default().fg(Color::Green),
+            );
+        }
+        lines.push(Line::from(span));
+    }
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Dashboard Configuration ");
+    let paragraph = Paragraph::new(lines).block(block);
+    frame.render_widget(paragraph, popup);
 }
 
 fn render_header(frame: &mut Frame, area: Rect, app: &App) {
