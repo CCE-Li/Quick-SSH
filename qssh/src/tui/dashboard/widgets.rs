@@ -17,14 +17,17 @@ pub trait WidgetModule {
     fn id(&self) -> WidgetId;
     /// 模块标题（默认取 [`WidgetId::title`]）
     fn title(&self) -> &'static str;
+    /// 注入最新一次采集的监控快照（无数据时传 `None`）
+    fn set_snapshot(&mut self, snapshot: Option<&crate::monitor::snapshot::ServerSnapshot>);
     /// 渲染到给定屏幕区域
     fn render(&self, area: Rect, buf: &mut Buffer);
 }
 
-/// Mock 数据 Widget：Phase 1 用于展示 Dashboard 布局骨架
+/// Widget：优先消费真实监控快照，缺失时回退到 Mock 数据
 pub struct MockWidget {
     id: WidgetId,
     lines: Vec<&'static str>,
+    snapshot: Option<crate::monitor::snapshot::ServerSnapshot>,
 }
 
 impl MockWidget {
@@ -32,6 +35,7 @@ impl MockWidget {
         Self {
             id,
             lines: mock_lines(id),
+            snapshot: None,
         }
     }
 }
@@ -45,12 +49,118 @@ impl WidgetModule for MockWidget {
         self.id.title()
     }
 
+    fn set_snapshot(&mut self, snapshot: Option<&crate::monitor::snapshot::ServerSnapshot>) {
+        self.snapshot = snapshot.cloned();
+    }
+
     fn render(&self, area: Rect, buf: &mut Buffer) {
         let block = Block::default().borders(Borders::ALL).title(self.title());
-        let lines: Vec<Line> = self.lines.iter().map(|line| Line::from(*line)).collect();
+        let lines = self.render_lines();
         let paragraph = Paragraph::new(lines).wrap(Wrap { trim: true }).block(block);
         paragraph.render(area, buf);
     }
+}
+
+impl MockWidget {
+    /// 根据 WidgetId 选择真实数据渲染；无数据或非监控指标时回退到 Mock
+    fn render_lines(&self) -> Vec<Line<'static>> {
+        let Some(snap) = &self.snapshot else {
+            return self.lines.iter().map(|line| Line::from(*line)).collect();
+        };
+        // 致命错误：所有 Widget 统一显示错误原因，便于定位问题
+        if snap.has_fatal_error() && !snap.warnings.is_empty() {
+            return snap
+                .warnings
+                .iter()
+                .map(|w| Line::from(w.clone()))
+                .collect();
+        }
+        let lines: Vec<String> = match self.id {
+            WidgetId::Cpu => snap.cpu.as_ref().map(render_cpu).unwrap_or_default(),
+            WidgetId::Memory => snap.memory.as_ref().map(render_memory).unwrap_or_default(),
+            WidgetId::Disk => {
+                if snap.disks.is_empty() {
+                    snap.warnings.clone()
+                } else {
+                    render_disks(&snap.disks)
+                }
+            }
+            WidgetId::Network => snap
+                .network
+                .as_ref()
+                .map(render_network)
+                .unwrap_or_default(),
+            WidgetId::SystemInfo => snap.system.as_ref().map(render_system).unwrap_or_default(),
+            WidgetId::Process => render_processes(&snap.processes),
+            // 尚未接入真实数据源的模块：保留 Mock 展示
+            _ => self.lines.iter().map(|line| line.to_string()).collect(),
+        };
+        if lines.is_empty() {
+            return vec![Line::from("暂无数据")];
+        }
+        lines.into_iter().map(Line::from).collect()
+    }
+}
+
+fn render_cpu(cpu: &crate::monitor::snapshot::CpuInfo) -> Vec<String> {
+    let load = format!(
+        "Load: {:.2} / {:.2} / {:.2}",
+        cpu.load.0, cpu.load.1, cpu.load.2
+    );
+    vec![
+        format!("Usage: {:.1}%", cpu.usage_percent),
+        load,
+        format!("Cores: {} @ {:.2} GHz", cpu.cores, cpu.freq_ghz),
+    ]
+}
+
+fn render_memory(mem: &crate::monitor::snapshot::MemoryInfo) -> Vec<String> {
+    vec![
+        format!("Total: {:.1} GB", mem.total_gb),
+        format!("Used: {:.1} GB ({:.0}%)", mem.used_gb, mem.usage_percent),
+        format!("Free: {:.1} GB", mem.total_gb - mem.used_gb),
+    ]
+}
+
+fn render_disks(disks: &[crate::monitor::snapshot::DiskInfo]) -> Vec<String> {
+    disks
+        .iter()
+        .map(|disk| {
+            format!(
+                "{:<12} {:>7.1} GB / {:>7.1} GB ({:.0}%)",
+                disk.mount, disk.used_gb, disk.total_gb, disk.usage_percent
+            )
+        })
+        .collect()
+}
+
+fn render_network(net: &crate::monitor::snapshot::NetworkInfo) -> Vec<String> {
+    let ip = net.ip.clone().unwrap_or_else(|| "未知".to_string());
+    vec![
+        format!("RX: {:.2} MB/s", net.rx_mbps),
+        format!("TX: {:.2} MB/s", net.tx_mbps),
+        format!("IP: {}", ip),
+    ]
+}
+
+fn render_system(sys: &crate::monitor::snapshot::SystemInfo) -> Vec<String> {
+    vec![
+        format!("OS: {}", sys.os),
+        format!("Host: {}", sys.hostname),
+        format!("Uptime: {}s", sys.uptime_secs),
+    ]
+}
+
+fn render_processes(processes: &[crate::monitor::snapshot::ProcessInfo]) -> Vec<String> {
+    processes
+        .iter()
+        .map(|proc| {
+            format!(
+                "{:<16} {:>7} {:>6.1}% {:>8.1} MB",
+                proc.name, proc.pid, proc.cpu_percent, proc.mem_mb
+            )
+        })
+        .collect()
 }
 
 /// 生成指定模块的 Mock Widget（用于布局预览）
@@ -116,5 +226,42 @@ mod tests {
             let widget = mock_widget(id);
             assert!(!widget.lines.is_empty(), "missing mock lines for {id:?}");
         }
+    }
+
+    #[test]
+    fn cpu_widget_renders_real_snapshot_data() {
+        let mut widget = mock_widget(WidgetId::Cpu);
+        let mut snap = crate::monitor::snapshot::ServerSnapshot::new("srv");
+        snap.cpu = Some(crate::monitor::snapshot::CpuInfo {
+            usage_percent: 42.5,
+            load: (1.0, 0.8, 0.6),
+            cores: 4,
+            freq_ghz: 2.4,
+        });
+        widget.set_snapshot(Some(&snap));
+        let lines = widget.render_lines();
+        let text: String = lines
+            .iter()
+            .map(|line| line.to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(text.contains("42.5%"), "text: {text}");
+        assert!(text.contains("1.00 / 0.80 / 0.60"), "text: {text}");
+        assert!(text.contains("4 @ 2.40 GHz"), "text: {text}");
+    }
+
+    #[test]
+    fn widget_shows_warning_on_fatal_snapshot() {
+        let mut widget = mock_widget(WidgetId::Memory);
+        let mut snap = crate::monitor::snapshot::ServerSnapshot::new("srv");
+        snap.warnings = vec!["连接超时".to_string()];
+        widget.set_snapshot(Some(&snap));
+        let lines = widget.render_lines();
+        let text: String = lines
+            .iter()
+            .map(|line| line.to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(text.contains("连接超时"), "text: {text}");
     }
 }

@@ -1,0 +1,27 @@
+//! 服务器监控：远程执行抽象 + 数据模型 + 采集调度
+//!
+//! Phase 2 目标：Dashboard 显示真实监控数据，UI 永不因 SSH 阻塞。
+//!
+//! 模块划分（内部模块化，后续可抽为 `qssh-core` crate）：
+//! - [`executor`]：RemoteExecutor trait + SshProcessExecutor（系统 ssh）
+//! - [`snapshot`]：ServerSnapshot 数据模型 + 错误分类
+//! - [`platform`]：Linux 采集命令层 + 输出解析
+//! - [`scheduler`]：后台调度器，事件经 mpsc 通道投递到 UI
+
+pub mod executor;
+pub mod platform;
+pub mod scheduler;
+pub mod snapshot;
+
+// 统一对外 re-export：当前为 bin crate，部分 API 尚未被 UI 消费，
+// 保留公共 API 便于 Phase 2.4 集成与后续拆 crate。
+#[allow(unused_imports)]
+pub use executor::{ExecError, ExecOutput, RemoteExecutor, SshProcessExecutor};
+#[allow(unused_imports)]
+pub use platform::Collector;
+#[allow(unused_imports)]
+pub use scheduler::{BackgroundEvent, MonitorScheduler};
+#[allow(unused_imports)]
+pub use snapshot::{
+    CpuInfo, DiskInfo, MemoryInfo, NetworkInfo, ProcessInfo, ServerSnapshot, SystemInfo,
+};

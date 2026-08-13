@@ -9,6 +9,9 @@ use ratatui::widgets::ListState;
 
 use crate::config::credentials;
 use crate::config::types::{HostBlock, SshConfig};
+use crate::monitor::scheduler::{BackgroundEvent, MonitorScheduler};
+use crate::monitor::{Collector, SshProcessExecutor};
+use crate::ssh::session::SshTarget;
 use crate::tui::action::{Action, Mode, View};
 use crate::tui::dashboard::palette::{filter_palette, PaletteAction, PALETTE_ACTIONS};
 use crate::tui::dashboard::widgets::WidgetModule;
@@ -85,6 +88,12 @@ pub struct App {
     /// 后台检测结果通道
     ping_rx: Receiver<PingEvent>,
     ping_tx: Sender<PingEvent>,
+    /// 后台监控调度器（Dashboard 视图活跃时采集）
+    monitor_scheduler: MonitorScheduler,
+    /// 监控事件接收端
+    monitor_rx: Receiver<BackgroundEvent>,
+    /// 当前正在监控的主机别名（None = 未监控）
+    monitor_target: Option<String>,
     /// 已保存密码的主机别名
     pub remembered_password_aliases: HashSet<String>,
     /// 是否运行中
@@ -104,6 +113,7 @@ impl App {
         let remembered_password_aliases = load_saved_password_aliases(&hosts);
         let dashboard_config = load_dashboard_config();
         let dashboard_widgets = Self::build_widgets(&dashboard_config);
+        let (monitor_scheduler, monitor_rx) = MonitorScheduler::with_channel();
         Self {
             hosts,
             preamble: config.preamble,
@@ -125,6 +135,9 @@ impl App {
             palette_selected: 0,
             ping_rx,
             ping_tx,
+            monitor_scheduler,
+            monitor_rx,
+            monitor_target: None,
             remembered_password_aliases,
             running: true,
             show_address: false,
@@ -203,6 +216,67 @@ impl App {
         while let Ok(event) = self.ping_rx.try_recv() {
             self.handle_ping_event(event);
         }
+        while let Ok(event) = self.monitor_rx.try_recv() {
+            self.handle_monitor_event(event);
+        }
+    }
+
+    /// 启动对当前选中主机的后台监控（进入 Dashboard 视图时调用）
+    pub fn start_monitoring(&mut self) {
+        if self.monitor_target.is_some() {
+            return;
+        }
+        let Some(idx) = self.selected() else {
+            return;
+        };
+        let Some(host) = self.hosts.get(idx) else {
+            return;
+        };
+        let target = SshTarget::from_host(host);
+        let executor =
+            SshProcessExecutor::new(target.clone()).with_timeouts(5, Duration::from_secs(10));
+        let collector = Collector::new(Box::new(executor));
+        let alias = target.alias.clone();
+        self.monitor_scheduler
+            .add_target(alias.clone(), collector, Duration::from_secs(2));
+        self.monitor_target = Some(alias.clone());
+        self.set_flash_message(format!("开始监控 {}", alias), "green");
+    }
+
+    /// 停止后台监控（离开 Dashboard 视图时调用）
+    pub fn stop_monitoring(&mut self) {
+        if let Some(alias) = self.monitor_target.take() {
+            self.monitor_scheduler.stop_target(&alias);
+            self.set_flash_message(format!("停止监控 {}", alias), "yellow");
+        }
+    }
+
+    /// 消费监控事件：将最新快照分发到各 Widget
+    fn handle_monitor_event(&mut self, event: BackgroundEvent) {
+        match event {
+            BackgroundEvent::MonitorSnapshot(snapshot) => {
+                for widget in &mut self.dashboard_widgets {
+                    widget.set_snapshot(Some(&snapshot));
+                }
+                if snapshot.warnings.is_empty() {
+                    return;
+                }
+                let warning = snapshot.warnings.join("; ");
+                // 致命错误（连接失败 / 无任何数据）红色常驻提示；普通警告黄色
+                let (message, color) = if snapshot.has_fatal_error() {
+                    (
+                        format!("监控失败 {}: {}", snapshot.alias, warning),
+                        "red".to_string(),
+                    )
+                } else {
+                    (
+                        format!("{}: {}", snapshot.alias, warning),
+                        "yellow".to_string(),
+                    )
+                };
+                self.set_flash_message(message, color);
+            }
+        }
     }
 
     pub fn expire_flash_message(&mut self) {
@@ -252,10 +326,12 @@ impl App {
             Action::ShowDashboard => {
                 self.view = View::Dashboard;
                 self.mode = Mode::Normal;
+                self.start_monitoring();
             }
             Action::ShowHostList => {
                 self.view = View::HostList;
                 self.mode = Mode::Normal;
+                self.stop_monitoring();
             }
             Action::EditDashboard => {
                 self.mode = Mode::DashboardConfig;
@@ -312,9 +388,11 @@ impl App {
                     match item.action {
                         PaletteAction::ShowDashboard => {
                             self.view = View::Dashboard;
+                            self.start_monitoring();
                         }
                         PaletteAction::ShowHostList => {
                             self.view = View::HostList;
+                            self.stop_monitoring();
                         }
                         PaletteAction::EditDashboard => {
                             self.mode = Mode::DashboardConfig;

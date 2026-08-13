@@ -1,6 +1,7 @@
 mod cli;
 mod cmd;
 mod config;
+mod monitor;
 mod network;
 mod ssh;
 mod tui;
