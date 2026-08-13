@@ -44,6 +44,7 @@ echo "===SYS==="; uname -sr; hostname; cat /proc/uptime | cut -d' ' -f1;
 echo "===PROC==="; ps -eo pid,comm,%cpu,rss --sort=-%cpu | head -n 10;
 echo "===DOCKER==="; docker ps -a --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.Ports}}' 2>/dev/null || true;
 echo "===SERVICES==="; systemctl list-units --type=service --all --no-pager --no-legend --plain 2>/dev/null | awk '{print $1"|"$2"|"$3"|"$4}' || true;
+echo "===CONNS==="; ss -tan state all 2>/dev/null | awk 'NR>1 {print $1}' | sort | uniq -c | awk '{print $2"|"$1}' || true;
 "#;
 
 /// 解析 Linux 采集命令输出到快照
@@ -79,6 +80,9 @@ fn parse_linux_output(out: &ExecOutput, snap: &mut ServerSnapshot) {
     }
     if let Some(services) = sections.get("SERVICES") {
         snap.services = super::services::parse_systemctl(services);
+    }
+    if let Some(conns) = sections.get("CONNS") {
+        snap.conn_counts = Some(super::network::parse_ss_tan(conns));
     }
 }
 
@@ -273,6 +277,11 @@ web01
 ssh.service|loaded|active|running
 cron.service|loaded|active|running
 nginx.service|loaded|inactive|dead
+===CONNS===
+LISTEN|5
+ESTAB|23
+TIME-WAIT|12
+CLOSE-WAIT|3
 "#;
         ExecOutput {
             stdout: stdout.to_string(),
@@ -295,6 +304,12 @@ nginx.service|loaded|inactive|dead
         assert_eq!(snap.services.len(), 3);
         assert!(snap.services[0].is_running());
         assert_eq!(snap.services[2].active, "inactive");
+        let conns = snap.conn_counts.as_ref().expect("conn_counts present");
+        assert_eq!(conns.listening, 5);
+        assert_eq!(conns.established, 23);
+        assert_eq!(conns.time_wait, 12);
+        assert_eq!(conns.close_wait, 3);
+        assert_eq!(conns.total, 43);
     }
 
     #[test]

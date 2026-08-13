@@ -85,11 +85,17 @@ impl MockWidget {
                     render_disks(&snap.disks)
                 }
             }
-            WidgetId::Network => snap
-                .network
-                .as_ref()
-                .map(render_network)
-                .unwrap_or_default(),
+            WidgetId::Network => {
+                let mut lines = snap
+                    .network
+                    .as_ref()
+                    .map(render_network)
+                    .unwrap_or_default();
+                if let Some(conns) = &snap.conn_counts {
+                    lines.extend(render_conn_counts(conns));
+                }
+                lines
+            }
             WidgetId::SystemInfo => snap.system.as_ref().map(render_system).unwrap_or_default(),
             WidgetId::Process => render_processes(&snap.processes),
             WidgetId::Docker => render_docker(&snap.docker),
@@ -142,6 +148,25 @@ fn render_network(net: &crate::monitor::snapshot::NetworkInfo) -> Vec<String> {
         format!("RX: {:.2} MB/s", net.rx_mbps),
         format!("TX: {:.2} MB/s", net.tx_mbps),
         format!("IP: {}", ip),
+    ]
+}
+
+/// TCP 连接状态统计行（Phase 5）
+fn render_conn_counts(conns: &crate::monitor::network::ConnCounts) -> Vec<String> {
+    let health = if conns.is_healthy() {
+        "正常".to_string()
+    } else {
+        "⚠ CLOSE_WAIT 堆积".to_string()
+    };
+    vec![
+        format!(
+            "Conn: LISTEN {} ESTAB {} TW {}",
+            conns.listening, conns.established, conns.time_wait
+        ),
+        format!(
+            "      CLOSE_WAIT {} FIN {} SYN {}  [{}]",
+            conns.close_wait, conns.fin_wait, conns.syn_sent, health
+        ),
     ]
 }
 

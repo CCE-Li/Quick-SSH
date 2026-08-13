@@ -1,6 +1,7 @@
 //! 监控数据模型：`ServerSnapshot` + 各指标结构 + 采集错误
 
 use super::docker::DockerContainer;
+use super::network::ConnCounts;
 use super::services::ServiceInfo;
 
 /// 一次采集的全部监控数据快照
@@ -21,6 +22,8 @@ pub struct ServerSnapshot {
     pub docker: Vec<DockerContainer>,
     /// 系统服务列表（systemd 不可用时为空）
     pub services: Vec<ServiceInfo>,
+    /// TCP 连接状态统计（`ss` 不可用时为 None）
+    pub conn_counts: Option<ConnCounts>,
     /// 本次采集的警告/错误信息
     pub warnings: Vec<String>,
 }
