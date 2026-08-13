@@ -49,6 +49,28 @@ echo "===FILES==="; LC_ALL=C ls -lA --time-style=long-iso 2>/dev/null | sed 's/ 
 echo "===LOGS==="; journalctl -n 50 --no-pager -o short-iso 2>/dev/null || true;
 "#;
 
+// ── 独立采集命令（Agent Tool Registry 按需调用）──────────────
+
+/// 服务器状态命令（CPU 占用 + 负载 + 内存摘要）
+pub fn server_status_command() -> &'static str {
+    r#"cat /proc/stat | head -1; echo "--"; cat /proc/loadavg; echo "--"; free -m | sed -n '2p'"#
+}
+
+/// 进程列表命令（CPU 占用 Top 10）
+pub fn processes_command() -> &'static str {
+    "ps -eo pid,comm,%cpu,rss --sort=-%cpu | head -n 10"
+}
+
+/// 磁盘使用命令
+pub fn disks_command() -> &'static str {
+    "df -h --output=target,used,size,use% | tail -n +2"
+}
+
+/// 网络与 TCP 连接统计命令
+pub fn network_command() -> &'static str {
+    r#"echo "---NET---"; cat /proc/net/dev | tail -n +3; echo "---CONNS---"; ss -tan state all 2>/dev/null | awk 'NR>1 {print $1}' | sort | uniq -c | awk '{print $2"|"$1}' || true"#
+}
+
 /// 解析 Linux 采集命令输出到快照
 fn parse_linux_output(out: &ExecOutput, snap: &mut ServerSnapshot) {
     let text = &out.stdout;

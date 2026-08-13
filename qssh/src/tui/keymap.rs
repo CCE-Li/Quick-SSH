@@ -29,7 +29,10 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
                 KeyCode::Enter => Action::Connect,
                 KeyCode::Char(' ') => Action::ToggleSelect,
                 KeyCode::Char('e') => Action::StartEdit,
-                KeyCode::Char('a') => Action::StartAdd,
+                KeyCode::Char('a') => match app.view {
+                    crate::tui::action::View::HostList => Action::StartAdd,
+                    crate::tui::action::View::Dashboard => Action::OpenAgentOps,
+                },
                 KeyCode::Char('p') => Action::Ping,
                 KeyCode::Char('P') => Action::PingAll,
                 KeyCode::Char('/') => Action::StartSearch,
@@ -184,6 +187,26 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
             }
             _ => Action::None,
         },
+        Mode::AgentOps => match key.code {
+            KeyCode::Esc => Action::CloseAgentOps,
+            KeyCode::Enter => Action::AgentSubmit,
+            KeyCode::Backspace => {
+                let mut s = app.agent_input().to_string();
+                s.pop();
+                Action::AgentInput(s)
+            }
+            KeyCode::Char(c) => {
+                let mut s = app.agent_input().to_string();
+                s.push(c);
+                Action::AgentInput(s)
+            }
+            _ => Action::None,
+        },
+        Mode::AgentConfirm => match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => Action::AgentRespond(true),
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Action::AgentRespond(false),
+            _ => Action::None,
+        },
         _ => Action::None,
     }
 }
@@ -232,6 +255,8 @@ impl Mode {
             Mode::FileConfirm => " FILE_CONFIRM ",
             Mode::LogOps => " LOG_OPS ",
             Mode::LogFilter => " LOG_FILTER ",
+            Mode::AgentOps => " AGENT_OPS ",
+            Mode::AgentConfirm => " AGENT_CONFIRM ",
         }
     }
 
@@ -261,6 +286,8 @@ impl Mode {
             Mode::FileConfirm => "确认文件操作？y/Y 执行，n/N/Esc 取消",
             Mode::LogOps => "j↓ k↑ 浏览 | r 刷新 f 筛选 unit | q/Esc关闭",
             Mode::LogFilter => "输入 unit 名称（如 sshd）过滤日志，Enter 应用，Esc 取消",
+            Mode::AgentOps => "输入指令回车发送 | Esc 关闭 | 执行步骤见下方时间线",
+            Mode::AgentConfirm => "确认执行该危险操作？y/Y 执行，n/N/Esc 拒绝",
         }
     }
 }

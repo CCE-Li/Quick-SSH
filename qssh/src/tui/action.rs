@@ -123,6 +123,16 @@ pub enum Action {
     LogOpsRefresh,
     /// 设置日志筛选 unit
     LogUnitFilter(String),
+    /// 打开 AI Agent 面板
+    OpenAgentOps,
+    /// 关闭 AI Agent 面板
+    CloseAgentOps,
+    /// Agent 输入框追加/替换字符
+    AgentInput(String),
+    /// 提交 Agent 输入（发送给 LLM）
+    AgentSubmit,
+    /// 回应 Agent 危险操作批准请求（true=批准，false=拒绝）
+    AgentRespond(bool),
     Quit,
 }
 
@@ -187,4 +197,10 @@ pub enum Mode {
     /// 日志筛选输入
     #[strum(to_string = "LOG_FILTER")]
     LogFilter,
+    /// AI Agent 面板
+    #[strum(to_string = "AGENT_OPS")]
+    AgentOps,
+    /// Agent 危险操作确认
+    #[strum(to_string = "AGENT_CONFIRM")]
+    AgentConfirm,
 }

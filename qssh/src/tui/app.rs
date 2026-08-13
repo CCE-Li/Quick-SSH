@@ -7,6 +7,11 @@ use std::time::{Duration, Instant};
 use crossterm::event::KeyEvent;
 use ratatui::widgets::ListState;
 
+use crate::agent::config::{load_agent_config, AgentConfig};
+use crate::agent::provider::ChatMessage;
+use crate::agent::timeline::{AgentStatus, Timeline};
+use crate::agent::tools::ToolCall;
+use crate::agent::AgentEvent;
 use crate::config::credentials;
 use crate::config::types::{HostBlock, SshConfig};
 use crate::monitor::docker::{container_action_command, DockerAction};
@@ -122,6 +127,26 @@ pub struct App {
     log_unit: String,
     /// 日志原始（未筛选）列表
     log_raw: Vec<LogEntry>,
+    /// AI Agent 配置
+    agent_config: AgentConfig,
+    /// Agent 事件接收端
+    agent_rx: Receiver<AgentEvent>,
+    /// Agent 发送端（后台线程持有）
+    agent_tx: Sender<AgentEvent>,
+    /// 危险操作批准回传通道（后台会话阻塞等待 UI 决定）
+    agent_approval_tx: Option<Sender<bool>>,
+    /// Agent 输入缓冲
+    agent_input: String,
+    /// Agent 状态（状态栏 AI 指示）
+    agent_status: AgentStatus,
+    /// Agent 时间线（执行步骤）
+    agent_timeline: Timeline,
+    /// Agent 对话历史（注入 LLM 上下文）
+    agent_history: Vec<ChatMessage>,
+    /// 待批准的 Agent 工具调用
+    agent_pending_call: Option<ToolCall>,
+    /// 最近一次 Agent 回复
+    agent_last_reply: String,
     /// 已保存密码的主机别名
     pub remembered_password_aliases: HashSet<String>,
     /// 是否运行中
@@ -142,6 +167,8 @@ impl App {
         let dashboard_config = load_dashboard_config();
         let dashboard_widgets = Self::build_widgets(&dashboard_config);
         let (monitor_scheduler, monitor_rx) = MonitorScheduler::with_channel();
+        let (agent_tx, agent_rx) = mpsc::channel();
+        let agent_config = load_agent_config();
         Self {
             hosts,
             preamble: config.preamble,
@@ -176,6 +203,16 @@ impl App {
             log_selected: 0,
             log_unit: String::new(),
             log_raw: Vec::new(),
+            agent_config,
+            agent_rx,
+            agent_tx,
+            agent_approval_tx: None,
+            agent_input: String::new(),
+            agent_status: AgentStatus::Ready,
+            agent_timeline: Timeline::new(),
+            agent_history: Vec::new(),
+            agent_pending_call: None,
+            agent_last_reply: String::new(),
             remembered_password_aliases,
             running: true,
             show_address: false,
@@ -256,6 +293,9 @@ impl App {
         }
         while let Ok(event) = self.monitor_rx.try_recv() {
             self.handle_monitor_event(event);
+        }
+        while let Ok(event) = self.agent_rx.try_recv() {
+            self.handle_agent_event(event);
         }
     }
 
@@ -888,6 +928,44 @@ impl App {
             Action::LogUnitFilter(input) => {
                 self.log_unit = input;
             }
+            // ── AI Agent 面板 ────────────────────────────
+            Action::OpenAgentOps => {
+                self.mode = Mode::AgentOps;
+                self.agent_input.clear();
+                self.agent_status = AgentStatus::Ready;
+            }
+            Action::CloseAgentOps => {
+                self.mode = Mode::Normal;
+            }
+            Action::AgentInput(input) => {
+                self.agent_input = input;
+            }
+            Action::AgentSubmit => {
+                let input = self.agent_input.trim().to_string();
+                if input.is_empty() {
+                    self.set_flash_message("请输入指令", "yellow");
+                    return;
+                }
+                // 用户直接输入工具调用（无 LLM 时可用）
+                if let Some(call) = crate::agent::tools::parse_tool_call(&input) {
+                    self.run_agent_tool(call, input);
+                    return;
+                }
+                self.start_agent_chat(input);
+            }
+            Action::AgentRespond(approved) => {
+                self.agent_pending_call = None;
+                if let Some(tx) = self.agent_approval_tx.take() {
+                    let _ = tx.send(approved);
+                }
+                if approved {
+                    self.set_flash_message("已批准执行", "green");
+                } else {
+                    self.set_flash_message("已拒绝执行", "yellow");
+                }
+                self.mode = Mode::AgentOps;
+                self.agent_status = AgentStatus::Executing;
+            }
             // ── 命令面板 ─────────────────────────────────
             Action::OpenPalette => {
                 self.mode = Mode::Palette;
@@ -1498,6 +1576,224 @@ impl App {
                 .cloned()
                 .collect()
         }
+    }
+
+    // ── AI Agent 访问器（UI 层只读）─────────────────────
+
+    /// Agent 输入缓冲
+    pub fn agent_input(&self) -> &str {
+        &self.agent_input
+    }
+
+    /// Agent 状态（状态栏 AI 指示）
+    pub fn agent_status(&self) -> AgentStatus {
+        self.agent_status
+    }
+
+    /// Agent 时间线
+    pub fn agent_timeline(&self) -> &Timeline {
+        &self.agent_timeline
+    }
+
+    /// 待批准的 Agent 工具调用（None = 未处于确认流程）
+    pub fn agent_pending_call(&self) -> Option<&ToolCall> {
+        self.agent_pending_call.as_ref()
+    }
+
+    /// 最近一次 Agent 回复
+    pub fn agent_last_reply(&self) -> &str {
+        &self.agent_last_reply
+    }
+
+    /// 当前权限级别中文标签
+    pub fn agent_permission_label(&self) -> &'static str {
+        self.agent_config.permission_level().label()
+    }
+
+    /// 对话历史条数
+    pub fn agent_history_count(&self) -> usize {
+        self.agent_history.len()
+    }
+
+    // ── AI Agent 后台会话 ──────────────────────────────
+
+    /// 消费 Agent 后台事件，更新 UI 状态
+    fn handle_agent_event(&mut self, event: AgentEvent) {
+        match event {
+            AgentEvent::Started => {
+                self.agent_status = AgentStatus::Thinking;
+            }
+            AgentEvent::Status(status) => {
+                self.agent_status = status;
+            }
+            AgentEvent::Timeline(timeline) => {
+                self.agent_timeline = timeline;
+            }
+            AgentEvent::ApprovalNeeded { call, reason } => {
+                self.agent_pending_call = Some(call);
+                if !reason.is_empty() {
+                    self.set_flash_message(reason, "yellow");
+                }
+                self.agent_status = AgentStatus::Approval;
+                self.mode = Mode::AgentConfirm;
+            }
+            AgentEvent::Finished { reply, error } => {
+                if let Some(error) = error {
+                    self.agent_status = AgentStatus::Error;
+                    self.set_flash_message(format!("Agent 错误: {}", error), "red");
+                } else {
+                    self.agent_status = AgentStatus::Done;
+                    self.agent_last_reply = reply;
+                    self.set_flash_message("Agent 执行完成", "green");
+                }
+                self.agent_approval_tx = None;
+            }
+        }
+    }
+
+    /// 启动 LLM 会话（后台线程，阻塞执行；UI 通过事件接收进度）
+    fn start_agent_chat(&mut self, input: String) {
+        let Some(alias) = self.monitor_target.clone() else {
+            self.set_flash_message("未在监控状态，无法使用 Agent", "red");
+            return;
+        };
+        let Some(host) = self.hosts.iter().find(|h| h.alias == alias).cloned() else {
+            self.set_flash_message("主机已不存在", "red");
+            return;
+        };
+        let target = SshTarget::from_host(&host);
+        let executor = SshProcessExecutor::new(target).with_timeouts(5, Duration::from_secs(15));
+        let snapshot = self.latest_snapshot.clone();
+        let history = self.agent_history.clone();
+        let config = self.agent_config.clone();
+        let tx = self.agent_tx.clone();
+        let approval_tx = self.agent_tx.clone();
+
+        // 构建审批通道：后台线程创建，等待 UI 回传
+        let (approve_channel_tx, approve_channel_rx) = mpsc::channel::<bool>();
+        self.agent_approval_tx = Some(approve_channel_tx);
+        let _ = tx.send(AgentEvent::Started);
+        let _ = tx.send(AgentEvent::Timeline(Timeline::new()));
+
+        thread::spawn(move || {
+            use crate::agent::AgentRunner;
+            let runner = AgentRunner::new(config, tx);
+            let approve = move |_call: &ToolCall| {
+                // 阻塞等待 UI 决定（App::AgentRespond 回传）
+                approve_channel_rx
+                    .recv_timeout(Duration::from_secs(300))
+                    .unwrap_or(false)
+            };
+            // 构造快照引用（在闭包内持有默认值，避免临时借用）
+            let default_snapshot = ServerSnapshot::new("");
+            let snapshot_ref = snapshot.as_ref().unwrap_or(&default_snapshot);
+            let session = runner.run(&history, &input, &executor, snapshot_ref, approve);
+            // 最终时间线（与 run() 内部事件重复，幂等无害）
+            let _ = approval_tx.send(AgentEvent::Timeline(session.timeline.clone()));
+            let _ = approval_tx.send(AgentEvent::Finished {
+                reply: session.reply,
+                error: session.error,
+            });
+        });
+    }
+
+    /// 直接执行用户手动输入的工具调用（无 LLM 时可用）
+    fn run_agent_tool(&mut self, call: ToolCall, _input: String) {
+        let Some(alias) = self.monitor_target.clone() else {
+            self.set_flash_message("未在监控状态，无法执行工具", "red");
+            return;
+        };
+        let Some(host) = self.hosts.iter().find(|h| h.alias == alias).cloned() else {
+            self.set_flash_message("主机已不存在", "red");
+            return;
+        };
+        let target = SshTarget::from_host(&host);
+        let executor = SshProcessExecutor::new(target).with_timeouts(5, Duration::from_secs(15));
+        let tx = self.agent_tx.clone();
+        let permission = self.agent_config.permission_level();
+
+        // 构建审批通道：后台线程阻塞等待 UI 决定（App::AgentRespond 回传）
+        let (approve_channel_tx, approve_channel_rx) = mpsc::channel::<bool>();
+        self.agent_approval_tx = Some(approve_channel_tx);
+
+        let _ = tx.send(AgentEvent::Status(AgentStatus::Executing));
+        let _ = tx.send(AgentEvent::Timeline(Timeline::new()));
+
+        thread::spawn(move || {
+            use crate::agent::timeline::{StepStatus, TimelineStep};
+            use crate::agent::tools::execute_tool;
+            let mut timeline = Timeline::new();
+            let step_index = timeline.len();
+            timeline.push(TimelineStep::new(
+                call.name(),
+                call.tool.description(),
+                call.is_read_only(),
+            ));
+            let _ = tx.send(AgentEvent::Timeline(timeline.clone()));
+
+            let approval = permission.decide(call.tool.danger());
+            let approved = match approval {
+                crate::agent::permissions::Approval::Allowed => true,
+                crate::agent::permissions::Approval::Denied => {
+                    timeline.set_result(
+                        step_index,
+                        StepStatus::Skipped,
+                        format!("被权限策略拒绝（{}）", permission.label()),
+                    );
+                    let _ = tx.send(AgentEvent::Status(AgentStatus::Ready));
+                    let _ = tx.send(AgentEvent::Timeline(timeline.clone()));
+                    let _ = tx.send(AgentEvent::Finished {
+                        reply: String::new(),
+                        error: Some(format!("工具 {} 被权限拒绝", call.name())),
+                    });
+                    return;
+                }
+                crate::agent::permissions::Approval::NeedsApproval => {
+                    let _ = tx.send(AgentEvent::ApprovalNeeded {
+                        call: call.clone(),
+                        reason: format!(
+                            "工具 {}（{}）请求执行 {} 操作",
+                            call.name(),
+                            call.tool.description(),
+                            call.tool.danger().label()
+                        ),
+                    });
+                    // 阻塞等待 UI 决定（App::AgentRespond 回传，超时视为拒绝）
+                    approve_channel_rx
+                        .recv_timeout(Duration::from_secs(300))
+                        .unwrap_or(false)
+                }
+            };
+
+            if !approved {
+                timeline.set_result(step_index, StepStatus::Skipped, "用户取消".to_string());
+                let _ = tx.send(AgentEvent::Status(AgentStatus::Ready));
+                let _ = tx.send(AgentEvent::Timeline(timeline.clone()));
+                let _ = tx.send(AgentEvent::Finished {
+                    reply: String::new(),
+                    error: None,
+                });
+                return;
+            }
+
+            let result = execute_tool(&executor, &call);
+            let (status, detail) = if result.ok {
+                (StepStatus::Done, result.output.clone())
+            } else {
+                (StepStatus::Failed, result.output.clone())
+            };
+            timeline.set_result(step_index, status, detail);
+            let _ = tx.send(AgentEvent::Timeline(timeline.clone()));
+            let _ = tx.send(AgentEvent::Status(AgentStatus::Done));
+            let _ = tx.send(AgentEvent::Finished {
+                reply: if result.ok {
+                    format!("工具 {} 执行成功:\n{}", call.name(), result.output)
+                } else {
+                    format!("工具 {} 执行失败:\n{}", call.name(), result.output)
+                },
+                error: if result.ok { None } else { Some(result.output) },
+            });
+        });
     }
 
     fn set_flash_message(&mut self, message: impl Into<String>, color: impl Into<String>) {
