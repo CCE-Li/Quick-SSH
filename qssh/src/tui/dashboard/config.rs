@@ -124,75 +124,67 @@ pub fn default_layout_for(enabled: &[WidgetId]) -> LayoutNode {
 
     let has_agent = enabled.contains(&WidgetId::Agent);
     let has_terminal = enabled.contains(&WidgetId::Terminal);
-    let non_agent: Vec<WidgetId> = enabled
+    // 仅监控 Widget（排除 Agent / Terminal）
+    let monitors: Vec<WidgetId> = enabled
         .iter()
         .copied()
-        .filter(|w| *w != WidgetId::Agent)
-        .collect();
-    let non_terminal_non_agent: Vec<WidgetId> = non_agent
-        .iter()
-        .copied()
-        .filter(|w| *w != WidgetId::Terminal)
+        .filter(|w| *w != WidgetId::Agent && *w != WidgetId::Terminal)
         .collect();
 
     // ── 中央 Terminal 布局 ──────────────────────────────
     if has_terminal {
-        // 左栏：监控 Widget（等权竖直切分）
-        let left_column = if non_terminal_non_agent.is_empty() {
-            LayoutNode::Widget {
-                id: WidgetId::Terminal,
-            }
+        // 左栏：监控 Widget（等权竖直切分）；无监控 Widget 时不再重复放 Terminal
+        let left_column = if monitors.is_empty() {
+            None
         } else {
-            LayoutNode::Split {
+            Some(LayoutNode::Split {
                 direction: LayoutDirection::Vertical,
-                children: non_terminal_non_agent
+                children: monitors
                     .into_iter()
                     .map(|id| SplitChild::new(100, LayoutNode::Widget { id }))
                     .collect(),
-            }
+            })
         };
-
         // 中央：Terminal 主区域
         let main = LayoutNode::Widget {
             id: WidgetId::Terminal,
         };
 
         if has_agent {
-            LayoutNode::Split {
-                direction: LayoutDirection::Horizontal,
-                children: vec![
-                    SplitChild::new(1, left_column),
-                    SplitChild::new(3, main),
-                    SplitChild::new(
-                        1,
-                        LayoutNode::Widget {
-                            id: WidgetId::Agent,
-                        },
-                    ),
-                ],
+            let mut children = Vec::with_capacity(3);
+            if let Some(left) = left_column {
+                children.push(SplitChild::new(1, left));
             }
-        } else {
-            LayoutNode::Split {
-                direction: LayoutDirection::Horizontal,
-                children: vec![SplitChild::new(1, left_column), SplitChild::new(3, main)],
-            }
-        }
-    } else {
-        // ── 旧布局：主列 + Agent 右栏 ────────────────────
-        let main_column = if non_agent.is_empty() {
-            vec![SplitChild::new(
-                100,
+            children.push(SplitChild::new(3, main));
+            children.push(SplitChild::new(
+                1,
                 LayoutNode::Widget {
                     id: WidgetId::Agent,
                 },
-            )]
+            ));
+            LayoutNode::Split {
+                direction: LayoutDirection::Horizontal,
+                children,
+            }
+        } else if let Some(left) = left_column {
+            LayoutNode::Split {
+                direction: LayoutDirection::Horizontal,
+                children: vec![SplitChild::new(1, left), SplitChild::new(3, main)],
+            }
         } else {
-            non_agent
-                .into_iter()
-                .map(|id| SplitChild::new(100, LayoutNode::Widget { id }))
-                .collect()
-        };
-
+            main
+        }
+    } else if has_agent && monitors.is_empty() {
+        // ── 仅 Agent ────────────────────────────────────
+        LayoutNode::Widget {
+            id: WidgetId::Agent,
+        }
+    } else {
+        // ── 旧布局：监控主列 + Agent 右栏 ────────────────
+        let main_column: Vec<SplitChild> = monitors
+            .into_iter()
+            .map(|id| SplitChild::new(100, LayoutNode::Widget { id }))
+            .collect();
         let main = LayoutNode::Split {
             direction: LayoutDirection::Vertical,
             children: main_column,
@@ -303,10 +295,16 @@ pub fn config_path() -> PathBuf {
 }
 
 /// 加载配置（不存在或损坏时回退默认）
+///
+/// 布局始终按 `enabled` 重新生成：历史配置中可能残留旧版 `default_layout_for`
+/// 产生的重复 Widget（如两个 Terminal），按模块列表重建可保证布局一致。
 pub fn load_dashboard_config() -> DashboardConfig {
     let path = config_path();
     if let Ok(content) = std::fs::read_to_string(&path) {
-        if let Ok(config) = serde_json::from_str(&content) {
+        if let Ok(mut config) = serde_json::from_str::<DashboardConfig>(&content) {
+            for profile in config.profiles.values_mut() {
+                profile.layout = default_layout_for(&profile.enabled);
+            }
             return config;
         }
     }
@@ -377,5 +375,36 @@ mod tests {
         let parsed: DashboardConfig = serde_json::from_str(&json).expect("反序列化");
         assert_eq!(parsed.active_profile, config.active_profile);
         assert_eq!(parsed.profiles.len(), config.profiles.len());
+    }
+
+    /// 只启用 Terminal 时布局中只出现一个 Terminal
+    #[test]
+    fn terminal_only_layout_has_single_terminal() {
+        let layout = default_layout_for(&[WidgetId::Terminal]);
+        let mut found = Vec::new();
+        collect_widgets(&layout, &mut found);
+        assert_eq!(found, vec![WidgetId::Terminal]);
+    }
+
+    /// Terminal + Agent（无监控 Widget）时不重复 Terminal
+    #[test]
+    fn terminal_and_agent_layout_has_no_duplicate_terminal() {
+        let layout = default_layout_for(&[WidgetId::Terminal, WidgetId::Agent]);
+        let mut found = Vec::new();
+        collect_widgets(&layout, &mut found);
+        assert_eq!(
+            found.iter().filter(|id| **id == WidgetId::Terminal).count(),
+            1
+        );
+        assert_eq!(found.iter().filter(|id| **id == WidgetId::Agent).count(), 1);
+    }
+
+    /// 仅 Agent 时布局中只出现一个 Agent
+    #[test]
+    fn agent_only_layout_has_single_agent() {
+        let layout = default_layout_for(&[WidgetId::Agent]);
+        let mut found = Vec::new();
+        collect_widgets(&layout, &mut found);
+        assert_eq!(found, vec![WidgetId::Agent]);
     }
 }
