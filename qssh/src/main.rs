@@ -6,6 +6,7 @@ mod monitor;
 mod network;
 mod ssh;
 mod tui;
+mod web;
 
 use clap::Parser;
 use cli::{Cli, Command};
@@ -44,6 +45,9 @@ fn main() -> anyhow::Result<()> {
         }
         Some(Command::Import { file }) => {
             cmd::import::run(&file)?;
+        }
+        Some(Command::Web { port }) => {
+            web::server::serve(port)?;
         }
         Some(Command::Help) => {
             cmd::help::run()?;
