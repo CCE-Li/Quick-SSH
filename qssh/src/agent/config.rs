@@ -78,8 +78,7 @@ pub fn load_agent_config() -> AgentConfig {
 }
 
 /// 保存配置到磁盘
-/// 保存 Agent 配置到 `~/.config/quick-ssh/agent.json`（预留：后续设置面板使用）
-#[allow(dead_code)]
+/// 保存 Agent 配置到 `~/.config/quick-ssh/agent.json`（设置面板使用）
 pub fn save_agent_config(config: &AgentConfig) -> Result<()> {
     let path = config_path();
     if let Some(parent) = path.parent() {

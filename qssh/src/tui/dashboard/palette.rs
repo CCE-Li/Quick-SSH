@@ -9,6 +9,7 @@ pub enum PaletteAction {
     ShowDashboard,
     ShowHostList,
     EditDashboard,
+    EditAgentConfig,
     RefreshAll,
     AddHost,
     SearchHost,
@@ -39,6 +40,11 @@ pub const PALETTE_ACTIONS: &[PaletteItem] = &[
         action: PaletteAction::EditDashboard,
         title: "Edit Dashboard",
         description: "配置 Dashboard 模块与布局",
+    },
+    PaletteItem {
+        action: PaletteAction::EditAgentConfig,
+        title: "Agent Settings",
+        description: "配置 AI Agent（provider / model / 权限 / 超时）",
     },
     PaletteItem {
         action: PaletteAction::RefreshAll,

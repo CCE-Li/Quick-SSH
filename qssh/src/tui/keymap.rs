@@ -190,6 +190,7 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
         Mode::AgentOps => match key.code {
             KeyCode::Esc => Action::CloseAgentOps,
             KeyCode::Enter => Action::AgentSubmit,
+            KeyCode::Char('C') | KeyCode::Char('S') => Action::OpenAgentConfig,
             KeyCode::Backspace => {
                 let mut s = app.agent_input().to_string();
                 s.pop();
@@ -200,6 +201,10 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
                 s.push(c);
                 Action::AgentInput(s)
             }
+            _ => Action::None,
+        },
+        Mode::AgentConfig => match key.code {
+            KeyCode::Esc => Action::CloseAgentConfig,
             _ => Action::None,
         },
         Mode::AgentConfirm => match key.code {
@@ -257,6 +262,8 @@ impl Mode {
             Mode::LogFilter => " LOG_FILTER ",
             Mode::AgentOps => " AGENT_OPS ",
             Mode::AgentConfirm => " AGENT_CONFIRM ",
+            Mode::AgentConfig => " AGENT_CFG ",
+            Mode::Terminal => " TERMINAL ",
         }
     }
 
@@ -286,8 +293,10 @@ impl Mode {
             Mode::FileConfirm => "确认文件操作？y/Y 执行，n/N/Esc 取消",
             Mode::LogOps => "j↓ k↑ 浏览 | r 刷新 f 筛选 unit | q/Esc关闭",
             Mode::LogFilter => "输入 unit 名称（如 sshd）过滤日志，Enter 应用，Esc 取消",
-            Mode::AgentOps => "输入指令回车发送 | Esc 关闭 | 执行步骤见下方时间线",
+            Mode::AgentOps => "输入指令回车发送 | C 设置 | Esc 关闭 | 执行步骤见下方时间线",
             Mode::AgentConfirm => "确认执行该危险操作？y/Y 执行，n/N/Esc 拒绝",
+            Mode::AgentConfig => "编辑 Agent 设置: ↑↓/Tab 切换字段，Ctrl+S 保存，Esc 取消",
+            Mode::Terminal => "嵌入式 SSH 终端 | 键盘直接输入 | Esc 或 Ctrl+Shift+C 断开",
         }
     }
 }

@@ -127,12 +127,18 @@ pub enum Action {
     OpenAgentOps,
     /// 关闭 AI Agent 面板
     CloseAgentOps,
+    /// 打开 Agent 设置弹窗（编辑 agent.json）
+    OpenAgentConfig,
+    /// 关闭 Agent 设置弹窗
+    CloseAgentConfig,
     /// Agent 输入框追加/替换字符
     AgentInput(String),
     /// 提交 Agent 输入（发送给 LLM）
     AgentSubmit,
     /// 回应 Agent 危险操作批准请求（true=批准，false=拒绝）
     AgentRespond(bool),
+    /// 关闭嵌入式终端会话（Esc / Ctrl+Shift+C）
+    CloseTerminal,
     Quit,
 }
 
@@ -203,4 +209,10 @@ pub enum Mode {
     /// Agent 危险操作确认
     #[strum(to_string = "AGENT_CONFIRM")]
     AgentConfirm,
+    /// Agent 设置弹窗
+    #[strum(to_string = "AGENT_CFG")]
+    AgentConfig,
+    /// 嵌入式终端（SSH 会话在 TUI 容器中）
+    #[strum(to_string = "TERMINAL")]
+    Terminal,
 }

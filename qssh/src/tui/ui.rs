@@ -75,6 +75,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         Mode::AgentConfirm => {
             render_agent_confirm_popup(frame, area, app);
         }
+        Mode::AgentConfig => {
+            render_agent_config_popup(frame, area, app);
+        }
         _ => {}
     }
 }
@@ -85,10 +88,30 @@ fn render_dashboard_body(frame: &mut Frame, area: Rect, app: &mut App) {
         .dashboard_config
         .profiles
         .get(&app.dashboard_config.active_profile)
+        .cloned()
     else {
         return;
     };
-    crate::tui::dashboard::ui::render_dashboard(frame, area, profile, &app.dashboard_widgets);
+    // 嵌入式终端：按布局面板尺寸同步 PTY 尺寸
+    if app.term_session.is_some() {
+        for (id, rect) in crate::tui::dashboard::compute_layout(&profile.layout, area) {
+            if id == crate::tui::dashboard::WidgetId::Terminal {
+                let margin = ratatui::layout::Margin::new(1, 1);
+                let inner = rect.inner(margin);
+                if inner.width > 0 && inner.height > 0 {
+                    app.term_resize(inner.width, inner.height);
+                }
+                break;
+            }
+        }
+    }
+    crate::tui::dashboard::ui::render_dashboard(
+        frame,
+        area,
+        &profile,
+        &app.dashboard_widgets,
+        app.term_session.as_ref(),
+    );
 }
 
 /// Dashboard 配置弹窗：勾选模块（Phase 1.6）
@@ -862,6 +885,50 @@ fn render_agent_confirm_popup(frame: &mut Frame, area: Rect, app: &App) {
         .borders(Borders::ALL)
         .title(" ⚠ 危险操作确认 — Agent ");
     frame.render_widget(Paragraph::new(lines).block(block), popup);
+}
+
+/// Agent 设置弹窗（编辑 agent.json：provider/base_url/model/permission/timeout）
+fn render_agent_config_popup(frame: &mut Frame, area: Rect, app: &App) {
+    use crate::tui::widgets::centered_rect;
+
+    let Some(form) = app.agent_form.as_ref() else {
+        return;
+    };
+
+    let popup = centered_rect(70, 55, area);
+    frame.render_widget(ratatui::widgets::Clear, popup);
+
+    let title = format!(
+        " Agent 设置  |  当前字段: {}  |  Ctrl+S 保存  Esc 取消 ",
+        form.active_label()
+    );
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(title)
+        .style(Style::default().bg(Color::Black));
+
+    let inner = block.inner(popup);
+    let sections = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(1),
+        ])
+        .split(inner);
+
+    let hint = Paragraph::new(form.footer_hint()).style(Style::default().fg(Color::Gray));
+
+    frame.render_widget(block, popup);
+    frame.render_widget(form.field(0), sections[0]);
+    frame.render_widget(form.field(1), sections[1]);
+    frame.render_widget(form.field(2), sections[2]);
+    frame.render_widget(form.field(3), sections[3]);
+    frame.render_widget(form.field(4), sections[4]);
+    frame.render_widget(hint, sections[5]);
 }
 
 #[cfg(test)]

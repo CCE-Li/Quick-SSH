@@ -30,6 +30,8 @@ dirs.workspace = true
 clap_complete = "4"
 strum = { version = "0.26", features = ["derive"] }
 tui-textarea = "0.7"
+portable-pty.workspace = true
+vt100.workspace = true
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 openssl-sys = { workspace = true, features = ["vendored"] }

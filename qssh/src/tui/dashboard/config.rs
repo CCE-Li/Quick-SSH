@@ -24,6 +24,8 @@ pub enum WidgetId {
     Logs,
     SystemInfo,
     Agent,
+    /// 嵌入式终端（SSH 会话面板）
+    Terminal,
 }
 
 impl WidgetId {
@@ -40,12 +42,13 @@ impl WidgetId {
             WidgetId::Logs => "Logs",
             WidgetId::SystemInfo => "System Info",
             WidgetId::Agent => "AI Agent",
+            WidgetId::Terminal => "Terminal",
         }
     }
 }
 
 /// 全部可用的模块（配置面板展示顺序）
-pub const ALL_WIDGETS: [WidgetId; 11] = [
+pub const ALL_WIDGETS: [WidgetId; 12] = [
     WidgetId::Cpu,
     WidgetId::Memory,
     WidgetId::Disk,
@@ -57,6 +60,7 @@ pub const ALL_WIDGETS: [WidgetId; 11] = [
     WidgetId::Logs,
     WidgetId::SystemInfo,
     WidgetId::Agent,
+    WidgetId::Terminal,
 ];
 
 /// 布局切分方向
@@ -109,54 +113,107 @@ pub struct DashboardConfig {
 
 /// 根据启用的模块列表生成默认布局
 ///
-/// - 主列竖直切分所有非 Agent 模块（等权）
-/// - Agent 固定在右侧窄栏（3:1）
+/// 布局规则：
+/// - 若启用 [`WidgetId::Terminal`]，它作为中央主区域（权重 3），
+///   其余监控 Widget 竖直切分为左侧栏（权重 1），Agent 固定右侧（权重 1）。
+/// - 未启用 Terminal 时回退到旧布局：主列 + Agent 右栏。
 pub fn default_layout_for(enabled: &[WidgetId]) -> LayoutNode {
     if enabled.is_empty() {
         return LayoutNode::Widget { id: WidgetId::Cpu };
     }
 
     let has_agent = enabled.contains(&WidgetId::Agent);
+    let has_terminal = enabled.contains(&WidgetId::Terminal);
     let non_agent: Vec<WidgetId> = enabled
         .iter()
         .copied()
         .filter(|w| *w != WidgetId::Agent)
         .collect();
+    let non_terminal_non_agent: Vec<WidgetId> = non_agent
+        .iter()
+        .copied()
+        .filter(|w| *w != WidgetId::Terminal)
+        .collect();
 
-    let main_column = if non_agent.is_empty() {
-        vec![SplitChild::new(
-            100,
+    // ── 中央 Terminal 布局 ──────────────────────────────
+    if has_terminal {
+        // 左栏：监控 Widget（等权竖直切分）
+        let left_column = if non_terminal_non_agent.is_empty() {
             LayoutNode::Widget {
-                id: WidgetId::Agent,
-            },
-        )]
-    } else {
-        non_agent
-            .into_iter()
-            .map(|id| SplitChild::new(100, LayoutNode::Widget { id }))
-            .collect()
-    };
+                id: WidgetId::Terminal,
+            }
+        } else {
+            LayoutNode::Split {
+                direction: LayoutDirection::Vertical,
+                children: non_terminal_non_agent
+                    .into_iter()
+                    .map(|id| SplitChild::new(100, LayoutNode::Widget { id }))
+                    .collect(),
+            }
+        };
 
-    let main = LayoutNode::Split {
-        direction: LayoutDirection::Vertical,
-        children: main_column,
-    };
+        // 中央：Terminal 主区域
+        let main = LayoutNode::Widget {
+            id: WidgetId::Terminal,
+        };
 
-    if has_agent {
-        LayoutNode::Split {
-            direction: LayoutDirection::Horizontal,
-            children: vec![
-                SplitChild::new(3, main),
-                SplitChild::new(
-                    1,
-                    LayoutNode::Widget {
-                        id: WidgetId::Agent,
-                    },
-                ),
-            ],
+        if has_agent {
+            LayoutNode::Split {
+                direction: LayoutDirection::Horizontal,
+                children: vec![
+                    SplitChild::new(1, left_column),
+                    SplitChild::new(3, main),
+                    SplitChild::new(
+                        1,
+                        LayoutNode::Widget {
+                            id: WidgetId::Agent,
+                        },
+                    ),
+                ],
+            }
+        } else {
+            LayoutNode::Split {
+                direction: LayoutDirection::Horizontal,
+                children: vec![SplitChild::new(1, left_column), SplitChild::new(3, main)],
+            }
         }
     } else {
-        main
+        // ── 旧布局：主列 + Agent 右栏 ────────────────────
+        let main_column = if non_agent.is_empty() {
+            vec![SplitChild::new(
+                100,
+                LayoutNode::Widget {
+                    id: WidgetId::Agent,
+                },
+            )]
+        } else {
+            non_agent
+                .into_iter()
+                .map(|id| SplitChild::new(100, LayoutNode::Widget { id }))
+                .collect()
+        };
+
+        let main = LayoutNode::Split {
+            direction: LayoutDirection::Vertical,
+            children: main_column,
+        };
+
+        if has_agent {
+            LayoutNode::Split {
+                direction: LayoutDirection::Horizontal,
+                children: vec![
+                    SplitChild::new(3, main),
+                    SplitChild::new(
+                        1,
+                        LayoutNode::Widget {
+                            id: WidgetId::Agent,
+                        },
+                    ),
+                ],
+            }
+        } else {
+            main
+        }
     }
 }
 
@@ -173,12 +230,23 @@ pub fn default_dashboard_config() -> DashboardConfig {
     profiles.insert(
         "Default".to_string(),
         profile(&[
+            WidgetId::Terminal,
             WidgetId::Cpu,
             WidgetId::Memory,
             WidgetId::Disk,
             WidgetId::Network,
             WidgetId::Docker,
             WidgetId::Process,
+            WidgetId::Agent,
+        ]),
+    );
+    profiles.insert(
+        "Terminal".to_string(),
+        profile(&[
+            WidgetId::Terminal,
+            WidgetId::Cpu,
+            WidgetId::Memory,
+            WidgetId::Network,
             WidgetId::Agent,
         ]),
     );

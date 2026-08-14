@@ -1,5 +1,6 @@
 //! Dashboard 渲染：布局 + Widget + 命令面板弹窗
 
+use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::prelude::Widget;
 use ratatui::style::Color;
@@ -7,24 +8,50 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 
-use super::config::ProfileConfig;
+use super::config::{ProfileConfig, WidgetId};
 use super::layout::compute_layout;
 use super::palette::{filter_palette, PALETTE_ACTIONS};
 use super::widgets::WidgetModule;
 use crate::tui::widgets::centered_rect;
 
 /// 渲染 Dashboard 主视图：按 Profile 布局树绘制各 Widget
+///
+/// 当布局包含 `WidgetId::Terminal` 且存在嵌入式终端会话时，优先渲染真实
+/// PTY 屏幕内容；否则回退到普通 Widget 渲染。
 pub fn render_dashboard(
     frame: &mut Frame,
     area: Rect,
     profile: &ProfileConfig,
     widgets: &[Box<dyn WidgetModule>],
+    term_session: Option<&crate::tui::term::TermSession>,
 ) {
     for (id, rect) in compute_layout(&profile.layout, area) {
+        // 嵌入式终端：使用真实会话渲染
+        if id == WidgetId::Terminal {
+            if let Some(session) = term_session {
+                let buf = frame.buffer_mut();
+                render_terminal_widget(session, rect, buf);
+                continue;
+            }
+        }
         if let Some(widget) = widgets.iter().find(|widget| widget.id() == id) {
             let buf = frame.buffer_mut();
             widget.render(rect, buf);
         }
+    }
+}
+
+/// 渲染嵌入式终端面板（带边框 + PTY 屏幕内容 + 状态标题）
+fn render_terminal_widget(session: &crate::tui::term::TermSession, area: Rect, buf: &mut Buffer) {
+    use ratatui::widgets::Block;
+
+    let title = format!(" {} — {} ", session.target.alias, session.status.label());
+    let block = Block::default().borders(Borders::ALL).title(title);
+    let inner_area = block.inner(area);
+    // 先画边框，再在内区域渲染 PTY 屏幕（内区域不覆盖边框）
+    block.render(area, buf);
+    if inner_area.height > 0 && inner_area.width > 0 {
+        session.render(inner_area, buf);
     }
 }
 

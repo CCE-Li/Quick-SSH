@@ -4,5 +4,6 @@ pub mod dashboard;
 pub mod editor;
 pub mod event;
 pub mod keymap;
+pub mod term;
 pub mod ui;
 pub mod widgets;

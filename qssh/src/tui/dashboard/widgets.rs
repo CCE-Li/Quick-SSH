@@ -314,6 +314,11 @@ fn mock_lines(id: WidgetId) -> Vec<&'static str> {
             "当前权限模式：READ_ONLY",
             "用法：Ctrl+Space 打开 Agent 输入",
         ],
+        WidgetId::Terminal => vec![
+            "嵌入式终端（嵌入式 SSH）",
+            "按 Enter 连接到所选主机",
+            "Ctrl+Shift+C 退出终端模式",
+        ],
     }
 }
 

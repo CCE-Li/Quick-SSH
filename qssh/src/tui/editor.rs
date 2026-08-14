@@ -122,6 +122,162 @@ pub struct HostFormState {
     saved_password_exists: bool,
 }
 
+// ── Agent 设置表单（agent.json）──────────────────────────
+
+/// Agent 设置字段索引
+const AGENT_FIELD_PROVIDER: usize = 0;
+const AGENT_FIELD_BASE_URL: usize = 1;
+const AGENT_FIELD_MODEL: usize = 2;
+const AGENT_FIELD_PERMISSION: usize = 3;
+const AGENT_FIELD_TIMEOUT: usize = 4;
+
+/// Agent 设置表单状态（编辑 `agent.json`）
+pub struct AgentFormState {
+    fields: Vec<FormField>,
+    active_field: usize,
+}
+
+impl AgentFormState {
+    /// 从当前 Agent 配置初始化表单
+    pub fn new(config: &crate::agent::config::AgentConfig) -> Self {
+        let mut state = Self {
+            fields: vec![
+                FormField::new("Provider（openai / ollama）", &config.provider, false),
+                FormField::new("Base URL（OpenAI 兼容）", &config.base_url, false),
+                FormField::new("Model", &config.model, false),
+                FormField::new(
+                    "Permission（read_only / ask_before_execute / auto_safe / full_access）",
+                    &config.permission,
+                    false,
+                ),
+                FormField::new("Timeout（秒）", &config.timeout_secs.to_string(), false),
+            ],
+            active_field: 0,
+        };
+        state.refresh_field_styles();
+        state
+    }
+
+    /// 当前激活字段标签
+    pub fn active_label(&self) -> &str {
+        self.fields[self.active_field].label
+    }
+
+    /// 字段 TextArea（UI 渲染用）
+    pub fn field(&self, index: usize) -> &TextArea<'static> {
+        &self.fields[index].textarea
+    }
+
+    /// 底部提示
+    pub fn footer_hint(&self) -> &'static str {
+        "↑↓/Tab 切换字段，←→ 移动光标，Enter 下一项，Ctrl+S 保存，Esc 取消"
+    }
+
+    /// 处理键盘输入
+    pub fn handle_key(&mut self, key: KeyEvent) -> EditorOutcome {
+        if key.modifiers.contains(KeyModifiers::CONTROL) {
+            if let KeyCode::Char('s') = key.code {
+                return EditorOutcome::Save;
+            }
+        }
+        match key.code {
+            KeyCode::Esc => EditorOutcome::Cancel,
+            KeyCode::Tab | KeyCode::BackTab => {
+                self.cycle_field(!matches!(key.code, KeyCode::BackTab));
+                EditorOutcome::Continue
+            }
+            KeyCode::Up | KeyCode::Down => {
+                self.move_focus(key.code);
+                EditorOutcome::Continue
+            }
+            KeyCode::Enter => {
+                self.cycle_field(true);
+                EditorOutcome::Continue
+            }
+            _ => {
+                self.fields[self.active_field].textarea.input(key);
+                EditorOutcome::Continue
+            }
+        }
+    }
+
+    /// 构建新的 Agent 配置（校验 + 规范化）
+    pub fn build_config(&self) -> anyhow::Result<crate::agent::config::AgentConfig> {
+        use crate::agent::permissions::PermissionLevel;
+        use crate::agent::provider::ProviderKind;
+
+        let provider = self.fields[AGENT_FIELD_PROVIDER].text().trim().to_string();
+        if ProviderKind::from_str(&provider).is_none() {
+            bail!("Provider 无效（支持 openai / ollama）");
+        }
+        let base_url = self.fields[AGENT_FIELD_BASE_URL].text().trim().to_string();
+        if base_url.is_empty() {
+            bail!("Base URL 不能为空");
+        }
+        let model = self.fields[AGENT_FIELD_MODEL].text().trim().to_string();
+        if model.is_empty() {
+            bail!("Model 不能为空");
+        }
+        let permission = self.fields[AGENT_FIELD_PERMISSION]
+            .text()
+            .trim()
+            .to_string();
+        if PermissionLevel::from_str(&permission).is_none() {
+            bail!(
+                "Permission 无效（支持 read_only / ask_before_execute / auto_safe / full_access）"
+            );
+        }
+        let timeout_text = self.fields[AGENT_FIELD_TIMEOUT].text().trim().to_string();
+        let timeout_secs = if timeout_text.is_empty() {
+            60
+        } else {
+            timeout_text
+                .parse::<u64>()
+                .map_err(|_| anyhow!("Timeout 必须是正整数（秒）"))?
+        };
+
+        Ok(crate::agent::config::AgentConfig {
+            provider,
+            base_url,
+            model,
+            permission,
+            timeout_secs,
+        })
+    }
+
+    fn cycle_field(&mut self, forward: bool) {
+        if forward {
+            self.active_field = (self.active_field + 1) % self.fields.len();
+        } else if self.active_field == 0 {
+            self.active_field = self.fields.len() - 1;
+        } else {
+            self.active_field -= 1;
+        }
+        self.refresh_field_styles();
+    }
+
+    fn move_focus(&mut self, direction: KeyCode) {
+        self.active_field = match (direction, self.active_field) {
+            (KeyCode::Down, AGENT_FIELD_PROVIDER) => AGENT_FIELD_BASE_URL,
+            (KeyCode::Down, AGENT_FIELD_BASE_URL) => AGENT_FIELD_MODEL,
+            (KeyCode::Down, AGENT_FIELD_MODEL) => AGENT_FIELD_PERMISSION,
+            (KeyCode::Down, AGENT_FIELD_PERMISSION) => AGENT_FIELD_TIMEOUT,
+            (KeyCode::Up, AGENT_FIELD_TIMEOUT) => AGENT_FIELD_PERMISSION,
+            (KeyCode::Up, AGENT_FIELD_PERMISSION) => AGENT_FIELD_MODEL,
+            (KeyCode::Up, AGENT_FIELD_MODEL) => AGENT_FIELD_BASE_URL,
+            (KeyCode::Up, AGENT_FIELD_BASE_URL) => AGENT_FIELD_PROVIDER,
+            _ => self.active_field,
+        };
+        self.refresh_field_styles();
+    }
+
+    fn refresh_field_styles(&mut self) {
+        for (index, field) in self.fields.iter_mut().enumerate() {
+            field.set_active(index == self.active_field);
+        }
+    }
+}
+
 impl HostFormState {
     pub fn new_add() -> Self {
         let mut state = Self {
@@ -475,14 +631,19 @@ fn default_identity_file_value() -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        default_identity_file_value, HostFormState, PasswordStorageAction, FIELD_ALIAS,
-        FIELD_COMMENT, FIELD_EXTRA, FIELD_HOSTNAME, FIELD_PASSWORD, FIELD_PORT,
+        default_identity_file_value, AgentFormState, HostFormState, PasswordStorageAction,
+        FIELD_ALIAS, FIELD_COMMENT, FIELD_EXTRA, FIELD_HOSTNAME, FIELD_PASSWORD, FIELD_PORT,
     };
+    use crate::agent::config::AgentConfig;
     use crate::config::types::{HostBlock, SshDirective};
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
     use tui_textarea::{CursorMove, TextArea};
 
     fn press(form: &mut HostFormState, code: KeyCode) {
+        form.handle_key(KeyEvent::new(code, KeyModifiers::NONE));
+    }
+
+    fn press_agent(form: &mut AgentFormState, code: KeyCode) {
         form.handle_key(KeyEvent::new(code, KeyModifiers::NONE));
     }
 
@@ -667,5 +828,74 @@ mod tests {
         press(&mut form, KeyCode::Right);
         assert_eq!(form.active_field, FIELD_ALIAS);
         assert_eq!(form.fields[FIELD_ALIAS].textarea.cursor(), (0, 4));
+    }
+
+    // ── Agent 设置表单 ────────────────────────────────────
+
+    #[test]
+    fn agent_form_builds_config_from_defaults() {
+        let form = AgentFormState::new(&AgentConfig::default());
+        let config = form.build_config().expect("default config should build");
+
+        assert_eq!(config.provider, "openai");
+        assert_eq!(config.base_url, "https://api.deepseek.com/v1");
+        assert_eq!(config.model, "deepseek-chat");
+        assert_eq!(config.permission, "ask_before_execute");
+        assert_eq!(config.timeout_secs, 60);
+    }
+
+    #[test]
+    fn agent_form_roundtrips_custom_values() {
+        let mut form = AgentFormState::new(&AgentConfig::default());
+        form.fields[0].textarea = TextArea::from(["ollama"]);
+        form.fields[1].textarea = TextArea::from(["http://localhost:11434"]);
+        form.fields[2].textarea = TextArea::from(["qwen2.5:7b"]);
+        form.fields[3].textarea = TextArea::from(["auto_safe"]);
+        form.fields[4].textarea = TextArea::from(["30"]);
+
+        let config = form.build_config().expect("custom config should build");
+        assert_eq!(config.provider, "ollama");
+        assert_eq!(config.base_url, "http://localhost:11434");
+        assert_eq!(config.model, "qwen2.5:7b");
+        assert_eq!(config.permission, "auto_safe");
+        assert_eq!(config.timeout_secs, 30);
+    }
+
+    #[test]
+    fn agent_form_rejects_invalid_provider() {
+        let mut form = AgentFormState::new(&AgentConfig::default());
+        form.fields[0].textarea = TextArea::from(["bogus_provider"]);
+        let err = form
+            .build_config()
+            .expect_err("invalid provider should fail");
+        assert!(err.to_string().contains("Provider 无效"));
+    }
+
+    #[test]
+    fn agent_form_rejects_invalid_timeout() {
+        let mut form = AgentFormState::new(&AgentConfig::default());
+        form.fields[4].textarea = TextArea::from(["abc"]);
+        let err = form
+            .build_config()
+            .expect_err("invalid timeout should fail");
+        assert!(err.to_string().contains("Timeout"));
+    }
+
+    #[test]
+    fn agent_form_focus_navigation() {
+        let mut form = AgentFormState::new(&AgentConfig::default());
+        assert_eq!(form.active_field, 0);
+
+        press_agent(&mut form, KeyCode::Down);
+        assert_eq!(form.active_field, 1);
+        press_agent(&mut form, KeyCode::Down);
+        assert_eq!(form.active_field, 2);
+        press_agent(&mut form, KeyCode::Tab);
+        assert_eq!(form.active_field, 3);
+        press_agent(&mut form, KeyCode::Up);
+        assert_eq!(form.active_field, 2);
+        press_agent(&mut form, KeyCode::Up);
+        press_agent(&mut form, KeyCode::Up);
+        assert_eq!(form.active_field, 0);
     }
 }

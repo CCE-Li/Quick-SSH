@@ -30,8 +30,10 @@ use crate::tui::dashboard::palette::{filter_palette, PaletteAction, PALETTE_ACTI
 use crate::tui::dashboard::widgets::WidgetModule;
 use crate::tui::dashboard::{load_dashboard_config, save_dashboard_config, DashboardConfig};
 use crate::tui::editor::{
-    EditorOutcome, HostFormMode, HostFormState, HostFormSubmission, PasswordStorageAction,
+    AgentFormState, EditorOutcome, HostFormMode, HostFormState, HostFormSubmission,
+    PasswordStorageAction,
 };
+use crate::tui::term::{TermEvent, TermSession};
 
 #[derive(Debug)]
 enum PingEvent {
@@ -127,6 +129,8 @@ pub struct App {
     log_unit: String,
     /// 日志原始（未筛选）列表
     log_raw: Vec<LogEntry>,
+    /// Agent 设置表单弹窗状态（None = 未打开）
+    pub agent_form: Option<AgentFormState>,
     /// AI Agent 配置
     agent_config: AgentConfig,
     /// Agent 事件接收端
@@ -153,6 +157,12 @@ pub struct App {
     pub running: bool,
     /// 地址显示/隐藏（默认隐藏）
     pub show_address: bool,
+    /// 嵌入式终端会话（None = 未连接）
+    pub term_session: Option<TermSession>,
+    /// 终端事件接收端
+    term_rx: Receiver<TermEvent>,
+    /// 终端事件发送端（会话持有克隆）
+    term_tx: Sender<TermEvent>,
 }
 
 impl App {
@@ -168,6 +178,7 @@ impl App {
         let dashboard_widgets = Self::build_widgets(&dashboard_config);
         let (monitor_scheduler, monitor_rx) = MonitorScheduler::with_channel();
         let (agent_tx, agent_rx) = mpsc::channel();
+        let (term_tx, term_rx) = mpsc::channel();
         let agent_config = load_agent_config();
         Self {
             hosts,
@@ -203,6 +214,7 @@ impl App {
             log_selected: 0,
             log_unit: String::new(),
             log_raw: Vec::new(),
+            agent_form: None,
             agent_config,
             agent_rx,
             agent_tx,
@@ -216,6 +228,9 @@ impl App {
             remembered_password_aliases,
             running: true,
             show_address: false,
+            term_session: None,
+            term_rx,
+            term_tx,
         }
     }
 
@@ -262,6 +277,10 @@ impl App {
     }
 
     pub fn handle_form_key(&mut self, key: KeyEvent) {
+        if self.agent_form.is_some() {
+            self.handle_agent_form_key(key);
+            return;
+        }
         let Some(outcome) = self.host_form.as_mut().map(|form| form.handle_key(key)) else {
             return;
         };
@@ -287,6 +306,52 @@ impl App {
         }
     }
 
+    /// Agent 设置表单键盘处理
+    fn handle_agent_form_key(&mut self, key: KeyEvent) {
+        let Some(outcome) = self.agent_form.as_mut().map(|form| form.handle_key(key)) else {
+            return;
+        };
+        match outcome {
+            EditorOutcome::Continue => {}
+            EditorOutcome::Cancel => {
+                self.agent_form = None;
+                self.mode = Mode::Normal;
+                self.set_timed_flash_message("已取消 Agent 设置", "yellow", Duration::from_secs(1));
+            }
+            EditorOutcome::Save => {
+                let config = match self
+                    .agent_form
+                    .as_ref()
+                    .map(|form| form.build_config())
+                    .transpose()
+                {
+                    Ok(Some(config)) => config,
+                    Ok(None) => return,
+                    Err(e) => {
+                        self.set_flash_message(format!("设置无效: {}", e), "red");
+                        return;
+                    }
+                };
+                if let Err(e) = crate::agent::config::save_agent_config(&config) {
+                    self.set_flash_message(format!("保存失败: {}", e), "red");
+                    return;
+                }
+                self.agent_config = config.clone();
+                self.agent_form = None;
+                self.mode = Mode::Normal;
+                self.set_flash_message(
+                    format!(
+                        "Agent 设置已保存: {} / {}（权限: {}）",
+                        config.provider,
+                        config.model,
+                        config.permission_level().label()
+                    ),
+                    "green",
+                );
+            }
+        }
+    }
+
     pub fn poll_background_tasks(&mut self) {
         while let Ok(event) = self.ping_rx.try_recv() {
             self.handle_ping_event(event);
@@ -297,6 +362,90 @@ impl App {
         while let Ok(event) = self.agent_rx.try_recv() {
             self.handle_agent_event(event);
         }
+        self.poll_term_events();
+    }
+
+    /// 消费嵌入式终端事件（新输出 → 触发重绘；会话结束 → 更新状态）
+    fn poll_term_events(&mut self) {
+        while let Ok(event) = self.term_rx.try_recv() {
+            match event {
+                TermEvent::Output => {
+                    if let Some(session) = self.term_session.as_mut() {
+                        session.mark_running();
+                    }
+                }
+                TermEvent::Exited { code } => {
+                    if let Some(session) = self.term_session.as_mut() {
+                        session.handle_exit(code);
+                    }
+                    if self.mode == Mode::Terminal {
+                        self.mode = Mode::Normal;
+                    }
+                    self.set_flash_message("SSH 会话已结束", "yellow");
+                }
+            }
+        }
+    }
+
+    /// 向嵌入式终端写入键盘输入（转发给 PTY）
+    pub fn term_write_key(&mut self, key: KeyEvent) {
+        if let Some(session) = self.term_session.as_mut() {
+            session.write_key(key);
+        }
+    }
+
+    /// 调整嵌入式终端尺寸（面板 resize 时调用）
+    pub fn term_resize(&mut self, cols: u16, rows: u16) {
+        if let Some(session) = self.term_session.as_mut() {
+            session.resize(cols, rows);
+        }
+    }
+
+    /// 启动嵌入式 SSH 终端会话（连接当前选中主机）
+    pub fn start_terminal_session(&mut self) {
+        // 若已有会话，先断开
+        if let Some(mut session) = self.term_session.take() {
+            session.kill();
+        }
+        let Some(idx) = self.selected() else {
+            self.set_flash_message("未选择主机", "yellow");
+            return;
+        };
+        let Some(host) = self.hosts.get(idx) else {
+            return;
+        };
+        let target = SshTarget::from_host(host);
+        // 每次启动使用全新事件通道，避免旧会话遗留事件干扰
+        let (tx, rx) = mpsc::channel();
+        match TermSession::spawn(target.clone(), tx.clone(), 80, 24) {
+            Ok(session) => {
+                self.term_session = Some(session);
+                self.term_tx = tx;
+                self.term_rx = rx;
+                // 切换到 Dashboard 视图以显示嵌入式终端面板，并同步开启监控
+                self.view = View::Dashboard;
+                self.mode = Mode::Terminal;
+                if self.monitor_target.is_none() {
+                    self.start_monitoring();
+                }
+                self.set_flash_message(
+                    format!("已连接 {}（Esc 或 Ctrl+Shift+C 断开）", target.alias),
+                    "green",
+                );
+            }
+            Err(e) => {
+                self.set_flash_message(format!("连接失败: {}", e), "red");
+            }
+        }
+    }
+
+    /// 关闭嵌入式终端会话（断开 SSH）
+    pub fn close_terminal_session(&mut self) {
+        if let Some(mut session) = self.term_session.take() {
+            session.kill();
+        }
+        self.mode = Mode::Normal;
+        self.set_flash_message("已断开 SSH 会话", "yellow");
     }
 
     /// 启动对当前选中主机的后台监控（进入 Dashboard 视图时调用）
@@ -396,7 +545,13 @@ impl App {
                     self.list_state.select(Some(self.hosts.len() - 1));
                 }
             }
-            Action::Quit => self.running = false,
+            Action::Quit => {
+                // 退出前终止嵌入式 SSH 会话，避免残留子进程
+                if let Some(mut session) = self.term_session.take() {
+                    session.kill();
+                }
+                self.running = false;
+            }
             Action::ShowHelp => self.mode = Mode::Help,
             Action::HideHelp | Action::CancelSearch => {
                 self.mode = Mode::Normal;
@@ -937,6 +1092,14 @@ impl App {
             Action::CloseAgentOps => {
                 self.mode = Mode::Normal;
             }
+            Action::OpenAgentConfig => {
+                self.agent_form = Some(AgentFormState::new(&self.agent_config));
+                self.mode = Mode::AgentConfig;
+            }
+            Action::CloseAgentConfig => {
+                self.agent_form = None;
+                self.mode = Mode::Normal;
+            }
             Action::AgentInput(input) => {
                 self.agent_input = input;
             }
@@ -1004,6 +1167,10 @@ impl App {
                         }
                         PaletteAction::EditDashboard => {
                             self.mode = Mode::DashboardConfig;
+                        }
+                        PaletteAction::EditAgentConfig => {
+                            self.agent_form = Some(AgentFormState::new(&self.agent_config));
+                            self.mode = Mode::AgentConfig;
                         }
                         PaletteAction::RefreshAll => {
                             self.start_ping_all();
@@ -1154,7 +1321,12 @@ impl App {
                 // 这里留空，实际添加由 cmd::add 处理
                 self.mode = Mode::Normal;
             }
-            Action::Connect => {}
+            Action::Connect => {
+                self.start_terminal_session();
+            }
+            Action::CloseTerminal => {
+                self.close_terminal_session();
+            }
             Action::Ping => {
                 if let Some(idx) = self.selected() {
                     if let Some(host) = self.hosts.get(idx) {
