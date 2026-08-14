@@ -28,6 +28,9 @@ pub enum Action {
     ToggleSelect,
     /// 切换地址显示/隐藏
     ToggleAddress,
+    /// 鼠标点击选中列表项（按当前模式分发到对应列表）
+    #[allow(dead_code)]
+    SelectListItem(usize),
     Delete,
     ConfirmDelete(bool),
     StartSearch,

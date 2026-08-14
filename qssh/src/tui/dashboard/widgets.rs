@@ -6,6 +6,7 @@
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::prelude::Widget;
+use ratatui::style::{Color, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
@@ -19,6 +20,8 @@ pub trait WidgetModule {
     fn title(&self) -> &'static str;
     /// 注入最新一次采集的监控快照（无数据时传 `None`）
     fn set_snapshot(&mut self, snapshot: Option<&crate::monitor::snapshot::ServerSnapshot>);
+    /// 标记是否聚焦（操作面板打开时高亮边框）
+    fn set_focused(&mut self, focused: bool);
     /// 渲染到给定屏幕区域
     fn render(&self, area: Rect, buf: &mut Buffer);
 }
@@ -28,6 +31,7 @@ pub struct MockWidget {
     id: WidgetId,
     lines: Vec<&'static str>,
     snapshot: Option<crate::monitor::snapshot::ServerSnapshot>,
+    focused: bool,
 }
 
 impl MockWidget {
@@ -36,6 +40,7 @@ impl MockWidget {
             id,
             lines: mock_lines(id),
             snapshot: None,
+            focused: false,
         }
     }
 }
@@ -53,8 +58,22 @@ impl WidgetModule for MockWidget {
         self.snapshot = snapshot.cloned();
     }
 
+    fn set_focused(&mut self, focused: bool) {
+        self.focused = focused;
+    }
+
     fn render(&self, area: Rect, buf: &mut Buffer) {
-        let block = Block::default().borders(Borders::ALL).title(self.title());
+        let border_style = if self.focused {
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(ratatui::style::Modifier::BOLD)
+        } else {
+            Style::default()
+        };
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title(self.title())
+            .border_style(border_style);
         let lines = self.render_lines();
         let paragraph = Paragraph::new(lines).wrap(Wrap { trim: true }).block(block);
         paragraph.render(area, buf);
@@ -310,9 +329,9 @@ fn mock_lines(id: WidgetId) -> Vec<&'static str> {
             "Kernel uptime: 12d 4h",
         ],
         WidgetId::Agent => vec![
-            "AI Agent 占位（Phase 3 接入）",
-            "当前权限模式：READ_ONLY",
-            "用法：Ctrl+Space 打开 Agent 输入",
+            "AI Agent 已接入（工具调用 + 权限）",
+            "Ctrl+A / Ctrl+Space 打开 Agent 输入",
+            "面板内按 C 打开设置",
         ],
         WidgetId::Terminal => vec![
             "嵌入式终端（嵌入式 SSH）",

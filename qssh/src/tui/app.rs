@@ -545,6 +545,43 @@ impl App {
                     self.list_state.select(Some(self.hosts.len() - 1));
                 }
             }
+            Action::SelectListItem(idx) => match self.mode {
+                Mode::Normal => {
+                    if idx < self.hosts.len() {
+                        self.list_state.select(Some(idx));
+                    }
+                }
+                Mode::DockerOps => {
+                    let len = self.docker_snapshot().map(|s| s.docker.len()).unwrap_or(0);
+                    if idx < len {
+                        self.docker_selected = idx;
+                    }
+                }
+                Mode::ServiceOps => {
+                    let len = self
+                        .docker_snapshot()
+                        .map(|s| s.services.len())
+                        .unwrap_or(0);
+                    if idx < len {
+                        self.service_selected = idx;
+                    }
+                }
+                Mode::FileOps => {
+                    let len = self.docker_snapshot().map(|s| s.files.len()).unwrap_or(0);
+                    if idx < len {
+                        self.file_selected = idx;
+                    }
+                }
+                Mode::LogOps => {
+                    if idx < self.log_selected_count() {
+                        self.log_selected = idx;
+                    }
+                }
+                Mode::Palette if idx < PALETTE_ACTIONS.len() => {
+                    self.palette_selected = idx;
+                }
+                _ => {}
+            },
             Action::Quit => {
                 // 退出前终止嵌入式 SSH 会话，避免残留子进程
                 if let Some(mut session) = self.term_session.take() {
@@ -1172,6 +1209,11 @@ impl App {
                             self.agent_form = Some(AgentFormState::new(&self.agent_config));
                             self.mode = Mode::AgentConfig;
                         }
+                        PaletteAction::OpenAgent => {
+                            self.mode = Mode::AgentOps;
+                            self.agent_input.clear();
+                            self.agent_status = AgentStatus::Ready;
+                        }
                         PaletteAction::RefreshAll => {
                             self.start_ping_all();
                         }
@@ -1685,6 +1727,12 @@ impl App {
         self.docker_selected
     }
 
+    /// 容器条目数
+    #[allow(dead_code)]
+    pub fn docker_count(&self) -> usize {
+        self.docker_snapshot().map(|s| s.docker.len()).unwrap_or(0)
+    }
+
     /// 待确认的 Docker 操作（None = 未处于确认流程）
     pub fn docker_pending_action(&self) -> Option<DockerAction> {
         self.docker_action
@@ -1702,6 +1750,13 @@ impl App {
         self.service_selected
     }
 
+    /// 服务条目数
+    pub fn service_count(&self) -> usize {
+        self.docker_snapshot()
+            .map(|s| s.services.len())
+            .unwrap_or(0)
+    }
+
     /// 待确认的服务操作（None = 未处于确认流程）
     pub fn service_pending_action(&self) -> Option<ServiceAction> {
         self.service_action
@@ -1712,6 +1767,11 @@ impl App {
     /// 文件列表当前选中索引
     pub fn file_selected_index(&self) -> usize {
         self.file_selected
+    }
+
+    /// 文件条目数
+    pub fn file_count(&self) -> usize {
+        self.docker_snapshot().map(|s| s.files.len()).unwrap_or(0)
     }
 
     /// 待确认的文件操作（None = 未处于确认流程）

@@ -2,11 +2,15 @@ use std::io::Write;
 use std::time::Duration;
 
 use anyhow::Result;
-use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyEventKind, KeyModifiers};
+use crossterm::event::{
+    EnableMouseCapture, Event as CrosstermEvent, KeyCode, KeyEventKind, KeyModifiers,
+};
+use crossterm::execute;
 use ratatui::DefaultTerminal;
 
 use super::action::{Action, Mode};
 use super::keymap::map_key_to_action;
+use super::mouse::map_mouse_to_action;
 use super::ui::render;
 use crate::config::types;
 use crate::tui::app::App;
@@ -22,6 +26,7 @@ pub fn start() -> Result<()> {
 
     // 创建终端
     let terminal = ratatui::try_init()?;
+    execute!(std::io::stdout(), EnableMouseCapture)?;
 
     // 创建应用状态
     let mut app = App::new(config, config_path);
@@ -30,6 +35,7 @@ pub fn start() -> Result<()> {
     let result = run_event_loop(terminal, &mut app);
 
     // 恢复终端
+    let _ = execute!(std::io::stdout(), crossterm::event::DisableMouseCapture);
     ratatui::try_restore()?;
 
     // 最终保障：确保光标可见（防止备用屏幕切换后主屏幕光标状态丢失）
@@ -54,7 +60,17 @@ fn run_event_loop(mut terminal: DefaultTerminal, app: &mut App) -> Result<()> {
         let has_event = crossterm::event::poll(tick_rate)?;
 
         if has_event {
-            if let CrosstermEvent::Key(key) = crossterm::event::read()? {
+            let event = crossterm::event::read()?;
+            // 鼠标事件：嵌入式终端模式直接忽略（无滚动缓冲），其余模式映射为 Action
+            if let CrosstermEvent::Mouse(mouse) = event {
+                if app.mode != Mode::Terminal {
+                    let action = map_mouse_to_action(mouse, app);
+                    app.apply(action);
+                }
+                continue;
+            }
+
+            if let CrosstermEvent::Key(key) = event {
                 // 仅在按下时处理（忽略重复和释放）
                 if key.kind == KeyEventKind::Press {
                     // 嵌入式终端模式：键盘直接转发给 PTY

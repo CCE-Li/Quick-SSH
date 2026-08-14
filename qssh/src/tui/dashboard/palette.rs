@@ -10,6 +10,7 @@ pub enum PaletteAction {
     ShowHostList,
     EditDashboard,
     EditAgentConfig,
+    OpenAgent,
     RefreshAll,
     AddHost,
     SearchHost,
@@ -45,6 +46,11 @@ pub const PALETTE_ACTIONS: &[PaletteItem] = &[
         action: PaletteAction::EditAgentConfig,
         title: "Agent Settings",
         description: "配置 AI Agent（provider / model / 权限 / 超时）",
+    },
+    PaletteItem {
+        action: PaletteAction::OpenAgent,
+        title: "Open AI Agent",
+        description: "打开 AI Agent 对话面板（输入指令）",
     },
     PaletteItem {
         action: PaletteAction::RefreshAll,
