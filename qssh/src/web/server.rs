@@ -1,43 +1,24 @@
 //! 极简 HTTP 服务器 + WebUI 路由（零新增依赖）
 //!
-//! 使用 `std::net::TcpListener` 手写 HTTP/1.1 解析，避免引入重型框架。
-//! Agent 会话复用 [`crate::agent`] 现有能力：`AgentRunner` + `SshProcessExecutor` + `Collector`。
+//! `qssh web` 提供本地配置页：查看 / 修改 Agent 配置，并一键测试
+//! Provider 连接是否成功（复用 [`crate::agent::provider::chat`]）。
 
-use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{mpsc, Arc, Mutex};
-use std::time::Duration;
+use std::time::Instant;
 
 use serde_json::{json, Value};
 
-use crate::agent::config::load_agent_config;
+use crate::agent::config::{load_agent_config, save_agent_config};
 use crate::agent::permissions::PermissionLevel;
-use crate::agent::provider::{ChatMessage, ProviderKind};
-use crate::agent::timeline::Timeline;
-use crate::agent::tools::ToolCall;
-use crate::agent::{AgentEvent, AgentRunner, AgentSession};
-use crate::config::{default_config_path, parser};
-use crate::monitor::executor::SshProcessExecutor;
-use crate::monitor::platform::Collector;
-use crate::ssh::session::SshTarget;
+use crate::agent::provider::{chat, ChatMessage, ProviderKind};
 
 use super::WEBUI_VERSION;
 
 /// 内嵌前端页面（src/web/index.html）
 const HTML: &str = include_str!("index.html");
 
-/// 审批等待的最长时长
-const APPROVAL_TIMEOUT: Duration = Duration::from_secs(600);
-
-/// 全局服务状态
-struct AppState {
-    /// 审批等待表：token → 审批响应通道
-    pending: Mutex<HashMap<String, mpsc::Sender<bool>>>,
-    /// 审批 token 计数器
-    counter: AtomicU64,
-}
+// ── 服务入口 ──────────────────────────────────────────────
 
 /// 启动 WebUI 服务（阻塞）
 pub fn serve(port: u16) -> anyhow::Result<()> {
@@ -45,15 +26,10 @@ pub fn serve(port: u16) -> anyhow::Result<()> {
     let listener = TcpListener::bind(&addr)?;
     println!("🌐 Quick-SSH WebUI 已启动：http://{addr}");
     println!("   按 Ctrl+C 停止服务");
-    let state = Arc::new(AppState {
-        pending: Mutex::new(HashMap::new()),
-        counter: AtomicU64::new(1),
-    });
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                let state = Arc::clone(&state);
-                std::thread::spawn(move || handle_connection(stream, state));
+                std::thread::spawn(|| handle_connection(stream));
             }
             Err(e) => eprintln!("连接错误: {e}"),
         }
@@ -115,7 +91,7 @@ fn reason_phrase(status: u16) -> &'static str {
 
 fn write_simple(w: &mut TcpStream, status: u16, ctype: &str, body: &str) -> std::io::Result<()> {
     let head = format!(
-        "HTTP/1.1 {status} {}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {status} {}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\n\r\n",
         reason_phrase(status),
         body.len()
     );
@@ -124,27 +100,19 @@ fn write_simple(w: &mut TcpStream, status: u16, ctype: &str, body: &str) -> std:
     w.flush()
 }
 
-fn write_json(w: &mut TcpStream, status: u16, body: &Value) -> std::io::Result<()> {
-    let payload = body.to_string();
-    write_simple(w, status, "application/json; charset=utf-8", &payload)
-}
-
-/// 写入一条 SSE 事件：`data: {json}\n\n`
-fn write_sse(w: &mut TcpStream, data: &Value) -> std::io::Result<()> {
-    let payload = data.to_string();
-    let block = format!("data: {payload}\n\n");
-    w.write_all(block.as_bytes())?;
-    w.flush()
+fn write_json(w: &mut TcpStream, status: u16, value: &Value) -> std::io::Result<()> {
+    let body = value.to_string();
+    write_simple(w, status, "application/json; charset=utf-8", &body)
 }
 
 // ── 连接处理与路由 ────────────────────────────────────────
 
-fn handle_connection(stream: TcpStream, state: Arc<AppState>) {
+fn handle_connection(stream: TcpStream) {
     let mut writer = match stream.try_clone() {
         Ok(w) => w,
         Err(_) => return,
     };
-    let _ = stream.set_read_timeout(Some(Duration::from_secs(120)));
+    let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(30)));
     let mut reader = BufReader::new(stream);
 
     let req = match read_request(&mut reader) {
@@ -161,11 +129,9 @@ fn handle_connection(stream: TcpStream, state: Arc<AppState>) {
             let _ = write_simple(&mut writer, 200, "text/html; charset=utf-8", HTML);
         }
         ("GET", "/api/status") => handle_status(&mut writer),
-        ("GET", "/api/hosts") => handle_hosts(&mut writer),
-        ("POST", "/api/chat") => handle_chat(&mut writer, &req, &state),
-        ("POST", "/api/approve") => handle_approve(&mut writer, &req, &state),
         ("GET", "/api/config") => handle_config_get(&mut writer),
         ("POST", "/api/config") => handle_config_post(&mut writer, &req),
+        ("POST", "/api/test") => handle_test(&mut writer, &req),
         _ => {
             let _ = write_simple(&mut writer, 404, "text/plain", "Not Found");
         }
@@ -174,17 +140,20 @@ fn handle_connection(stream: TcpStream, state: Arc<AppState>) {
 
 // ── API Handlers ──────────────────────────────────────────
 
-/// GET /api/status — 运行状态（provider / 权限 / 主机数）
+/// GET /api/status — 运行状态（provider / 权限 / key 提示）
 fn handle_status(w: &mut TcpStream) {
     let config = load_agent_config();
-    let host_count = parser::parse_config(&default_config_path())
-        .map(|c| c.hosts.len())
-        .unwrap_or(0);
     let kind = ProviderKind::from_str(&config.provider).unwrap_or_default();
-    let provider_label = match kind {
-        ProviderKind::OpenAI => "OpenAI 兼容",
-        ProviderKind::OpenCodeGo => "opencode-go",
-        ProviderKind::Ollama => "Ollama",
+    let (provider_label, key_hint) = match kind {
+        ProviderKind::OpenAI => (
+            "OpenAI Compatible",
+            "环境变量 QSSH_OPENAI_API_KEY 或 OPENCODE_API_KEY",
+        ),
+        ProviderKind::OpenCodeGo => (
+            "opencode-go",
+            "复用 ~/.local/share/opencode/auth.json（opencode-go）",
+        ),
+        ProviderKind::Ollama => ("Ollama", "本地 ollama CLI（无需 key）"),
     };
     let _ = write_json(
         w,
@@ -198,38 +167,9 @@ fn handle_status(w: &mut TcpStream) {
             "permission": config.permission,
             "permission_label": config.permission_level().label(),
             "timeout_secs": config.timeout_secs,
-            "host_count": host_count,
+            "key_hint": key_hint,
         }),
     );
-}
-
-/// GET /api/hosts — SSH 主机列表
-fn handle_hosts(w: &mut TcpStream) {
-    let ssh_config = match parser::parse_config(&default_config_path()) {
-        Ok(c) => c,
-        Err(e) => {
-            let _ = write_json(
-                w,
-                500,
-                &json!({ "error": format!("读取 SSH 配置失败: {e}") }),
-            );
-            return;
-        }
-    };
-    let hosts: Vec<Value> = ssh_config
-        .hosts
-        .iter()
-        .map(|h| {
-            json!({
-                "alias": h.alias,
-                "hostname": h.hostname().unwrap_or(""),
-                "user": h.user().unwrap_or(""),
-                "port": h.port(),
-                "identity_file": h.identity_file().map(|p| p.display().to_string()).unwrap_or_default(),
-            })
-        })
-        .collect();
-    let _ = write_json(w, 200, &json!({ "hosts": hosts }));
 }
 
 /// GET /api/config — 读取 Agent 配置
@@ -264,7 +204,7 @@ fn handle_config_post(w: &mut TcpStream, req: &Request) {
             let _ = write_json(
                 w,
                 400,
-                &json!({ "error": "Provider 无效（支持 openai / opencode / ollama）" }),
+                &json!({ "error": "Provider 无效（支持 openai-compatible / opencode / ollama）" }),
             );
             return;
         }
@@ -290,14 +230,9 @@ fn handle_config_post(w: &mut TcpStream, req: &Request) {
     if let Some(v) = body["timeout_secs"].as_u64() {
         config.timeout_secs = v.clamp(5, 600);
     }
-    match crate::agent::config::save_agent_config(&config) {
+    match save_agent_config(&config) {
         Ok(_) => {
-            let saved = load_agent_config();
-            let _ = write_json(
-                w,
-                200,
-                &json!({ "ok": true, "config": serde_json::to_value(&saved).unwrap_or(Value::Null) }),
-            );
+            let _ = write_json(w, 200, &json!({ "ok": true }));
         }
         Err(e) => {
             let _ = write_json(w, 500, &json!({ "error": format!("保存失败: {e}") }));
@@ -305,211 +240,57 @@ fn handle_config_post(w: &mut TcpStream, req: &Request) {
     }
 }
 
-/// POST /api/approve — 危险操作审批回调
-fn handle_approve(w: &mut TcpStream, req: &Request, state: &Arc<AppState>) {
-    let body: Value = match serde_json::from_slice(&req.body) {
-        Ok(v) => v,
-        Err(e) => {
-            let _ = write_json(w, 400, &json!({ "error": format!("请求格式错误: {e}") }));
-            return;
-        }
-    };
-    let token = body["token"].as_str().unwrap_or("");
-    let approved = body["approve"].as_bool().unwrap_or(false);
-    let sender = {
-        let mut guard = match state.pending.lock() {
-            Ok(g) => g,
-            Err(_) => {
-                let _ = write_json(w, 500, &json!({ "error": "服务状态不可用" }));
-                return;
-            }
-        };
-        guard.remove(token)
-    };
-    match sender {
-        Some(tx) => {
-            let _ = tx.send(approved);
-            let _ = write_json(w, 200, &json!({ "ok": true }));
-        }
-        None => {
-            let _ = write_json(w, 404, &json!({ "error": "审批请求不存在或已过期" }));
+/// POST /api/test — 用（表单）配置向 Provider 发最小请求，验证连接
+fn handle_test(w: &mut TcpStream, req: &Request) {
+    let mut config = load_agent_config();
+    let body: Value = serde_json::from_slice(&req.body).unwrap_or(Value::Null);
+    if let Some(v) = body["provider"].as_str() {
+        if ProviderKind::from_str(v).is_some() {
+            config.provider = v.to_string();
         }
     }
-}
-
-/// POST /api/chat — 运行 Agent 会话，以 SSE 流式回报事件
-fn handle_chat(w: &mut TcpStream, req: &Request, state: &Arc<AppState>) {
-    let body: Value = match serde_json::from_slice(&req.body) {
-        Ok(v) => v,
-        Err(e) => {
-            let _ = write_json(w, 400, &json!({ "error": format!("请求格式错误: {e}") }));
-            return;
-        }
-    };
-    let message = body["message"].as_str().unwrap_or("").trim().to_string();
-    let alias = body["alias"].as_str().unwrap_or("").trim().to_string();
-    if message.is_empty() {
-        let _ = write_json(w, 400, &json!({ "error": "消息不能为空" }));
-        return;
+    if let Some(v) = body["base_url"].as_str() {
+        config.base_url = v.to_string();
     }
-
-    // 解析目标主机
-    let ssh_config = match parser::parse_config(&default_config_path()) {
-        Ok(c) => c,
-        Err(e) => {
+    if let Some(v) = body["model"].as_str() {
+        config.model = v.to_string();
+    }
+    if let Some(v) = body["timeout_secs"].as_u64() {
+        config.timeout_secs = v.clamp(5, 60);
+    }
+    let provider_config = config.to_provider_config();
+    let ping = ChatMessage {
+        role: "user".to_string(),
+        content: "回复 OK 即可，不要调用任何工具。".to_string(),
+    };
+    let start = Instant::now();
+    match chat(&provider_config, &[ping], "") {
+        Ok(reply) => {
+            let elapsed_ms = start.elapsed().as_millis();
             let _ = write_json(
                 w,
-                500,
-                &json!({ "error": format!("读取 SSH 配置失败: {e}") }),
-            );
-            return;
-        }
-    };
-    let host = ssh_config.hosts.iter().find(|h| h.alias == alias).cloned();
-    let Some(host) = host else {
-        let _ = write_json(w, 400, &json!({ "error": format!("未找到主机: {alias}") }));
-        return;
-    };
-
-    // 对话历史
-    let mut history: Vec<ChatMessage> = Vec::new();
-    if let Some(arr) = body["history"].as_array() {
-        for item in arr {
-            let role = item["role"].as_str().unwrap_or("user").to_string();
-            let content = item["content"].as_str().unwrap_or("").to_string();
-            history.push(ChatMessage { role, content });
-        }
-    }
-
-    // SSE 响应头（允许跨域，便于本地调试）
-    let _ = w.write_all(
-        b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\nAccess-Control-Allow-Origin: *\r\n\r\n",
-    );
-
-    // 执行器 + 快照采集
-    let executor = SshProcessExecutor::new(SshTarget::from_host(&host));
-    let collector = Collector::new(Box::new(SshProcessExecutor::new(SshTarget::from_host(
-        &host,
-    ))));
-    let snapshot = collector.collect(&alias);
-
-    // 后台线程运行 Agent 会话
-    let agent_config = load_agent_config();
-    let (event_tx, event_rx) = mpsc::channel::<AgentEvent>();
-    let (session_tx, session_rx) = mpsc::channel::<AgentSession>();
-    let state_clone = Arc::clone(state);
-    let runner = AgentRunner::new(agent_config, event_tx);
-    let (signal_tx, signal_rx) = mpsc::channel::<(String, String, String, String)>();
-    let executor_for_thread = executor;
-
-    std::thread::spawn(move || {
-        let approve = move |call: &ToolCall| -> bool {
-            let token = state_clone
-                .counter
-                .fetch_add(1, Ordering::Relaxed)
-                .to_string();
-            let (resp_tx, resp_rx) = mpsc::channel::<bool>();
-            if let Ok(mut guard) = state_clone.pending.lock() {
-                guard.insert(token.clone(), resp_tx);
-            }
-            let reason = format!(
-                "工具 {}（{}）请求执行 {} 操作",
-                call.name(),
-                call.tool.description(),
-                call.tool.danger().label()
-            );
-            let _ = signal_tx.send((
-                token.clone(),
-                call.name().to_string(),
-                call.tool.description().to_string(),
-                reason,
-            ));
-            resp_rx.recv_timeout(APPROVAL_TIMEOUT).unwrap_or(false)
-        };
-        let session = runner.run(&history, &message, &executor_for_thread, &snapshot, approve);
-        let _ = session_tx.send(session);
-    });
-
-    // 消费事件 → SSE 流
-    loop {
-        match event_rx.recv_timeout(Duration::from_millis(200)) {
-            Ok(event) => match event {
-                AgentEvent::Status(status) => {
-                    let _ = write_sse(w, &json!({ "type": "status", "status": status.label() }));
-                }
-                AgentEvent::Timeline(timeline) => {
-                    let _ = write_sse(
-                        w,
-                        &json!({ "type": "timeline", "timeline": timeline_json(&timeline) }),
-                    );
-                }
-                AgentEvent::ApprovalNeeded { .. } => {
-                    // token 由 approve 回调经 signal 通道送达（见下方 Timeout 分支）
-                }
-                AgentEvent::Started => {}
-                AgentEvent::Finished { reply, error } => {
-                    let _ = write_sse(
-                        w,
-                        &json!({ "type": "partial_finish", "reply": reply, "error": error }),
-                    );
-                }
-            },
-            Err(mpsc::RecvTimeoutError::Timeout) => {
-                // 有新的审批待处理（approve 回调注册后经 signal 通知）
-                while let Ok((token, name, description, reason)) = signal_rx.try_recv() {
-                    let _ = write_sse(
-                        w,
-                        &json!({
-                            "type": "approval",
-                            "token": token,
-                            "tool": name,
-                            "description": description,
-                            "reason": reason,
-                        }),
-                    );
-                }
-            }
-            Err(mpsc::RecvTimeoutError::Disconnected) => break,
-        }
-    }
-
-    // 收取最终会话结果
-    match session_rx.recv_timeout(Duration::from_secs(10)) {
-        Ok(session) => {
-            let _ = write_sse(
-                w,
+                200,
                 &json!({
-                    "type": "finished",
-                    "reply": session.reply,
-                    "error": session.error,
-                    "timeline": timeline_json(&session.timeline),
+                    "ok": true,
+                    "elapsed_ms": elapsed_ms,
+                    "reply": truncate(&reply.text, 200),
                 }),
             );
         }
-        Err(_) => {
-            let _ = write_sse(
-                w,
-                &json!({ "type": "finished", "reply": "", "error": "会话结果丢失", "timeline": {} }),
-            );
+        Err(e) => {
+            let _ = write_json(w, 200, &json!({ "ok": false, "error": e.to_string() }));
         }
     }
-    let _ = w.flush();
 }
 
-/// 时间线序列化为 JSON（Timeline 无 Serialize derive，手动构造）
-fn timeline_json(timeline: &Timeline) -> Value {
-    json!({
-        "steps": timeline.steps().iter().map(|s| {
-            json!({
-                "name": s.name,
-                "description": s.description,
-                "read_only": s.read_only,
-                "status": s.status.label(),
-                "symbol": s.status.symbol(),
-                "detail": s.detail,
-            })
-        }).collect::<Vec<_>>()
-    })
+/// 截断长文本（测试结果展示用）
+fn truncate(text: &str, max: usize) -> String {
+    let mut s = text.trim().to_string();
+    if s.chars().count() > max {
+        s = s.chars().take(max).collect::<String>();
+        s.push('…');
+    }
+    s
 }
 
 #[cfg(test)]
@@ -526,33 +307,7 @@ mod tests {
     }
 
     #[test]
-    fn timeline_json_serializes_steps() {
-        let mut timeline = Timeline::new();
-        timeline.push(crate::agent::timeline::TimelineStep::new(
-            "server.status",
-            "服务器状态",
-            true,
-        ));
-        let value = timeline_json(&timeline);
-        let steps = value["steps"].as_array().expect("steps array");
-        assert_eq!(steps.len(), 1);
-        assert_eq!(steps[0]["name"], "server.status");
-        assert_eq!(steps[0]["status"], "等待");
-        assert_eq!(steps[0]["symbol"], "○");
-    }
-
-    #[test]
-    fn sse_format_contains_data_prefix() {
-        // write_sse 需要 TcpStream，这里仅验证 JSON 结构
-        let payload = json!({ "type": "status", "status": "◇ Thinking" });
-        let s = format!("data: {payload}\n\n");
-        assert!(s.starts_with("data: "));
-        assert!(s.ends_with("\n\n"));
-    }
-
-    #[test]
     fn request_parse_drops_query() {
-        // 用内存缓冲模拟请求行解析逻辑
         let raw = "GET /api/status?x=1 HTTP/1.1\r\nHost: localhost\r\n\r\n";
         let mut reader = BufReader::new(raw.as_bytes());
         let req = read_request(&mut reader).expect("parse ok");
@@ -571,5 +326,16 @@ mod tests {
         let parsed: Value = serde_json::from_slice(&req.body).expect("json ok");
         assert_eq!(parsed["a"], "b");
         assert_eq!(parsed["c"], 1);
+    }
+
+    #[test]
+    fn truncate_short_text_unchanged() {
+        assert_eq!(truncate("hello", 10), "hello");
+    }
+
+    #[test]
+    fn truncate_long_text_marks() {
+        let s = truncate("你好世界，这是一个比较长的回复内容", 5);
+        assert!(s.ends_with('…'));
     }
 }
