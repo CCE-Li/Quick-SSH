@@ -57,7 +57,7 @@ pub fn render_dashboard(
         if id == WidgetId::Terminal {
             if let Some(session) = term_session {
                 let buf = frame.buffer_mut();
-                render_terminal_widget(session, rect, buf);
+                render_terminal_widget(session, rect, buf, focused == Some(WidgetId::Terminal));
                 continue;
             }
         }
@@ -220,11 +220,29 @@ fn render_agent_widget(view: &AgentWidgetView, area: Rect, buf: &mut Buffer) {
 }
 
 /// 渲染嵌入式终端面板（带边框 + PTY 屏幕内容 + 状态标题）
-fn render_terminal_widget(session: &crate::tui::term::TermSession, area: Rect, buf: &mut Buffer) {
+/// `focused` 为 true 时边框黄色加粗高亮（Terminal 模式下聚焦）
+fn render_terminal_widget(
+    session: &crate::tui::term::TermSession,
+    area: Rect,
+    buf: &mut Buffer,
+    focused: bool,
+) {
+    use ratatui::prelude::Modifier;
+    use ratatui::style::Style;
     use ratatui::widgets::Block;
 
     let title = format!(" {} — {} ", session.target.alias, session.status.label());
-    let block = Block::default().borders(Borders::ALL).title(title);
+    let border_style = if focused {
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(title)
+        .border_style(border_style);
     let inner_area = block.inner(area);
     // 先画边框，再在内区域渲染 PTY 屏幕（内区域不覆盖边框）
     block.render(area, buf);

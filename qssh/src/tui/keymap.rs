@@ -1,6 +1,6 @@
 use crossterm::event::{KeyEvent, KeyModifiers};
 
-use super::action::{Action, Mode};
+use super::action::{Action, Mode, View};
 use crate::monitor::docker::DockerAction;
 use crate::monitor::files::FileAction;
 use crate::monitor::services::ServiceAction;
@@ -63,7 +63,11 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
                     crate::tui::action::View::Dashboard => Action::OpenLogOps,
                     _ => Action::None,
                 },
-                KeyCode::Char('q') | KeyCode::Esc => Action::Quit,
+                // 仅主机列表主界面按 q/Esc 退出；Dashboard 控制面板上 q/Esc 返回主界面
+                KeyCode::Char('q') | KeyCode::Esc => match app.view {
+                    crate::tui::action::View::HostList => Action::Quit,
+                    crate::tui::action::View::Dashboard => Action::ShowHostList,
+                },
                 KeyCode::Char('?') => Action::ShowHelp,
                 _ => Action::None,
             }
@@ -104,7 +108,11 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
         Mode::Edit => Action::None,
         Mode::Confirm => match key.code {
             KeyCode::Char('y') | KeyCode::Char('Y') => Action::ConfirmDelete(true),
-            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Action::ConfirmDelete(false),
+            KeyCode::Char('n')
+            | KeyCode::Char('N')
+            | KeyCode::Char('q')
+            | KeyCode::Char('Q')
+            | KeyCode::Esc => Action::ConfirmDelete(false),
             _ => Action::None,
         },
         Mode::Help => match key.code {
@@ -134,7 +142,11 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
         },
         Mode::DockerConfirm => match key.code {
             KeyCode::Char('y') | KeyCode::Char('Y') => Action::ConfirmDocker(true),
-            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Action::ConfirmDocker(false),
+            KeyCode::Char('n')
+            | KeyCode::Char('N')
+            | KeyCode::Char('q')
+            | KeyCode::Char('Q')
+            | KeyCode::Esc => Action::ConfirmDocker(false),
             _ => Action::None,
         },
         Mode::ServiceOps => match key.code {
@@ -148,7 +160,11 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
         },
         Mode::ServiceConfirm => match key.code {
             KeyCode::Char('y') | KeyCode::Char('Y') => Action::ConfirmService(true),
-            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Action::ConfirmService(false),
+            KeyCode::Char('n')
+            | KeyCode::Char('N')
+            | KeyCode::Char('q')
+            | KeyCode::Char('Q')
+            | KeyCode::Esc => Action::ConfirmService(false),
             _ => Action::None,
         },
         Mode::FileOps => match key.code {
@@ -163,7 +179,11 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
         },
         Mode::FileConfirm => match key.code {
             KeyCode::Char('y') | KeyCode::Char('Y') => Action::ConfirmFile(true),
-            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Action::ConfirmFile(false),
+            KeyCode::Char('n')
+            | KeyCode::Char('N')
+            | KeyCode::Char('q')
+            | KeyCode::Char('Q')
+            | KeyCode::Esc => Action::ConfirmFile(false),
             _ => Action::None,
         },
         Mode::LogOps => match key.code {
@@ -193,6 +213,8 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
             KeyCode::Esc => Action::CloseAgentOps,
             KeyCode::Enter => Action::AgentSubmit,
             KeyCode::Char('C') | KeyCode::Char('S') => Action::OpenAgentConfig,
+            // 空输入时 q 关闭面板，有输入时 q 作为普通字符
+            KeyCode::Char('q') if app.agent_input().is_empty() => Action::CloseAgentOps,
             KeyCode::Backspace => {
                 let mut s = app.agent_input().to_string();
                 s.pop();
@@ -211,7 +233,11 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
         },
         Mode::AgentConfirm => match key.code {
             KeyCode::Char('y') | KeyCode::Char('Y') => Action::AgentRespond(true),
-            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Action::AgentRespond(false),
+            KeyCode::Char('n')
+            | KeyCode::Char('N')
+            | KeyCode::Char('q')
+            | KeyCode::Char('Q')
+            | KeyCode::Esc => Action::AgentRespond(false),
             _ => Action::None,
         },
         _ => Action::None,
@@ -269,9 +295,12 @@ impl Mode {
         }
     }
 
-    /// 模式对应的提示信息
-    pub fn hint(&self) -> &str {
+    /// 模式对应的提示信息（`view` 用于区分 Dashboard 与主机列表主界面）
+    pub fn hint(&self, view: View) -> &str {
         match self {
+            Mode::Normal if view == View::Dashboard => {
+                "d Docker s 服务 f 文件 l 日志 a Agent b 主机列表 Ctrl+K 面板 | q 返回主界面"
+            }
             Mode::Normal => {
                 "j↓ k↑ Ctrl+N↓ Ctrl+P↑ gg↕ G↕ /搜索 a添加 p检测 P全检 b监控 Ctrl+K面板 Ctrl+A Agent Enter连接 空格标记 .地址 q退出 ?帮助"
             }
@@ -281,22 +310,22 @@ impl Mode {
             Mode::Rename => "输入新别名，Enter 确认，Esc 取消",
             Mode::Export => "输入导出文件路径，Enter 确认，Esc 取消",
             Mode::Import => "输入导入文件路径，Enter 确认，Esc 取消",
-            Mode::Confirm => "确认删除？y/Y 确认，n/N/Esc 取消",
+            Mode::Confirm => "确认删除？y/Y 确认，n/N/q/Esc 取消",
             Mode::Help => "按 q/Esc 关闭帮助",
             Mode::Palette => "输入命令关键字，↑/↓ 选择，Enter 执行，Esc 关闭",
             Mode::DashboardConfig => {
                 "1CPU 2内存 3磁盘 4网络 5Docker 6进程 7服务 8文件 9日志 0系统 aAgent | s保存 q/Esc关闭"
             }
             Mode::DockerOps => "j↓ k↑ 选择容器 | r重启 s停止 x删除 | q/Esc关闭",
-            Mode::DockerConfirm => "确认危险操作？y/Y 执行，n/N/Esc 取消",
+            Mode::DockerConfirm => "确认危险操作？y/Y 执行，n/N/q/Esc 取消",
             Mode::ServiceOps => "j↓ k↑ 选择服务 | a启动 s停止 r重启 | q/Esc关闭",
-            Mode::ServiceConfirm => "确认服务操作？y/Y 执行，n/N/Esc 取消",
+            Mode::ServiceConfirm => "确认服务操作？y/Y 执行，n/N/q/Esc 取消",
             Mode::FileOps => "j↓ k↑ 选择 | Enter/l 进入目录 h/← 上级 d 下载 | q/Esc关闭",
-            Mode::FileConfirm => "确认文件操作？y/Y 执行，n/N/Esc 取消",
+            Mode::FileConfirm => "确认文件操作？y/Y 执行，n/N/q/Esc 取消",
             Mode::LogOps => "j↓ k↑ 浏览 | r 刷新 f 筛选 unit | q/Esc关闭",
             Mode::LogFilter => "输入 unit 名称（如 sshd）过滤日志，Enter 应用，Esc 取消",
-            Mode::AgentOps => "输入指令回车发送 | C 设置 | Esc 关闭 | 执行步骤见下方时间线",
-            Mode::AgentConfirm => "确认执行该危险操作？y/Y 执行，n/N/Esc 拒绝",
+            Mode::AgentOps => "输入指令回车发送 | C 设置 | Esc 或空输入 q 关闭 | 执行步骤见下方时间线",
+            Mode::AgentConfirm => "确认执行该危险操作？y/Y 执行，n/N/q/Esc 拒绝",
             Mode::AgentConfig => "编辑 Agent 设置: ↑↓/Tab 切换字段，Ctrl+S 保存，Esc 取消",
             Mode::Terminal => "嵌入式 SSH 终端 | 键盘直接输入 | Esc 或 Ctrl+Shift+C 断开",
         }

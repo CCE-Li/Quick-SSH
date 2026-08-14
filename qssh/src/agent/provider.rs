@@ -5,7 +5,10 @@
 //! - [`ProviderKind::Ollama`]：优先走 `ollama run` CLI（本地优先 / 离线可用），
 //!   也支持 `curl` 直连本地 11434 端口
 //!
-//! API Key 从环境变量 `QSSH_OPENAI_API_KEY` 读取（不落盘）。
+//! API Key 解析顺序（OpenAI 兼容后端）：
+//! 1. 环境变量 `QSSH_OPENAI_API_KEY`
+//! 2. 环境变量 `OPENCODE_API_KEY`（opencode-go 的标准变量）
+//! 3. opencode 登录凭证 `~/.local/share/opencode/auth.json`（key 不落盘在本项目配置中）
 
 use std::process::Command;
 
@@ -19,15 +22,33 @@ pub enum ProviderKind {
     /// OpenAI 兼容 HTTP（DeepSeek / Qwen / OpenAI ...）
     #[default]
     OpenAI,
+    /// opencode-go（`https://opencode.ai/zen/go/v1`，OpenAI 兼容）
+    OpenCodeGo,
     /// 本地 ollama（离线可用）
     Ollama,
 }
+
+/// opencode-go 的 API 端点（models.dev 注册表定义，OpenAI 兼容）
+pub const OPENCODE_GO_BASE_URL: &str = "https://opencode.ai/zen/go/v1";
+
+/// opencode-go 常用模型名
+pub const OPENCODE_GO_MODEL: &str = "deepseek-v4-flash";
+
+/// opencode 登录凭证文件（相对 data 目录）
+pub const OPENCODE_AUTH_RELATIVE_PATH: &str = "opencode/auth.json";
+
+/// opencode 登录凭证中的 provider 名
+pub const OPENCODE_GO_AUTH_KEY: &str = "opencode-go";
+
+/// opencode 的标准 API key 环境变量
+pub const OPENCODE_API_KEY_ENV: &str = "OPENCODE_API_KEY";
 
 impl ProviderKind {
     /// 从配置字符串解析
     pub fn from_str(s: &str) -> Option<Self> {
         match s.trim().to_ascii_lowercase().as_str() {
             "openai" | "openai-compatible" | "deepseek" | "qwen" => Some(ProviderKind::OpenAI),
+            "opencode" | "opencode-go" => Some(ProviderKind::OpenCodeGo),
             "ollama" | "local" => Some(ProviderKind::Ollama),
             _ => None,
         }
@@ -37,6 +58,7 @@ impl ProviderKind {
     pub fn as_str(self) -> &'static str {
         match self {
             ProviderKind::OpenAI => "openai",
+            ProviderKind::OpenCodeGo => "opencode",
             ProviderKind::Ollama => "ollama",
         }
     }
@@ -90,7 +112,9 @@ pub fn chat(
     available_tools: &str,
 ) -> Result<ChatReply, ProviderError> {
     match config.kind {
-        ProviderKind::OpenAI => chat_openai(config, messages, available_tools),
+        ProviderKind::OpenAI | ProviderKind::OpenCodeGo => {
+            chat_openai(config, messages, available_tools)
+        }
         ProviderKind::Ollama => match chat_ollama_cli(config, messages, available_tools) {
             Ok(reply) => Ok(reply),
             Err(_) => chat_ollama_http(config, messages, available_tools),
@@ -104,7 +128,7 @@ fn chat_openai(
     messages: &[ChatMessage],
     available_tools: &str,
 ) -> Result<ChatReply, ProviderError> {
-    let api_key = std::env::var("QSSH_OPENAI_API_KEY").map_err(|_| ProviderError::MissingApiKey)?;
+    let api_key = resolve_api_key(config.kind)?;
 
     let system = format!(
         "你是 Quick-SSH 的运维助手。你可以调用工具管理远程服务器。\n\
@@ -162,6 +186,71 @@ fn chat_openai(
         .ok_or_else(|| ProviderError::Parse("响应缺少 content".to_string()))?;
 
     Ok(build_reply(content))
+}
+
+/// 解析 API Key，优先级：
+/// 1. `QSSH_OPENAI_API_KEY`（Quick-SSH 专属）
+/// 2. `OPENCODE_API_KEY`（opencode-go 标准变量）
+/// 3. opencode 登录凭证 `~/.local/share/opencode/auth.json` 中对应 provider 的 `key`
+fn resolve_api_key(kind: ProviderKind) -> Result<String, ProviderError> {
+    if let Ok(key) = std::env::var("QSSH_OPENAI_API_KEY") {
+        if !key.trim().is_empty() {
+            return Ok(key);
+        }
+    }
+    if let Ok(key) = std::env::var(OPENCODE_API_KEY_ENV) {
+        if !key.trim().is_empty() {
+            return Ok(key);
+        }
+    }
+    // opencode 登录凭证回退（仅对 opencode / opencode-go provider）
+    let auth_name = match kind {
+        ProviderKind::OpenCodeGo => Some(OPENCODE_GO_AUTH_KEY),
+        _ => None,
+    };
+    if let Some(name) = auth_name {
+        if let Ok(key) = read_opencode_auth_key(name) {
+            if !key.trim().is_empty() {
+                return Ok(key);
+            }
+        }
+    }
+    Err(ProviderError::MissingApiKey)
+}
+
+/// opencode 登录凭证路径：`~/.local/share/opencode/auth.json`
+///（macOS / Linux 也可用 `~/.config/opencode/auth.json`，这里优先 data 目录）
+fn opencode_auth_path() -> std::path::PathBuf {
+    if let Some(data) = dirs::data_local_dir() {
+        let candidate = data.join(OPENCODE_AUTH_RELATIVE_PATH);
+        if candidate.exists() {
+            return candidate;
+        }
+    }
+    if let Some(config) = dirs::config_dir() {
+        let candidate = config.join(OPENCODE_AUTH_RELATIVE_PATH);
+        if candidate.exists() {
+            return candidate;
+        }
+    }
+    dirs::data_local_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join(OPENCODE_AUTH_RELATIVE_PATH)
+}
+
+/// 读取 opencode `auth.json` 中指定 provider 的 API key。
+///
+/// 结构示例：`{ "opencode-go": { "type": "api", "key": "sk-..." } }`
+fn read_opencode_auth_key(provider_name: &str) -> Result<String, ProviderError> {
+    let path = opencode_auth_path();
+    let content = std::fs::read_to_string(&path).map_err(|_| ProviderError::MissingApiKey)?;
+    let parsed: serde_json::Value =
+        serde_json::from_str(&content).map_err(|_| ProviderError::MissingApiKey)?;
+    let key = parsed[provider_name]["key"]
+        .as_str()
+        .map(|s| s.to_string())
+        .ok_or(ProviderError::MissingApiKey)?;
+    Ok(key)
 }
 
 /// ollama CLI：`ollama run <model> "<prompt>"`
@@ -304,7 +393,10 @@ impl std::fmt::Display for ProviderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ProviderError::MissingApiKey => {
-                write!(f, "未设置环境变量 QSSH_OPENAI_API_KEY")
+                write!(
+                    f,
+                    "未找到 API Key（已依次检查 QSSH_OPENAI_API_KEY、OPENCODE_API_KEY 与 opencode auth.json）"
+                )
             }
             ProviderError::Spawn(msg) => write!(f, "无法启动子进程: {msg}"),
             ProviderError::Http(msg) => write!(f, "HTTP 错误: {msg}"),
@@ -339,6 +431,53 @@ mod tests {
         assert_eq!(ProviderKind::from_str("openai"), Some(ProviderKind::OpenAI));
         assert_eq!(ProviderKind::from_str("OLLAMA"), Some(ProviderKind::Ollama));
         assert_eq!(ProviderKind::from_str("local"), Some(ProviderKind::Ollama));
+        assert_eq!(
+            ProviderKind::from_str("opencode"),
+            Some(ProviderKind::OpenCodeGo)
+        );
+        assert_eq!(
+            ProviderKind::from_str("opencode-go"),
+            Some(ProviderKind::OpenCodeGo)
+        );
         assert_eq!(ProviderKind::from_str("bogus"), None);
+    }
+
+    #[test]
+    fn opencode_go_defaults() {
+        assert_eq!(OPENCODE_GO_BASE_URL, "https://opencode.ai/zen/go/v1");
+        assert_eq!(ProviderKind::OpenCodeGo.as_str(), "opencode");
+    }
+
+    #[test]
+    fn resolve_api_key_uses_env_first() {
+        unsafe {
+            std::env::remove_var("QSSH_OPENAI_API_KEY");
+            std::env::set_var("OPENCODE_API_KEY", "sk-env-test");
+        }
+        let key = resolve_api_key(ProviderKind::OpenCodeGo).expect("env key should be found");
+        assert_eq!(key, "sk-env-test");
+        unsafe {
+            std::env::remove_var("OPENCODE_API_KEY");
+        }
+    }
+
+    #[test]
+    fn read_opencode_auth_key_parses_json() {
+        use std::io::Write;
+        let tmp = std::env::temp_dir().join(format!("qssh-auth-test-{}", std::process::id()));
+        std::fs::create_dir_all(tmp.join("opencode")).unwrap();
+        let auth = tmp.join("opencode").join("auth.json");
+        let mut f = std::fs::File::create(&auth).unwrap();
+        write!(
+            f,
+            r#"{{"opencode-go": {{"type": "api", "key": "sk-auth-123"}}}}"#
+        )
+        .unwrap();
+        let content = std::fs::read_to_string(&auth).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        let key = parsed["opencode-go"]["key"].as_str().unwrap();
+        assert_eq!(key, "sk-auth-123");
+        // 清理
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }

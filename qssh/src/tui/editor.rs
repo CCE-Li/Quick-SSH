@@ -142,7 +142,11 @@ impl AgentFormState {
     pub fn new(config: &crate::agent::config::AgentConfig) -> Self {
         let mut state = Self {
             fields: vec![
-                FormField::new("Provider（openai / ollama）", &config.provider, false),
+                FormField::new(
+                    "Provider（openai / opencode / ollama）",
+                    &config.provider,
+                    false,
+                ),
                 FormField::new("Base URL（OpenAI 兼容）", &config.base_url, false),
                 FormField::new("Model", &config.model, false),
                 FormField::new(
@@ -208,7 +212,7 @@ impl AgentFormState {
 
         let provider = self.fields[AGENT_FIELD_PROVIDER].text().trim().to_string();
         if ProviderKind::from_str(&provider).is_none() {
-            bail!("Provider 无效（支持 openai / ollama）");
+            bail!("Provider 无效（支持 openai / opencode / ollama）");
         }
         let base_url = self.fields[AGENT_FIELD_BASE_URL].text().trim().to_string();
         if base_url.is_empty() {
@@ -859,6 +863,18 @@ mod tests {
         assert_eq!(config.model, "qwen2.5:7b");
         assert_eq!(config.permission, "auto_safe");
         assert_eq!(config.timeout_secs, 30);
+    }
+
+    #[test]
+    fn agent_form_accepts_opencode_provider() {
+        let mut form = AgentFormState::new(&AgentConfig::default());
+        form.fields[0].textarea = TextArea::from(["opencode"]);
+        form.fields[1].textarea = TextArea::from(["https://opencode.ai/zen/go/v1"]);
+        form.fields[2].textarea = TextArea::from(["deepseek-v4-flash"]);
+        let config = form.build_config().expect("opencode config should build");
+        assert_eq!(config.provider, "opencode");
+        assert_eq!(config.base_url, "https://opencode.ai/zen/go/v1");
+        assert_eq!(config.model, "deepseek-v4-flash");
     }
 
     #[test]

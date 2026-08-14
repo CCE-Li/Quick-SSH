@@ -142,6 +142,7 @@ fn focused_widget_from_mode(mode: Mode) -> Option<crate::tui::dashboard::WidgetI
         Mode::FileOps | Mode::FileConfirm => Some(WidgetId::Files),
         Mode::LogOps | Mode::LogFilter => Some(WidgetId::Logs),
         Mode::AgentOps | Mode::AgentConfig | Mode::AgentConfirm => Some(WidgetId::Agent),
+        Mode::Terminal => Some(WidgetId::Terminal),
         _ => None,
     }
 }
@@ -707,7 +708,7 @@ fn render_status_bar(frame: &mut Frame, area: Rect, app: &App) {
         )
     } else {
         (
-            app.mode.hint(),
+            app.mode.hint(app.view),
             Style::default().fg(Color::White).bg(Color::DarkGray),
         )
     };

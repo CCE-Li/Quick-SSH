@@ -41,11 +41,31 @@ impl Default for AgentConfig {
 
 impl AgentConfig {
     /// 转换为运行时 [`ProviderConfig`]
+    ///
+    /// opencode / opencode-go 的 `base_url` / `model` 若未配置，自动填入 opencode
+    /// 官方默认值（`https://opencode.ai/zen/go/v1` + `deepseek-v4-flash`），
+    /// 复用 opencode 的 API key 即可直接使用。
     pub fn to_provider_config(&self) -> ProviderConfig {
+        let kind = ProviderKind::from_str(&self.provider).unwrap_or_default();
+        let (base_url, model) = if kind == ProviderKind::OpenCodeGo {
+            let base_url = if self.base_url.trim().is_empty() {
+                super::provider::OPENCODE_GO_BASE_URL.to_string()
+            } else {
+                self.base_url.clone()
+            };
+            let model = if self.model.trim().is_empty() {
+                super::provider::OPENCODE_GO_MODEL.to_string()
+            } else {
+                self.model.clone()
+            };
+            (base_url, model)
+        } else {
+            (self.base_url.clone(), self.model.clone())
+        };
         ProviderConfig {
-            kind: ProviderKind::from_str(&self.provider).unwrap_or_default(),
-            base_url: self.base_url.clone(),
-            model: self.model.clone(),
+            kind,
+            base_url,
+            model,
             timeout_secs: self.timeout_secs,
         }
     }
@@ -122,5 +142,33 @@ mod tests {
             ..AgentConfig::default()
         };
         assert_eq!(config.permission_level(), PermissionLevel::AskBeforeExecute);
+    }
+
+    #[test]
+    fn opencode_go_fills_defaults_when_blank() {
+        let config = AgentConfig {
+            provider: "opencode".to_string(),
+            base_url: String::new(),
+            model: String::new(),
+            ..AgentConfig::default()
+        };
+        let pc = config.to_provider_config();
+        assert_eq!(pc.kind, ProviderKind::OpenCodeGo);
+        assert_eq!(pc.base_url, super::super::provider::OPENCODE_GO_BASE_URL);
+        assert_eq!(pc.model, super::super::provider::OPENCODE_GO_MODEL);
+    }
+
+    #[test]
+    fn opencode_go_keeps_custom_values() {
+        let config = AgentConfig {
+            provider: "opencode".to_string(),
+            base_url: "https://custom.example/v1".to_string(),
+            model: "custom-model".to_string(),
+            ..AgentConfig::default()
+        };
+        let pc = config.to_provider_config();
+        assert_eq!(pc.kind, ProviderKind::OpenCodeGo);
+        assert_eq!(pc.base_url, "https://custom.example/v1");
+        assert_eq!(pc.model, "custom-model");
     }
 }

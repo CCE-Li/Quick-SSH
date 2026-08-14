@@ -13,8 +13,8 @@ use ratatui::layout::{Margin, Position, Rect};
 
 use super::action::{Action, Mode, View};
 use super::app::App;
-use crate::tui::dashboard::WidgetId;
 use crate::tui::dashboard::filter_palette;
+use crate::tui::dashboard::WidgetId;
 use crate::tui::widgets::centered_rect;
 
 /// 操作面板弹窗尺寸（与 ui.rs 渲染保持一致）
@@ -52,7 +52,9 @@ fn left_click(app: &App, col: u16, row: u16) -> Action {
             panel_index_at(row, col, LOG_POPUP_W, LOG_POPUP_H, app.log_selected_count())
                 .map_or(Action::None, Action::SelectListItem)
         }
-        Mode::Palette => palette_index_at(app, col, row).map_or(Action::None, Action::SelectListItem),
+        Mode::Palette => {
+            palette_index_at(app, col, row).map_or(Action::None, Action::SelectListItem)
+        }
         _ => Action::None,
     }
 }
@@ -117,8 +119,7 @@ fn palette_index_at(app: &App, col: u16, row: u16) -> Option<usize> {
         return None;
     }
     let idx = (row - list_top - 1) as usize;
-    let visible =
-        filter_palette(crate::tui::dashboard::PALETTE_ACTIONS, &app.palette_query).len();
+    let visible = filter_palette(crate::tui::dashboard::PALETTE_ACTIONS, &app.palette_query).len();
     (idx < visible).then_some(idx)
 }
 
