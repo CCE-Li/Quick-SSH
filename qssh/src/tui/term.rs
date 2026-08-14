@@ -339,6 +339,29 @@ pub fn render_terminal(parser: &vt100::Parser, area: Rect, buf: &mut Buffer) {
             }
         }
     }
+
+    // 终端光标：块状反色显示（尊重远程应用 DECTCEM 的隐藏状态）
+    if !screen.hide_cursor() {
+        let (row, col) = screen.cursor_position();
+        if row < render_rows && col < render_cols {
+            let target_x = area.x + col;
+            let target_y = area.y + row;
+            if let Some(cell) = buf.cell_mut((target_x, target_y)) {
+                let style = cell.style();
+                // `Reset` 表示默认颜色（终端默认白字黑底），按此参与反色
+                let fg = match style.fg {
+                    Some(Color::Reset) | None => Color::White,
+                    Some(c) => c,
+                };
+                let bg = match style.bg {
+                    Some(Color::Reset) | None => Color::Black,
+                    Some(c) => c,
+                };
+                let modifiers = cell.modifier;
+                cell.set_style(Style::default().fg(bg).bg(fg).add_modifier(modifiers));
+            }
+        }
+    }
 }
 
 /// 将 KeyEvent 编码为 ANSI 转义序列（写入 PTY）
@@ -500,5 +523,42 @@ mod tests {
         render_terminal(&parser, Rect::new(0, 0, 80, 24), &mut buf);
         let row: String = buf.content[..2].iter().map(|c| c.symbol()).collect();
         assert_eq!(row, "AB");
+    }
+
+    #[test]
+    fn render_terminal_shows_block_cursor() {
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+        use ratatui::style::Color;
+
+        let mut parser = vt100::Parser::new(24, 80, 0);
+        // 输入 "ab"，光标应停在 (0, 2)
+        parser.process(b"ab");
+        let mut buf = Buffer::empty(Rect::new(0, 0, 80, 24));
+        render_terminal(&parser, Rect::new(0, 0, 80, 24), &mut buf);
+
+        let (row, col) = parser.screen().cursor_position();
+        assert_eq!((row, col), (0, 2));
+        let cell = &buf.content[(row * 80 + col) as usize];
+        // 光标格被反色：fg 与 bg 互换
+        assert_eq!(cell.style().fg, Some(Color::Black));
+        assert_eq!(cell.style().bg, Some(Color::White));
+    }
+
+    #[test]
+    fn render_terminal_hides_cursor_on_dectcem() {
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+        use ratatui::style::Color;
+
+        let mut parser = vt100::Parser::new(24, 80, 0);
+        parser.process(b"ab\x1b[?25l"); // 隐藏光标
+        let mut buf = Buffer::empty(Rect::new(0, 0, 80, 24));
+        render_terminal(&parser, Rect::new(0, 0, 80, 24), &mut buf);
+
+        let cell = &buf.content[(2) as usize];
+        // 光标隐藏时该格保持默认样式（不反色）
+        assert_eq!(cell.style().fg, Some(Color::Reset));
+        assert_eq!(cell.style().bg, Some(Color::Reset));
     }
 }
