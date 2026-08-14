@@ -87,7 +87,7 @@ fn panel_scroll(up: Action, down: Action, go_up: bool) -> Action {
     }
 }
 
-/// 主机列表命中索引：主体左半区，边框下方每行一项
+/// 主机列表命中索引：主体左半区，边框下方每行一项（按过滤后可见列表）
 fn host_index_at(app: &App, col: u16, row: u16) -> Option<usize> {
     let area = full_area();
     let list_width = (area.width / 2).max(1);
@@ -95,7 +95,7 @@ fn host_index_at(app: &App, col: u16, row: u16) -> Option<usize> {
         return None;
     }
     let idx = (row - 2) as usize;
-    (idx < app.hosts.len()).then_some(idx)
+    (idx < app.visible_indices().len()).then_some(idx)
 }
 
 /// 操作面板列表命中索引：弹窗边框内每行一项

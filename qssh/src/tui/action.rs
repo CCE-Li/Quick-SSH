@@ -140,6 +140,16 @@ pub enum Action {
     AgentSubmit,
     /// 回应 Agent 危险操作批准请求（true=批准，false=拒绝）
     AgentRespond(bool),
+    /// 打开 `:` 远程命令输入框
+    OpenCommand,
+    /// 关闭 `:` 远程命令输入框（取消）
+    CloseCommand,
+    /// 命令输入框追加/替换字符
+    CommandInput(String),
+    /// 提交远程命令（在选中主机上执行）
+    CommandSubmit,
+    /// 关闭远程命令执行结果弹窗
+    CloseCommandResult,
     /// 关闭嵌入式终端会话（Esc / Ctrl+Shift+C）
     CloseTerminal,
     Quit,
@@ -215,6 +225,12 @@ pub enum Mode {
     /// Agent 设置弹窗
     #[strum(to_string = "AGENT_CFG")]
     AgentConfig,
+    /// `:` 远程命令输入框
+    #[strum(to_string = "COMMAND")]
+    Command,
+    /// 远程命令执行结果弹窗
+    #[strum(to_string = "CMD_RESULT")]
+    CommandResult,
     /// 嵌入式终端（SSH 会话在 TUI 容器中）
     #[strum(to_string = "TERMINAL")]
     Terminal,

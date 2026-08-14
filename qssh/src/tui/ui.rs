@@ -78,6 +78,15 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         Mode::AgentConfig => {
             render_agent_config_popup(frame, area, app);
         }
+        Mode::Search => {
+            render_search_popup(frame, area, app);
+        }
+        Mode::Command => {
+            render_command_popup(frame, area, app);
+        }
+        Mode::CommandResult => {
+            render_command_result_popup(frame, area, app);
+        }
         _ => {}
     }
 }
@@ -557,6 +566,140 @@ fn render_log_filter_popup(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(Paragraph::new(lines).block(block), popup);
 }
 
+/// `/` 主机搜索悬浮框：输入即时过滤主机列表
+fn render_search_popup(frame: &mut Frame, area: Rect, app: &App) {
+    use crate::tui::widgets::centered_rect;
+
+    let popup = centered_rect(70, 15, area);
+    frame.render_widget(ratatui::widgets::Clear, popup);
+
+    let total = app.hosts.len();
+    let matched = app.visible_indices().len();
+    let lines: Vec<Line> = vec![
+        Line::from(""),
+        Line::from(Span::styled(
+            format!("  / {}", app.input_buffer),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(Span::styled(
+            format!("  匹配 {} / {} 台主机", matched, total),
+            Style::default().fg(if matched > 0 {
+                Color::Green
+            } else {
+                Color::Red
+            }),
+        )),
+        Line::from(""),
+        Line::from("  Enter 确认    Esc 取消"),
+    ];
+
+    let block = Block::default().borders(Borders::ALL).title(" 搜索主机 ");
+    frame.render_widget(Paragraph::new(lines).block(block), popup);
+}
+
+/// `:` 远程命令输入悬浮框：在选中主机上执行命令
+fn render_command_popup(frame: &mut Frame, area: Rect, app: &App) {
+    use crate::tui::widgets::centered_rect;
+
+    let popup = centered_rect(70, 18, area);
+    frame.render_widget(ratatui::widgets::Clear, popup);
+
+    let target = app
+        .selected()
+        .and_then(|idx| app.hosts.get(idx))
+        .map(|h| h.alias.clone())
+        .unwrap_or_else(|| "-".to_string());
+    let lines: Vec<Line> = vec![
+        Line::from(""),
+        Line::from(Span::styled(
+            format!("  : {}", app.command_input()),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            format!("  目标主机: {}", target),
+            Style::default().fg(Color::DarkGray),
+        )),
+        Line::from(""),
+        Line::from("  Enter 在选中主机上执行    Esc 取消"),
+    ];
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" 远程命令执行 ");
+    frame.render_widget(Paragraph::new(lines).block(block), popup);
+}
+
+/// `:` 远程命令执行结果弹窗
+fn render_command_result_popup(frame: &mut Frame, area: Rect, app: &App) {
+    use crate::tui::widgets::centered_rect;
+
+    let Some(result) = app.command_result() else {
+        return;
+    };
+
+    let popup = centered_rect(80, 75, area);
+    frame.render_widget(ratatui::widgets::Clear, popup);
+
+    let mut lines: Vec<Line> = Vec::new();
+    lines.push(Line::from(""));
+    if let Some(err) = &result.error {
+        lines.push(Line::from(Span::styled(
+            format!("  执行失败: {}", err),
+            Style::default().fg(Color::Red),
+        )));
+    } else {
+        lines.push(Line::from(Span::styled(
+            format!(
+                "  退出码: {}",
+                result
+                    .exit_code
+                    .map(|c| c.to_string())
+                    .unwrap_or_else(|| "-".to_string())
+            ),
+            Style::default().fg(Color::Yellow),
+        )));
+    }
+    lines.push(Line::from(""));
+    if !result.stdout.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "  ── stdout ──",
+            Style::default().fg(Color::Cyan),
+        )));
+        for line in result.stdout.lines().take(40) {
+            lines.push(Line::from(format!("  {line}")));
+        }
+        lines.push(Line::from(""));
+    }
+    if !result.stderr.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "  ── stderr ──",
+            Style::default().fg(Color::Cyan),
+        )));
+        for line in result.stderr.lines().take(20) {
+            lines.push(Line::from(format!("  {line}")));
+        }
+        lines.push(Line::from(""));
+    }
+    if result.stdout.is_empty() && result.stderr.is_empty() && result.error.is_none() {
+        lines.push(Line::from(Span::styled(
+            "  （命令无输出）",
+            Style::default().fg(Color::DarkGray),
+        )));
+    }
+    lines.push(Line::from(""));
+    lines.push(Line::from("  q/Esc 关闭"));
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(format!(" 执行结果 — {}: {} ", result.alias, result.command));
+    frame.render_widget(Paragraph::new(lines).block(block), popup);
+}
+
 fn render_header(frame: &mut Frame, area: Rect, app: &App) {
     let title = format!(
         " Quick-SSH v{}  |  共 {} 台主机  |  模式: {}",
@@ -584,11 +727,11 @@ fn render_body(frame: &mut Frame, area: Rect, app: &mut App) {
 }
 
 fn render_host_list(frame: &mut Frame, area: Rect, app: &mut App) {
-    let items: Vec<ListItem> = app
-        .hosts
+    let visible = app.visible_indices();
+    let items: Vec<ListItem> = visible
         .iter()
-        .enumerate()
-        .map(|(i, host)| {
+        .map(|&i| {
+            let host = &app.hosts[i];
             let prefix = if app.marked.contains(&i) { "> " } else { " " };
 
             let status_span = if app.pending_pings.contains(&host.alias) {

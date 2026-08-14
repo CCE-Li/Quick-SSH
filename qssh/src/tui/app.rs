@@ -15,7 +15,7 @@ use crate::agent::AgentEvent;
 use crate::config::credentials;
 use crate::config::types::{HostBlock, SshConfig};
 use crate::monitor::docker::{container_action_command, DockerAction};
-use crate::monitor::executor::RemoteExecutor;
+use crate::monitor::executor::{ExecError, ExecOutput, RemoteExecutor};
 use crate::monitor::files::{
     dir_entries, join_dir, ls_l_command, parse_ls_l, shell_quote, FileAction,
 };
@@ -51,6 +51,26 @@ enum PingEvent {
         online_count: usize,
         total: usize,
     },
+}
+
+/// `:` 远程命令后台执行事件
+#[derive(Debug)]
+enum CmdEvent {
+    Finished {
+        alias: String,
+        output: Result<ExecOutput, ExecError>,
+    },
+}
+
+/// `:` 远程命令执行结果（供结果弹窗展示）
+#[derive(Debug, Clone)]
+pub struct CommandResult {
+    pub alias: String,
+    pub command: String,
+    pub stdout: String,
+    pub stderr: String,
+    pub exit_code: Option<i32>,
+    pub error: Option<String>,
 }
 
 pub struct FlashMessage {
@@ -151,6 +171,14 @@ pub struct App {
     agent_pending_call: Option<ToolCall>,
     /// 最近一次 Agent 回复
     agent_last_reply: String,
+    /// `:` 远程命令输入缓冲
+    command_input: String,
+    /// `:` 远程命令执行结果（None = 无结果）
+    command_result: Option<CommandResult>,
+    /// 远程命令后台执行事件接收端
+    cmd_rx: Receiver<CmdEvent>,
+    /// 远程命令后台执行事件发送端
+    cmd_tx: Sender<CmdEvent>,
     /// 已保存密码的主机别名
     pub remembered_password_aliases: HashSet<String>,
     /// 是否运行中
@@ -179,6 +207,7 @@ impl App {
         let (monitor_scheduler, monitor_rx) = MonitorScheduler::with_channel();
         let (agent_tx, agent_rx) = mpsc::channel();
         let (term_tx, term_rx) = mpsc::channel();
+        let (cmd_tx, cmd_rx) = mpsc::channel();
         let agent_config = load_agent_config();
         Self {
             hosts,
@@ -225,6 +254,10 @@ impl App {
             agent_history: Vec::new(),
             agent_pending_call: None,
             agent_last_reply: String::new(),
+            command_input: String::new(),
+            command_result: None,
+            cmd_rx,
+            cmd_tx,
             remembered_password_aliases,
             running: true,
             show_address: false,
@@ -260,9 +293,31 @@ impl App {
         }
     }
 
-    /// 获取当前选中索引
+    /// 获取当前选中索引（映射为 hosts 中的真实下标）
     pub fn selected(&self) -> Option<usize> {
-        self.list_state.selected()
+        self.visible_indices()
+            .get(self.list_state.selected()?)
+            .copied()
+    }
+
+    /// 当前可见主机下标列表（搜索过滤后；无过滤时返回全部）
+    pub fn visible_indices(&self) -> Vec<usize> {
+        let kw = self.search_keyword.trim();
+        if kw.is_empty() {
+            return (0..self.hosts.len()).collect();
+        }
+        let kw = kw.to_lowercase();
+        self.hosts
+            .iter()
+            .enumerate()
+            .filter(|(_, h)| {
+                h.alias.to_lowercase().contains(&kw)
+                    || h.hostname()
+                        .map(|n| n.to_lowercase().contains(&kw))
+                        .unwrap_or(false)
+            })
+            .map(|(i, _)| i)
+            .collect()
     }
 
     /// 将内存中的 hosts 写回 SSH 配置文件
@@ -361,6 +416,9 @@ impl App {
         }
         while let Ok(event) = self.agent_rx.try_recv() {
             self.handle_agent_event(event);
+        }
+        while let Ok(event) = self.cmd_rx.try_recv() {
+            self.handle_cmd_event(event);
         }
         self.poll_term_events();
     }
@@ -524,30 +582,31 @@ impl App {
         match action {
             Action::None => {}
             Action::MoveUp => {
-                let i = self.selected().unwrap_or(0);
-                if i > 0 {
-                    self.list_state.select(Some(i - 1));
+                let pos = self.list_state.selected().unwrap_or(0);
+                if pos > 0 {
+                    self.list_state.select(Some(pos - 1));
                 }
             }
             Action::MoveDown => {
-                let i = self.selected().unwrap_or(0);
-                if i + 1 < self.hosts.len() {
-                    self.list_state.select(Some(i + 1));
+                let pos = self.list_state.selected().unwrap_or(0);
+                if pos + 1 < self.visible_indices().len() {
+                    self.list_state.select(Some(pos + 1));
                 }
             }
             Action::MoveTop => {
-                if !self.hosts.is_empty() {
+                if !self.visible_indices().is_empty() {
                     self.list_state.select(Some(0));
                 }
             }
             Action::MoveBottom => {
-                if !self.hosts.is_empty() {
-                    self.list_state.select(Some(self.hosts.len() - 1));
+                let len = self.visible_indices().len();
+                if len > 0 {
+                    self.list_state.select(Some(len - 1));
                 }
             }
             Action::SelectListItem(idx) => match self.mode {
                 Mode::Normal => {
-                    if idx < self.hosts.len() {
+                    if idx < self.visible_indices().len() {
                         self.list_state.select(Some(idx));
                     }
                 }
@@ -590,7 +649,12 @@ impl App {
                 self.running = false;
             }
             Action::ShowHelp => self.mode = Mode::Help,
-            Action::HideHelp | Action::CancelSearch => {
+            Action::HideHelp => {
+                self.mode = Mode::Normal;
+            }
+            Action::CancelSearch => {
+                self.input_buffer.clear();
+                self.search_keyword.clear();
                 self.mode = Mode::Normal;
             }
             // ── Dashboard 视图切换 ────────────────────────
@@ -1235,16 +1299,42 @@ impl App {
             Action::StartSearch => {
                 self.mode = Mode::Search;
                 self.input_buffer.clear();
+                self.search_keyword.clear();
             }
             Action::SearchInput(ch) => {
-                self.input_buffer = ch;
+                self.input_buffer = ch.clone();
+                self.search_keyword = ch;
             }
             Action::SearchSubmit => {
                 self.search_keyword = self.input_buffer.clone();
                 self.mode = Mode::Normal;
-                if !self.hosts.is_empty() {
+                if !self.visible_indices().is_empty() {
                     self.list_state.select(Some(0));
                 }
+            }
+            // ── `:` 远程命令 ─────────────────────────────
+            Action::OpenCommand => {
+                self.mode = Mode::Command;
+                self.command_input.clear();
+            }
+            Action::CloseCommand => {
+                self.mode = Mode::Normal;
+                self.command_input.clear();
+            }
+            Action::CommandInput(input) => {
+                self.command_input = input;
+            }
+            Action::CommandSubmit => {
+                let command = self.command_input.trim().to_string();
+                if command.is_empty() {
+                    self.set_flash_message("请输入要执行的命令", "yellow");
+                    return;
+                }
+                self.start_remote_command(command);
+            }
+            Action::CloseCommandResult => {
+                self.command_result = None;
+                self.mode = Mode::Normal;
             }
             Action::StartAdd => {
                 self.mode = Mode::Add;
@@ -1567,6 +1657,58 @@ impl App {
         }
     }
 
+    /// 在选中的主机上后台执行远程命令（`:` 快捷命令）
+    fn start_remote_command(&mut self, command: String) {
+        let Some(host_idx) = self.selected() else {
+            self.set_flash_message("请先选择一台主机", "yellow");
+            return;
+        };
+        let Some(host) = self.hosts.get(host_idx).cloned() else {
+            return;
+        };
+        let alias = host.alias.clone();
+        let target = SshTarget::from_host(&host);
+        let executor = SshProcessExecutor::new(target).with_timeouts(5, Duration::from_secs(30));
+
+        self.mode = Mode::Normal;
+        self.set_flash_message(format!("{} 上执行: {}", alias, command), "yellow");
+
+        let tx = self.cmd_tx.clone();
+        thread::spawn(move || {
+            let output = executor.exec(&command);
+            let _ = tx.send(CmdEvent::Finished { alias, output });
+        });
+    }
+
+    /// 处理远程命令执行结果
+    fn handle_cmd_event(&mut self, event: CmdEvent) {
+        let CmdEvent::Finished { alias, output } = event;
+        match output {
+            Ok(out) => {
+                self.command_result = Some(CommandResult {
+                    alias,
+                    command: self.command_input.clone(),
+                    stdout: out.stdout,
+                    stderr: out.stderr,
+                    exit_code: out.exit_code,
+                    error: None,
+                });
+            }
+            Err(err) => {
+                self.command_result = Some(CommandResult {
+                    alias,
+                    command: self.command_input.clone(),
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    exit_code: None,
+                    error: Some(err.to_string()),
+                });
+            }
+        }
+        self.command_input.clear();
+        self.mode = Mode::CommandResult;
+    }
+
     fn start_single_ping(&mut self, alias: String, hostname: String, port: u16) {
         if self.pending_pings.contains(&alias) {
             self.set_flash_message(format!("{} 正在检测中…", alias), "yellow");
@@ -1815,6 +1957,16 @@ impl App {
     /// Agent 输入缓冲
     pub fn agent_input(&self) -> &str {
         &self.agent_input
+    }
+
+    /// `:` 远程命令输入缓冲
+    pub fn command_input(&self) -> &str {
+        &self.command_input
+    }
+
+    /// `:` 远程命令执行结果（None = 无结果）
+    pub fn command_result(&self) -> Option<&CommandResult> {
+        self.command_result.as_ref()
     }
 
     /// Agent 状态（状态栏 AI 指示）
