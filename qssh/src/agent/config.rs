@@ -25,6 +25,8 @@ pub struct AgentConfig {
     pub permission: String,
     /// 请求超时（秒）
     pub timeout_secs: u64,
+    /// 显式配置的 API Key（可为空，空时回退到环境变量 / opencode auth.json）
+    pub api_key: String,
 }
 
 impl Default for AgentConfig {
@@ -35,6 +37,7 @@ impl Default for AgentConfig {
             model: "deepseek-chat".to_string(),
             permission: PermissionLevel::AskBeforeExecute.as_str().to_string(),
             timeout_secs: 60,
+            api_key: String::new(),
         }
     }
 }
@@ -67,6 +70,11 @@ impl AgentConfig {
             base_url,
             model,
             timeout_secs: self.timeout_secs,
+            api_key: if self.api_key.trim().is_empty() {
+                None
+            } else {
+                Some(self.api_key.trim().to_string())
+            },
         }
     }
 
@@ -128,11 +136,25 @@ mod tests {
             model: "qwen2.5:7b".to_string(),
             permission: "auto_safe".to_string(),
             timeout_secs: 30,
+            api_key: "sk-test-123".to_string(),
         };
         let json = serde_json::to_string(&config).unwrap();
         let back: AgentConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(back.provider, "ollama");
         assert_eq!(back.permission_level(), PermissionLevel::AutoSafe);
+        assert_eq!(back.api_key, "sk-test-123");
+        // api_key 透传到 ProviderConfig
+        let pc = back.to_provider_config();
+        assert_eq!(pc.api_key.as_deref(), Some("sk-test-123"));
+    }
+
+    #[test]
+    fn api_key_blank_maps_to_none() {
+        let config = AgentConfig {
+            api_key: "  ".to_string(),
+            ..AgentConfig::default()
+        };
+        assert_eq!(config.to_provider_config().api_key, None);
     }
 
     #[test]

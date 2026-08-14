@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 
 use crate::agent::config::{load_agent_config, save_agent_config};
 use crate::agent::permissions::PermissionLevel;
-use crate::agent::provider::{chat, ChatMessage, ProviderKind};
+use crate::agent::provider::{chat, list_models, ChatMessage, ProviderKind};
 
 use super::WEBUI_VERSION;
 
@@ -147,11 +147,11 @@ fn handle_status(w: &mut TcpStream) {
     let (provider_label, key_hint) = match kind {
         ProviderKind::OpenAI => (
             "OpenAI Compatible",
-            "环境变量 QSSH_OPENAI_API_KEY 或 OPENCODE_API_KEY",
+            "可在下方直接填写 API Key；留空则读取 QSSH_OPENAI_API_KEY / OPENCODE_API_KEY",
         ),
         ProviderKind::OpenCodeGo => (
             "opencode-go",
-            "复用 ~/.local/share/opencode/auth.json（opencode-go）",
+            "复用 ~/.local/share/opencode/auth.json（opencode-go），也可直接填写",
         ),
         ProviderKind::Ollama => ("Ollama", "本地 ollama CLI（无需 key）"),
     };
@@ -167,6 +167,7 @@ fn handle_status(w: &mut TcpStream) {
             "permission": config.permission,
             "permission_label": config.permission_level().label(),
             "timeout_secs": config.timeout_secs,
+            "api_key": config.api_key,
             "key_hint": key_hint,
         }),
     );
@@ -185,6 +186,7 @@ fn handle_config_get(w: &mut TcpStream) {
             "model": config.model,
             "permission": config.permission,
             "timeout_secs": config.timeout_secs,
+            "api_key": config.api_key,
         }),
     );
 }
@@ -230,6 +232,9 @@ fn handle_config_post(w: &mut TcpStream, req: &Request) {
     if let Some(v) = body["timeout_secs"].as_u64() {
         config.timeout_secs = v.clamp(5, 600);
     }
+    if let Some(v) = body["api_key"].as_str() {
+        config.api_key = v.trim().to_string();
+    }
     match save_agent_config(&config) {
         Ok(_) => {
             let _ = write_json(w, 200, &json!({ "ok": true }));
@@ -258,6 +263,9 @@ fn handle_test(w: &mut TcpStream, req: &Request) {
     if let Some(v) = body["timeout_secs"].as_u64() {
         config.timeout_secs = v.clamp(5, 60);
     }
+    if let Some(v) = body["api_key"].as_str() {
+        config.api_key = v.trim().to_string();
+    }
     let provider_config = config.to_provider_config();
     let ping = ChatMessage {
         role: "user".to_string(),
@@ -267,6 +275,8 @@ fn handle_test(w: &mut TcpStream, req: &Request) {
     match chat(&provider_config, &[ping], "") {
         Ok(reply) => {
             let elapsed_ms = start.elapsed().as_millis();
+            // 连接成功后自动拉取模型列表（失败不影响主结果）
+            let models = list_models(&provider_config).ok();
             let _ = write_json(
                 w,
                 200,
@@ -274,6 +284,7 @@ fn handle_test(w: &mut TcpStream, req: &Request) {
                     "ok": true,
                     "elapsed_ms": elapsed_ms,
                     "reply": truncate(&reply.text, 200),
+                    "models": models.unwrap_or_default(),
                 }),
             );
         }

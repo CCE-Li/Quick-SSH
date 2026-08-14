@@ -246,6 +246,8 @@ impl AgentFormState {
             model,
             permission,
             timeout_secs,
+            // TUI 表单不暴露 API Key，保留为空（回退到环境变量 / auth.json）
+            api_key: String::new(),
         })
     }
 

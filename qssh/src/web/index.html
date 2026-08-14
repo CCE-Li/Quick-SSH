@@ -137,13 +137,19 @@ footer {
     </div>
 
     <div class="field">
+      <label>API Key</label>
+      <input id="cfg-apikey" type="password" placeholder="留空则使用环境变量 / opencode auth.json" autocomplete="off">
+    </div>
+
+    <div class="field">
       <label>Base URL</label>
       <input id="cfg-baseurl" placeholder="https://api.openai.com/v1">
     </div>
 
     <div class="field">
-      <label>Model</label>
-      <input id="cfg-model" placeholder="模型名">
+      <label>Model（连接成功后自动获取）</label>
+      <input id="cfg-model" list="model-list" placeholder="点击测试连接后自动填充模型列表">
+      <datalist id="model-list"></datalist>
     </div>
 
     <div class="field">
@@ -184,6 +190,7 @@ async function loadStatus() {
     $('provider-badge').textContent = data.provider_label;
     $('perm-badge').textContent = '权限: ' + data.permission_label;
     $('cfg-provider').value = data.provider;
+    $('cfg-apikey').value = data.api_key || '';
     $('cfg-baseurl').value = data.base_url;
     $('cfg-model').value = data.model;
     $('cfg-perm').value = data.permission;
@@ -203,6 +210,7 @@ async function saveConfig() {
     model: $('cfg-model').value.trim(),
     permission: $('cfg-perm').value,
     timeout_secs: parseInt($('cfg-timeout').value, 10) || 60,
+    api_key: $('cfg-apikey').value.trim(),
   };
   const msg = $('save-msg');
   msg.textContent = '保存中…';
@@ -227,6 +235,16 @@ async function saveConfig() {
   }
 }
 
+function renderModelList(models) {
+  const dl = $('model-list');
+  dl.innerHTML = '';
+  (models || []).forEach((m) => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    dl.appendChild(opt);
+  });
+}
+
 async function testConnection() {
   const btn = $('test-btn');
   const box = $('test-result');
@@ -240,6 +258,7 @@ async function testConnection() {
     base_url: $('cfg-baseurl').value.trim(),
     model: $('cfg-model').value.trim(),
     timeout_secs: parseInt($('cfg-timeout').value, 10) || 60,
+    api_key: $('cfg-apikey').value.trim(),
   };
   try {
     const res = await fetch('/api/test', {
@@ -250,7 +269,14 @@ async function testConnection() {
     const data = await res.json();
     if (data.ok) {
       box.className = 'test-result ok';
-      box.textContent = '✓ 连接成功（耗时 ' + data.elapsed_ms + ' ms）\n\n模型回复：\n' + (data.reply || '（空回复）');
+      let lines = '✓ 连接成功（耗时 ' + data.elapsed_ms + ' ms）\n\n模型回复：\n' + (data.reply || '（空回复）');
+      if (data.models && data.models.length) {
+        renderModelList(data.models);
+        lines += '\n\n📋 已获取 ' + data.models.length + ' 个模型，可点击 Model 输入框选择：\n' + data.models.join(', ');
+      } else {
+        lines += '\n\n（未获取到模型列表，可手动填写模型名）';
+      }
+      box.textContent = lines;
     } else {
       box.className = 'test-result err';
       box.textContent = '✗ 连接失败：\n' + (data.error || '未知错误');

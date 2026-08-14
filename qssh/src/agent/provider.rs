@@ -74,6 +74,8 @@ pub struct ProviderConfig {
     pub model: String,
     /// 请求超时（秒）
     pub timeout_secs: u64,
+    /// 显式配置的 API Key（`None` 时回退到环境变量 / opencode auth.json）
+    pub api_key: Option<String>,
 }
 
 impl Default for ProviderConfig {
@@ -83,6 +85,7 @@ impl Default for ProviderConfig {
             base_url: "https://api.deepseek.com/v1".to_string(),
             model: "deepseek-chat".to_string(),
             timeout_secs: 60,
+            api_key: None,
         }
     }
 }
@@ -128,7 +131,7 @@ fn chat_openai(
     messages: &[ChatMessage],
     available_tools: &str,
 ) -> Result<ChatReply, ProviderError> {
-    let api_key = resolve_api_key(config.kind)?;
+    let api_key = resolve_api_key(config)?;
 
     let system = format!(
         "你是 Quick-SSH 的运维助手。你可以调用工具管理远程服务器。\n\
@@ -189,10 +192,18 @@ fn chat_openai(
 }
 
 /// 解析 API Key，优先级：
-/// 1. `QSSH_OPENAI_API_KEY`（Quick-SSH 专属）
-/// 2. `OPENCODE_API_KEY`（opencode-go 标准变量）
-/// 3. opencode 登录凭证 `~/.local/share/opencode/auth.json` 中对应 provider 的 `key`
-fn resolve_api_key(kind: ProviderKind) -> Result<String, ProviderError> {
+/// 1. 配置中显式设置的 `api_key`（`ProviderConfig.api_key`，WebUI 配置）
+/// 2. 环境变量 `QSSH_OPENAI_API_KEY`（Quick-SSH 专属）
+/// 3. 环境变量 `OPENCODE_API_KEY`（opencode-go 标准变量）
+/// 4. opencode 登录凭证 `~/.local/share/opencode/auth.json` 中对应 provider 的 `key`
+fn resolve_api_key(config: &ProviderConfig) -> Result<String, ProviderError> {
+    // 1. 显式配置的 key 优先级最高
+    if let Some(key) = config.api_key.as_deref() {
+        if !key.trim().is_empty() {
+            return Ok(key.trim().to_string());
+        }
+    }
+    // 2. 环境变量
     if let Ok(key) = std::env::var("QSSH_OPENAI_API_KEY") {
         if !key.trim().is_empty() {
             return Ok(key);
@@ -203,8 +214,8 @@ fn resolve_api_key(kind: ProviderKind) -> Result<String, ProviderError> {
             return Ok(key);
         }
     }
-    // opencode 登录凭证回退（仅对 opencode / opencode-go provider）
-    let auth_name = match kind {
+    // 3. opencode 登录凭证回退（仅对 opencode / opencode-go provider）
+    let auth_name = match config.kind {
         ProviderKind::OpenCodeGo => Some(OPENCODE_GO_AUTH_KEY),
         _ => None,
     };
@@ -354,6 +365,109 @@ fn chat_ollama_http(
     Ok(build_reply(content))
 }
 
+/// 获取 Provider 支持的模型列表（OpenAI 兼容 API）。
+///
+/// 通过 `curl -s <base_url>/models` 拉取 `data[].id` 列表；
+/// Ollama 本地后端通过 `/api/tags` 获取。失败时返回 [`ProviderError`]。
+pub fn list_models(config: &ProviderConfig) -> Result<Vec<String>, ProviderError> {
+    match config.kind {
+        ProviderKind::OpenAI | ProviderKind::OpenCodeGo => list_models_openai(config),
+        ProviderKind::Ollama => list_models_ollama(config),
+    }
+}
+
+/// OpenAI 兼容：`curl -s <base_url>/models` → `data[].id`
+fn list_models_openai(config: &ProviderConfig) -> Result<Vec<String>, ProviderError> {
+    let api_key = resolve_api_key(config)?;
+    let base = if config.base_url.is_empty() {
+        "https://api.deepseek.com/v1".to_string()
+    } else {
+        config.base_url.clone()
+    };
+    let url = format!("{}/models", base.trim_end_matches('/'));
+
+    let mut command = Command::new("curl");
+    command
+        .args(["-s", "-m", &config.timeout_secs.to_string()])
+        .args(["-H", &format!("Authorization: Bearer {}", api_key)])
+        .arg(&url);
+
+    let output = command
+        .output()
+        .map_err(|e| ProviderError::Spawn(e.to_string()))?;
+
+    if !output.status.success() {
+        return Err(ProviderError::Http(format!(
+            "curl 退出码 {}: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    let parsed: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| ProviderError::Parse(format!("JSON 解析失败: {e}")))?;
+
+    let mut models = Vec::new();
+    if let Some(arr) = parsed["data"].as_array() {
+        for item in arr {
+            if let Some(id) = item["id"].as_str() {
+                if !id.trim().is_empty() {
+                    models.push(id.to_string());
+                }
+            }
+        }
+    }
+    models.sort();
+    models.dedup();
+    Ok(models)
+}
+
+/// Ollama：`curl -s <base_url>/api/tags` → `models[].name`
+fn list_models_ollama(config: &ProviderConfig) -> Result<Vec<String>, ProviderError> {
+    let base = if config.base_url.is_empty() {
+        "http://localhost:11434".to_string()
+    } else {
+        config.base_url.clone()
+    };
+    let url = format!("{}/api/tags", base.trim_end_matches('/'));
+
+    let mut command = Command::new("curl");
+    command
+        .args(["-s", "-m", &config.timeout_secs.to_string()])
+        .arg(&url);
+
+    let output = command
+        .output()
+        .map_err(|e| ProviderError::Spawn(e.to_string()))?;
+
+    if !output.status.success() {
+        return Err(ProviderError::Http(format!(
+            "curl 退出码 {}: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    let parsed: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| ProviderError::Parse(format!("JSON 解析失败: {e}")))?;
+
+    let mut models = Vec::new();
+    if let Some(arr) = parsed["models"].as_array() {
+        for item in arr {
+            if let Some(name) = item["name"].as_str() {
+                if !name.trim().is_empty() {
+                    models.push(name.to_string());
+                }
+            }
+        }
+    }
+    models.sort();
+    models.dedup();
+    Ok(models)
+}
+
 /// 从 LLM 回复构建 [`ChatReply`]：提取首行 `tool:` 调用
 fn build_reply(content: &str) -> ChatReply {
     // 优先整段匹配（LLM 可能在回复后附带工具调用）
@@ -449,16 +563,90 @@ mod tests {
     }
 
     #[test]
-    fn resolve_api_key_uses_env_first() {
+    fn resolve_api_key_uses_explicit_first() {
+        let config = ProviderConfig {
+            kind: ProviderKind::OpenAI,
+            base_url: "https://example.com/v1".to_string(),
+            model: "test".to_string(),
+            timeout_secs: 10,
+            api_key: Some("sk-explicit".to_string()),
+        };
+        unsafe {
+            std::env::set_var("QSSH_OPENAI_API_KEY", "sk-env");
+        }
+        let key = resolve_api_key(&config).expect("explicit key should win");
+        assert_eq!(key, "sk-explicit");
+        unsafe {
+            std::env::remove_var("QSSH_OPENAI_API_KEY");
+        }
+    }
+
+    #[test]
+    fn resolve_api_key_uses_env_fallback() {
         unsafe {
             std::env::remove_var("QSSH_OPENAI_API_KEY");
             std::env::set_var("OPENCODE_API_KEY", "sk-env-test");
         }
-        let key = resolve_api_key(ProviderKind::OpenCodeGo).expect("env key should be found");
+        let config = ProviderConfig {
+            api_key: None,
+            ..ProviderConfig::default()
+        };
+        let key = resolve_api_key(&config).expect("env key should be found");
         assert_eq!(key, "sk-env-test");
         unsafe {
             std::env::remove_var("OPENCODE_API_KEY");
         }
+    }
+
+    #[test]
+    fn resolve_api_key_missing_returns_error() {
+        unsafe {
+            std::env::remove_var("QSSH_OPENAI_API_KEY");
+            std::env::remove_var("OPENCODE_API_KEY");
+        }
+        let config = ProviderConfig {
+            api_key: None,
+            kind: ProviderKind::OpenAI,
+            ..ProviderConfig::default()
+        };
+        assert!(matches!(
+            resolve_api_key(&config),
+            Err(ProviderError::MissingApiKey)
+        ));
+    }
+
+    #[test]
+    fn list_models_parses_openai_data() {
+        let text = r#"{"object":"list","data":[{"id":"deepseek-chat"},{"id":"deepseek-reasoner"},{"id":"deepseek-chat"}]}"#;
+        let parsed: serde_json::Value = serde_json::from_str(text).unwrap();
+        let mut models = Vec::new();
+        if let Some(arr) = parsed["data"].as_array() {
+            for item in arr {
+                if let Some(id) = item["id"].as_str() {
+                    models.push(id.to_string());
+                }
+            }
+        }
+        models.sort();
+        models.dedup();
+        assert_eq!(models, vec!["deepseek-chat", "deepseek-reasoner"]);
+    }
+
+    #[test]
+    fn list_models_parses_ollama_tags() {
+        let text = r#"{"models":[{"name":"qwen2.5:7b"},{"name":"llama3:latest"}]}"#;
+        let parsed: serde_json::Value = serde_json::from_str(text).unwrap();
+        let mut models = Vec::new();
+        if let Some(arr) = parsed["models"].as_array() {
+            for item in arr {
+                if let Some(name) = item["name"].as_str() {
+                    models.push(name.to_string());
+                }
+            }
+        }
+        models.sort();
+        models.dedup();
+        assert_eq!(models, vec!["llama3:latest", "qwen2.5:7b"]);
     }
 
     #[test]
