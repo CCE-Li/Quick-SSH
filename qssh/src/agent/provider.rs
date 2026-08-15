@@ -161,7 +161,7 @@ fn chat_openai(
     let url = format!("{}/chat/completions", config.base_url.trim_end_matches('/'));
     let mut command = Command::new("curl");
     command
-        .args(["-s", "-m", &config.timeout_secs.to_string()])
+        .args(curl_https_args(config.timeout_secs))
         .args(["-X", "POST"])
         .args(["-H", "Content-Type: application/json"])
         .args(["-H", &format!("Authorization: Bearer {}", api_key)])
@@ -173,10 +173,9 @@ fn chat_openai(
         .map_err(|e| ProviderError::Spawn(e.to_string()))?;
 
     if !output.status.success() {
-        return Err(ProviderError::Http(format!(
-            "curl 退出码 {}: {}",
-            output.status,
-            String::from_utf8_lossy(&output.stderr)
+        return Err(ProviderError::Http(curl_error(
+            output.status.code(),
+            &output.stderr,
         )));
     }
 
@@ -336,7 +335,7 @@ fn chat_ollama_http(
 
     let mut command = Command::new("curl");
     command
-        .args(["-s", "-m", &config.timeout_secs.to_string()])
+        .args(["-sS", "-m", &config.timeout_secs.to_string()])
         .args(["-X", "POST"])
         .args(["-H", "Content-Type: application/json"])
         .args(["-d", &body])
@@ -347,10 +346,9 @@ fn chat_ollama_http(
         .map_err(|e| ProviderError::Spawn(e.to_string()))?;
 
     if !output.status.success() {
-        return Err(ProviderError::Http(format!(
-            "curl 退出码 {}: {}",
-            output.status,
-            String::from_utf8_lossy(&output.stderr)
+        return Err(ProviderError::Http(curl_error(
+            output.status.code(),
+            &output.stderr,
         )));
     }
 
@@ -388,7 +386,7 @@ fn list_models_openai(config: &ProviderConfig) -> Result<Vec<String>, ProviderEr
 
     let mut command = Command::new("curl");
     command
-        .args(["-s", "-m", &config.timeout_secs.to_string()])
+        .args(curl_https_args(config.timeout_secs))
         .args(["-H", &format!("Authorization: Bearer {}", api_key)])
         .arg(&url);
 
@@ -397,10 +395,9 @@ fn list_models_openai(config: &ProviderConfig) -> Result<Vec<String>, ProviderEr
         .map_err(|e| ProviderError::Spawn(e.to_string()))?;
 
     if !output.status.success() {
-        return Err(ProviderError::Http(format!(
-            "curl 退出码 {}: {}",
-            output.status,
-            String::from_utf8_lossy(&output.stderr)
+        return Err(ProviderError::Http(curl_error(
+            output.status.code(),
+            &output.stderr,
         )));
     }
 
@@ -434,7 +431,7 @@ fn list_models_ollama(config: &ProviderConfig) -> Result<Vec<String>, ProviderEr
 
     let mut command = Command::new("curl");
     command
-        .args(["-s", "-m", &config.timeout_secs.to_string()])
+        .args(["-sS", "-m", &config.timeout_secs.to_string()])
         .arg(&url);
 
     let output = command
@@ -442,10 +439,9 @@ fn list_models_ollama(config: &ProviderConfig) -> Result<Vec<String>, ProviderEr
         .map_err(|e| ProviderError::Spawn(e.to_string()))?;
 
     if !output.status.success() {
-        return Err(ProviderError::Http(format!(
-            "curl 退出码 {}: {}",
-            output.status,
-            String::from_utf8_lossy(&output.stderr)
+        return Err(ProviderError::Http(curl_error(
+            output.status.code(),
+            &output.stderr,
         )));
     }
 
@@ -488,6 +484,44 @@ fn build_reply(content: &str) -> ChatReply {
         content.to_string()
     };
     ChatReply { text, tool_call }
+}
+
+/// 构建 HTTPS curl 基础参数：
+/// - `-sS`：静默成功输出，但失败时保留 curl 的 stderr 诊断信息
+///   （此前用 `-s` 会把 curl 35 等具体错误完全吞掉）
+/// - `--ssl-no-revoke`：Windows Schannel 后端禁用证书吊销检查。
+///   吊销检查在受限网络 / 代理下失败是 curl 35（`CURLE_SSL_CONNECT_ERROR`）
+///   的最常见根因，禁用后证书链验证仍由 Schannel 完成。
+fn curl_https_args(timeout_secs: u64) -> Vec<String> {
+    vec![
+        "-sS".to_string(),
+        "-m".to_string(),
+        timeout_secs.to_string(),
+        "--ssl-no-revoke".to_string(),
+    ]
+}
+
+/// 格式化 curl 失败错误，附带常见退出码诊断提示。
+///
+/// `code` 为 curl 进程的退出码（`ExitStatus::code()`，进程被信号终止时为 `None`）。
+fn curl_error(code: Option<i32>, stderr: &[u8]) -> String {
+    let detail = String::from_utf8_lossy(stderr).trim().to_string();
+    let hint = match code {
+        Some(35) => "；SSL 连接错误（已禁用证书吊销检查，若仍失败请检查网络 / 代理 / Base URL）",
+        Some(6) => "；DNS 解析失败（请检查网络或 Base URL）",
+        Some(7) => "；连接被拒绝（请检查 Base URL 与端口）",
+        Some(60) => "；证书验证失败（自签名 / MITM / 过期证书）",
+        _ => "",
+    };
+    let code_str = match code {
+        Some(c) => c.to_string(),
+        None => "unknown".to_string(),
+    };
+    if detail.is_empty() {
+        format!("curl 退出码 {code_str}{hint}")
+    } else {
+        format!("curl 退出码 {code_str}: {detail}{hint}")
+    }
 }
 
 /// Provider 错误
@@ -613,6 +647,29 @@ mod tests {
             resolve_api_key(&config),
             Err(ProviderError::MissingApiKey)
         ));
+    }
+
+    #[test]
+    fn curl_https_args_includes_no_revoke_and_show_errors() {
+        let args = curl_https_args(30);
+        assert!(args.iter().any(|a| a == "-sS"));
+        assert!(args.iter().any(|a| a == "--ssl-no-revoke"));
+        assert!(args.iter().any(|a| a == "30"));
+    }
+
+    #[test]
+    fn curl_error_formats_ssl_code_35() {
+        let msg = curl_error(Some(35), b"schannel: failed to verify revocation");
+        assert!(msg.contains("35"));
+        assert!(msg.contains("schannel: failed to verify revocation"));
+        assert!(msg.contains("SSL"));
+    }
+
+    #[test]
+    fn curl_error_empty_detail_still_has_hint() {
+        let msg = curl_error(Some(35), b"");
+        assert!(msg.contains("35"));
+        assert!(msg.contains("SSL"));
     }
 
     #[test]
