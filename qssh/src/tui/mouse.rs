@@ -14,6 +14,7 @@ use ratatui::layout::{Margin, Position, Rect};
 use super::action::{Action, Mode, View};
 use super::app::App;
 use crate::tui::dashboard::filter_palette;
+use crate::tui::dashboard::layout::hit_test_divider;
 use crate::tui::dashboard::WidgetId;
 use crate::tui::widgets::centered_rect;
 
@@ -28,7 +29,31 @@ const PALETTE_POPUP_H: u16 = 60;
 /// 将鼠标事件映射为 Action（无对应操作时返回 `Action::None`）
 pub fn map_mouse_to_action(event: MouseEvent, app: &App) -> Action {
     match event.kind {
-        MouseEventKind::Down(MouseButton::Left) => left_click(app, event.column, event.row),
+        MouseEventKind::Down(MouseButton::Left) => {
+            if app.split_drag.is_some() {
+                // 拖动中再次按下：先结束上一次拖动
+                Action::EndSplitDrag
+            } else {
+                left_click(app, event.column, event.row)
+            }
+        }
+        MouseEventKind::Drag(MouseButton::Left) => {
+            if app.split_drag.is_some() {
+                Action::MoveSplitDrag {
+                    col: event.column,
+                    row: event.row,
+                }
+            } else {
+                Action::None
+            }
+        }
+        MouseEventKind::Up(MouseButton::Left) => {
+            if app.split_drag.is_some() {
+                Action::EndSplitDrag
+            } else {
+                Action::None
+            }
+        }
         MouseEventKind::ScrollUp => scroll(app, -1),
         MouseEventKind::ScrollDown => scroll(app, 1),
         _ => Action::None,
@@ -41,7 +66,13 @@ fn left_click(app: &App, col: u16, row: u16) -> Action {
         Mode::Normal if app.view == View::HostList => {
             host_index_at(app, col, row).map_or(Action::None, Action::SelectListItem)
         }
-        Mode::Normal => widget_click(app, col, row),
+        Mode::Normal => {
+            if is_on_divider(app, col, row) {
+                Action::StartSplitDrag { col, row }
+            } else {
+                widget_click(app, col, row)
+            }
+        }
         Mode::DockerOps => panel_index_at(row, col, OPS_POPUP_W, OPS_POPUP_H, app.docker_count())
             .map_or(Action::None, Action::SelectListItem),
         Mode::ServiceOps => panel_index_at(row, col, OPS_POPUP_W, OPS_POPUP_H, app.service_count())
@@ -57,6 +88,19 @@ fn left_click(app: &App, col: u16, row: u16) -> Action {
         }
         _ => Action::None,
     }
+}
+
+/// Dashboard 视图下鼠标是否落在某条分隔线上（命中则开启拖动）
+fn is_on_divider(app: &App, col: u16, row: u16) -> bool {
+    let Some(profile) = app
+        .dashboard_config
+        .profiles
+        .get(&app.dashboard_config.active_profile)
+    else {
+        return false;
+    };
+    let pos = Position::new(col, row);
+    hit_test_divider(&profile.layout, full_area(), pos).is_some()
 }
 
 /// 滚轮滚动：按当前模式导航对应列表
@@ -203,5 +247,67 @@ mod tests {
             &a,
         );
         assert!(matches!(action, Action::PaletteMove(1)));
+    }
+
+    #[test]
+    fn drag_event_maps_to_move_split_drag() {
+        let mut a = app();
+        a.split_drag = Some(crate::tui::app::SplitDrag::new(vec![], 0, vec![]));
+        let action = map_mouse_to_action(
+            MouseEvent {
+                kind: MouseEventKind::Drag(MouseButton::Left),
+                column: 55,
+                row: 10,
+                modifiers: crossterm::event::KeyModifiers::NONE,
+            },
+            &a,
+        );
+        assert!(matches!(action, Action::MoveSplitDrag { col: 55, row: 10 }));
+    }
+
+    #[test]
+    fn up_event_ends_split_drag() {
+        let mut a = app();
+        a.split_drag = Some(crate::tui::app::SplitDrag::new(vec![], 0, vec![]));
+        let action = map_mouse_to_action(
+            MouseEvent {
+                kind: MouseEventKind::Up(MouseButton::Left),
+                column: 55,
+                row: 10,
+                modifiers: crossterm::event::KeyModifiers::NONE,
+            },
+            &a,
+        );
+        assert!(matches!(action, Action::EndSplitDrag));
+    }
+
+    #[test]
+    fn second_down_during_drag_ends_previous_drag() {
+        let mut a = app();
+        a.split_drag = Some(crate::tui::app::SplitDrag::new(vec![], 0, vec![]));
+        let action = map_mouse_to_action(
+            MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                column: 55,
+                row: 10,
+                modifiers: crossterm::event::KeyModifiers::NONE,
+            },
+            &a,
+        );
+        assert!(matches!(action, Action::EndSplitDrag));
+    }
+
+    #[test]
+    fn drag_without_drag_state_is_ignored() {
+        let action = map_mouse_to_action(
+            MouseEvent {
+                kind: MouseEventKind::Drag(MouseButton::Left),
+                column: 55,
+                row: 10,
+                modifiers: crossterm::event::KeyModifiers::NONE,
+            },
+            &app(),
+        );
+        assert!(matches!(action, Action::None));
     }
 }

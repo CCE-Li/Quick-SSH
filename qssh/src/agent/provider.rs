@@ -183,11 +183,29 @@ fn chat_openai(
     let parsed: serde_json::Value = serde_json::from_str(&text)
         .map_err(|e| ProviderError::Parse(format!("JSON 解析失败: {e}")))?;
 
-    let content = parsed["choices"][0]["message"]["content"]
+    let choice = &parsed["choices"][0];
+    let content = choice["message"]["content"]
         .as_str()
-        .ok_or_else(|| ProviderError::Parse("响应缺少 content".to_string()))?;
+        .ok_or_else(|| ProviderError::Parse(missing_content_error(choice)))?;
 
     Ok(build_reply(content))
+}
+
+/// 诊断“响应缺少 content”：附带 finish_reason 与 message 结构线索。
+///
+/// 兼容 OpenAI 格式（传 `choices[0]`）与 ollama 格式（传 `message`）。
+fn missing_content_error(choice_or_message: &serde_json::Value) -> String {
+    let msg = &choice_or_message["message"];
+    let finish = choice_or_message["finish_reason"]
+        .as_str()
+        .unwrap_or("unknown");
+    let has_tools = msg["tool_calls"].as_array().is_some_and(|c| !c.is_empty());
+    let has_reasoning = msg["reasoning_content"]
+        .as_str()
+        .is_some_and(|s| !s.trim().is_empty());
+    format!(
+        "响应缺少 content（finish_reason: {finish}, tool_calls: {has_tools}, reasoning_content: {has_reasoning}）"
+    )
 }
 
 /// 解析 API Key，优先级：
@@ -335,7 +353,7 @@ fn chat_ollama_http(
 
     let mut command = Command::new("curl");
     command
-        .args(["-sS", "-m", &config.timeout_secs.to_string()])
+        .args(["-sS", "-f", "-m", &config.timeout_secs.to_string()])
         .args(["-X", "POST"])
         .args(["-H", "Content-Type: application/json"])
         .args(["-d", &body])
@@ -358,7 +376,7 @@ fn chat_ollama_http(
 
     let content = parsed["message"]["content"]
         .as_str()
-        .ok_or_else(|| ProviderError::Parse("响应缺少 content".to_string()))?;
+        .ok_or_else(|| ProviderError::Parse(missing_content_error(&parsed)))?;
 
     Ok(build_reply(content))
 }
@@ -431,7 +449,7 @@ fn list_models_ollama(config: &ProviderConfig) -> Result<Vec<String>, ProviderEr
 
     let mut command = Command::new("curl");
     command
-        .args(["-sS", "-m", &config.timeout_secs.to_string()])
+        .args(["-sS", "-f", "-m", &config.timeout_secs.to_string()])
         .arg(&url);
 
     let output = command
@@ -489,12 +507,15 @@ fn build_reply(content: &str) -> ChatReply {
 /// 构建 HTTPS curl 基础参数：
 /// - `-sS`：静默成功输出，但失败时保留 curl 的 stderr 诊断信息
 ///   （此前用 `-s` 会把 curl 35 等具体错误完全吞掉）
+/// - `-f`：HTTP 4xx/5xx 时以非零退出码失败（并把错误响应体写入 stderr），
+///   避免把网关的错误 JSON 当成成功响应解析（否则会报误导性的“响应缺少 content”）
 /// - `--ssl-no-revoke`：Windows Schannel 后端禁用证书吊销检查。
 ///   吊销检查在受限网络 / 代理下失败是 curl 35（`CURLE_SSL_CONNECT_ERROR`）
 ///   的最常见根因，禁用后证书链验证仍由 Schannel 完成。
 fn curl_https_args(timeout_secs: u64) -> Vec<String> {
     vec![
         "-sS".to_string(),
+        "-f".to_string(),
         "-m".to_string(),
         timeout_secs.to_string(),
         "--ssl-no-revoke".to_string(),
@@ -557,6 +578,9 @@ impl std::fmt::Display for ProviderError {
 mod tests {
     use super::*;
 
+    /// 串行化会读写进程级环境变量的测试（并行执行会互相污染环境变量导致偶发失败）
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn build_reply_plain_text() {
         let reply = build_reply("服务器状态正常。");
@@ -598,6 +622,8 @@ mod tests {
 
     #[test]
     fn resolve_api_key_uses_explicit_first() {
+        // 以下三个测试都读写进程级环境变量，串行化避免并行执行互相污染
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let config = ProviderConfig {
             kind: ProviderKind::OpenAI,
             base_url: "https://example.com/v1".to_string(),
@@ -617,6 +643,7 @@ mod tests {
 
     #[test]
     fn resolve_api_key_uses_env_fallback() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         unsafe {
             std::env::remove_var("QSSH_OPENAI_API_KEY");
             std::env::set_var("OPENCODE_API_KEY", "sk-env-test");
@@ -634,6 +661,7 @@ mod tests {
 
     #[test]
     fn resolve_api_key_missing_returns_error() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         unsafe {
             std::env::remove_var("QSSH_OPENAI_API_KEY");
             std::env::remove_var("OPENCODE_API_KEY");
@@ -653,8 +681,23 @@ mod tests {
     fn curl_https_args_includes_no_revoke_and_show_errors() {
         let args = curl_https_args(30);
         assert!(args.iter().any(|a| a == "-sS"));
+        assert!(args.iter().any(|a| a == "-f"));
         assert!(args.iter().any(|a| a == "--ssl-no-revoke"));
         assert!(args.iter().any(|a| a == "30"));
+    }
+
+    #[test]
+    fn missing_content_error_includes_diagnostics() {
+        let choice = json!({
+            "finish_reason": "tool_calls",
+            "message": {
+                "content": null,
+                "tool_calls": [{"function": {"name": "bash"}}]
+            }
+        });
+        let err = missing_content_error(&choice);
+        assert!(err.contains("tool_calls: true"));
+        assert!(err.contains("finish_reason: tool_calls"));
     }
 
     #[test]

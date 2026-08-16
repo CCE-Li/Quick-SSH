@@ -152,6 +152,18 @@ pub enum Action {
     CloseCommandResult,
     /// 关闭嵌入式终端会话（Esc / Ctrl+Shift+C）
     CloseTerminal,
+    /// 开始拖动 Dashboard 分隔线（调整相邻窗口大小）
+    StartSplitDrag {
+        col: u16,
+        row: u16,
+    },
+    /// 拖动中更新分隔线位置
+    MoveSplitDrag {
+        col: u16,
+        row: u16,
+    },
+    /// 结束拖动并保存布局
+    EndSplitDrag,
     Quit,
 }
 

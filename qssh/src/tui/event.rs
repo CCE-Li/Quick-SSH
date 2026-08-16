@@ -9,7 +9,7 @@ use crossterm::execute;
 use ratatui::DefaultTerminal;
 
 use super::action::{Action, Mode};
-use super::keymap::map_key_to_action;
+use super::keymap::{map_key_to_action, map_terminal_prefix_key};
 use super::mouse::map_mouse_to_action;
 use super::ui::render;
 use crate::config::types;
@@ -73,8 +73,34 @@ fn run_event_loop(mut terminal: DefaultTerminal, app: &mut App) -> Result<()> {
             if let CrosstermEvent::Key(key) = event {
                 // 仅在按下时处理（忽略重复和释放）
                 if key.kind == KeyEventKind::Press {
+                    // 分隔线拖动期间按键盘：取消拖动
+                    if app.split_drag.is_some() {
+                        app.cancel_split_drag();
+                    }
                     // 嵌入式终端模式：键盘直接转发给 PTY
                     if app.mode == Mode::Terminal {
+                        // Ctrl+B 前缀等待状态：按键映射为 TUI 命令，而非转发给 PTY
+                        if app.term_prefix_active() {
+                            let action = map_terminal_prefix_key(key);
+                            app.set_term_prefix(false);
+                            if let Some(action) = action {
+                                app.apply(action);
+                            } else {
+                                app.term_write_key(key);
+                            }
+                            continue;
+                        }
+
+                        // 前缀键：Ctrl+B 进入命令等待状态（不转发给 PTY）
+                        let is_prefix = key.code == KeyCode::Char('b')
+                            && key.modifiers.contains(KeyModifiers::CONTROL)
+                            && !key.modifiers.contains(KeyModifiers::ALT)
+                            && !key.modifiers.contains(KeyModifiers::SHIFT);
+                        if is_prefix {
+                            app.set_term_prefix(true);
+                            continue;
+                        }
+
                         // 断开快捷键：Esc / Ctrl+Shift+C
                         let close = key.code == KeyCode::Esc
                             || (key.code == KeyCode::Char('c')

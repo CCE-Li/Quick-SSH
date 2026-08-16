@@ -5,6 +5,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crossterm::event::KeyEvent;
+use ratatui::layout::Position;
 use ratatui::widgets::ListState;
 
 use crate::agent::config::{load_agent_config, AgentConfig};
@@ -28,7 +29,9 @@ use crate::ssh::session::SshTarget;
 use crate::tui::action::{Action, Mode, View};
 use crate::tui::dashboard::palette::{filter_palette, PaletteAction, PALETTE_ACTIONS};
 use crate::tui::dashboard::widgets::WidgetModule;
-use crate::tui::dashboard::{load_dashboard_config, save_dashboard_config, DashboardConfig};
+use crate::tui::dashboard::{
+    load_dashboard_config, save_dashboard_config, DashboardConfig, LayoutNode,
+};
 use crate::tui::editor::{
     AgentFormState, EditorOutcome, HostFormMode, HostFormState, HostFormSubmission,
     PasswordStorageAction,
@@ -77,6 +80,35 @@ pub struct FlashMessage {
     pub message: String,
     pub color: String,
     expires_at: Option<Instant>,
+}
+
+/// Dashboard 分隔线拖动状态（鼠标拖动调整相邻窗口大小）
+pub struct SplitDrag {
+    /// 从布局根到目标 Split 节点的子节点下标路径
+    path: Vec<usize>,
+    /// 分隔线左侧/上方子节点下标（拖动其右/下边界）
+    pivot: usize,
+    /// 拖动开始时各子节点的像素尺寸（Horizontal 为宽，Vertical 为高）
+    fixed: Vec<u16>,
+}
+
+impl SplitDrag {
+    /// 构造拖动状态（仅测试使用）
+    #[cfg(test)]
+    pub fn new(path: Vec<usize>, pivot: usize, fixed: Vec<u16>) -> Self {
+        Self { path, pivot, fixed }
+    }
+}
+
+/// Agent 对话线程条目（opencode 风格：消息 + 内联工具步骤）
+#[derive(Debug, Clone)]
+pub enum AgentChatEntry {
+    /// 用户发送的消息
+    User(String),
+    /// 助手回复（自然语言 / 错误摘要）
+    Assistant(String),
+    /// 工具调用步骤（含最终状态）
+    Tool(crate::agent::timeline::TimelineStep),
 }
 
 // ── 应用状态 ─────────────────────────────────────────────
@@ -167,10 +199,10 @@ pub struct App {
     agent_timeline: Timeline,
     /// Agent 对话历史（注入 LLM 上下文）
     agent_history: Vec<ChatMessage>,
+    /// Agent 对话线程（展示用，含用户/助手消息与工具步骤）
+    agent_thread: Vec<AgentChatEntry>,
     /// 待批准的 Agent 工具调用
     agent_pending_call: Option<ToolCall>,
-    /// 最近一次 Agent 回复
-    agent_last_reply: String,
     /// `:` 远程命令输入缓冲
     command_input: String,
     /// `:` 远程命令执行结果（None = 无结果）
@@ -191,6 +223,10 @@ pub struct App {
     term_rx: Receiver<TermEvent>,
     /// 终端事件发送端（会话持有克隆）
     term_tx: Sender<TermEvent>,
+    /// 嵌入式终端前缀键等待状态（Ctrl+B 按下后等待下一个 TUI 命令）
+    term_prefix: bool,
+    /// Dashboard 分隔线拖动状态（None = 未在拖动）
+    pub split_drag: Option<SplitDrag>,
 }
 
 impl App {
@@ -252,8 +288,8 @@ impl App {
             agent_status: AgentStatus::Ready,
             agent_timeline: Timeline::new(),
             agent_history: Vec::new(),
+            agent_thread: Vec::new(),
             agent_pending_call: None,
-            agent_last_reply: String::new(),
             command_input: String::new(),
             command_result: None,
             cmd_rx,
@@ -264,6 +300,8 @@ impl App {
             term_session: None,
             term_rx,
             term_tx,
+            term_prefix: false,
+            split_drag: None,
         }
     }
 
@@ -456,6 +494,102 @@ impl App {
     pub fn term_resize(&mut self, cols: u16, rows: u16) {
         if let Some(session) = self.term_session.as_mut() {
             session.resize(cols, rows);
+        }
+    }
+
+    /// 是否处于嵌入式终端前缀键等待状态（Ctrl+B 已按下，等待 TUI 命令）
+    pub fn term_prefix_active(&self) -> bool {
+        self.term_prefix
+    }
+
+    /// 设置/清除嵌入式终端前缀键等待状态
+    pub fn set_term_prefix(&mut self, active: bool) {
+        self.term_prefix = active;
+    }
+
+    /// 取消分隔线拖动（放弃本次调整，不保存）
+    pub fn cancel_split_drag(&mut self) {
+        self.split_drag = None;
+    }
+
+    /// 开始拖动分隔线：命中 Dashboard 布局中的分隔线则记录拖动状态
+    fn start_split_drag(&mut self, col: u16, row: u16) {
+        if self.mode != Mode::Normal || self.view != View::Dashboard {
+            return;
+        }
+        let Some(profile) = self
+            .dashboard_config
+            .profiles
+            .get(&self.dashboard_config.active_profile)
+        else {
+            return;
+        };
+        let area = terminal_area();
+        let Some((path, pivot)) = crate::tui::dashboard::layout::hit_test_divider(
+            &profile.layout,
+            area,
+            Position::new(col, row),
+        ) else {
+            return;
+        };
+        let Some(fixed) = crate::tui::dashboard::layout::split_sizes(&profile.layout, area, &path)
+        else {
+            return;
+        };
+        self.split_drag = Some(SplitDrag { path, pivot, fixed });
+    }
+
+    /// 拖动中更新分隔线两侧子节点的权重
+    fn move_split_drag(&mut self, col: u16, row: u16) {
+        let (path, pivot, fixed) = match &self.split_drag {
+            Some(drag) => (drag.path.clone(), drag.pivot, drag.fixed.clone()),
+            None => return,
+        };
+        let Some(profile) = self
+            .dashboard_config
+            .profiles
+            .get_mut(&self.dashboard_config.active_profile)
+        else {
+            return;
+        };
+        let area = terminal_area();
+        let Some((node, split_area, _)) =
+            crate::tui::dashboard::layout::split_metrics(&mut profile.layout, area, &path)
+        else {
+            return;
+        };
+        let LayoutNode::Split {
+            direction,
+            children,
+        } = node
+        else {
+            return;
+        };
+        let Some(weights) = crate::tui::dashboard::layout::apply_split_resize(
+            children.len(),
+            *direction,
+            split_area,
+            pivot,
+            &fixed,
+            col,
+            row,
+        ) else {
+            return;
+        };
+        for (child, w) in children.iter_mut().zip(weights) {
+            child.weight = w.max(1);
+        }
+    }
+
+    /// 结束拖动并持久化调整后的布局
+    fn end_split_drag(&mut self) {
+        if self.split_drag.take().is_none() {
+            return;
+        }
+        if let Err(e) = save_dashboard_config(&self.dashboard_config) {
+            self.set_flash_message(format!("布局保存失败: {}", e), "red");
+        } else {
+            self.set_flash_message("布局已调整并保存", "green");
         }
     }
 
@@ -673,7 +807,7 @@ impl App {
             }
             // ── Dashboard 配置弹窗 ────────────────────────
             Action::CloseDashboardConfig => {
-                self.mode = Mode::Normal;
+                self.restore_mode_after_overlay();
             }
             Action::ToggleDashboardModule(id) => {
                 if let Some(profile) = self
@@ -706,7 +840,7 @@ impl App {
                 }
             }
             Action::CloseDockerOps => {
-                self.mode = Mode::Normal;
+                self.restore_mode_after_overlay();
                 self.docker_action = None;
             }
             Action::DockerOpsMove(delta) => {
@@ -727,7 +861,7 @@ impl App {
             }
             Action::ConfirmDocker(confirmed) => {
                 let pending = self.docker_action.take();
-                self.mode = Mode::Normal;
+                self.restore_mode_after_overlay();
                 if !confirmed {
                     return;
                 }
@@ -795,7 +929,7 @@ impl App {
                 }
             }
             Action::CloseServiceOps => {
-                self.mode = Mode::Normal;
+                self.restore_mode_after_overlay();
                 self.service_action = None;
             }
             Action::ServiceOpsMove(delta) => {
@@ -816,7 +950,7 @@ impl App {
             }
             Action::ConfirmService(confirmed) => {
                 let pending = self.service_action.take();
-                self.mode = Mode::Normal;
+                self.restore_mode_after_overlay();
                 if !confirmed {
                     return;
                 }
@@ -883,7 +1017,7 @@ impl App {
                 }
             }
             Action::CloseFileOps => {
-                self.mode = Mode::Normal;
+                self.restore_mode_after_overlay();
                 self.file_action = None;
             }
             Action::FileOpsMove(delta) => {
@@ -1015,7 +1149,7 @@ impl App {
             }
             Action::ConfirmFile(confirmed) => {
                 let pending = self.file_action.take();
-                self.mode = Mode::Normal;
+                self.restore_mode_after_overlay();
                 if !confirmed {
                     return;
                 }
@@ -1109,7 +1243,7 @@ impl App {
                 }
             }
             Action::CloseLogOps => {
-                self.mode = Mode::Normal;
+                self.restore_mode_after_overlay();
             }
             Action::LogOpsMove(delta) => {
                 let count = self.log_selected_count();
@@ -1191,7 +1325,7 @@ impl App {
                 self.agent_status = AgentStatus::Ready;
             }
             Action::CloseAgentOps => {
-                self.mode = Mode::Normal;
+                self.restore_mode_after_overlay();
             }
             Action::OpenAgentConfig => {
                 self.agent_form = Some(AgentFormState::new(&self.agent_config));
@@ -1199,7 +1333,7 @@ impl App {
             }
             Action::CloseAgentConfig => {
                 self.agent_form = None;
-                self.mode = Mode::Normal;
+                self.restore_mode_after_overlay();
             }
             Action::AgentInput(input) => {
                 self.agent_input = input;
@@ -1210,6 +1344,8 @@ impl App {
                     self.set_flash_message("请输入指令", "yellow");
                     return;
                 }
+                self.agent_input.clear();
+                self.agent_thread.push(AgentChatEntry::User(input.clone()));
                 // 用户直接输入工具调用（无 LLM 时可用）
                 if let Some(call) = crate::agent::tools::parse_tool_call(&input) {
                     self.run_agent_tool(call, input);
@@ -1237,7 +1373,7 @@ impl App {
                 self.palette_selected = 0;
             }
             Action::ClosePalette => {
-                self.mode = Mode::Normal;
+                self.restore_mode_after_overlay();
             }
             Action::PaletteInput(query) => {
                 self.palette_query = query;
@@ -1318,7 +1454,7 @@ impl App {
                 self.command_input.clear();
             }
             Action::CloseCommand => {
-                self.mode = Mode::Normal;
+                self.restore_mode_after_overlay();
                 self.command_input.clear();
             }
             Action::CommandInput(input) => {
@@ -1334,7 +1470,7 @@ impl App {
             }
             Action::CloseCommandResult => {
                 self.command_result = None;
-                self.mode = Mode::Normal;
+                self.restore_mode_after_overlay();
             }
             Action::StartAdd => {
                 self.mode = Mode::Add;
@@ -1458,6 +1594,16 @@ impl App {
             }
             Action::CloseTerminal => {
                 self.close_terminal_session();
+            }
+            // ── Dashboard 分隔线拖动 ─────────────────────
+            Action::StartSplitDrag { col, row } => {
+                self.start_split_drag(col, row);
+            }
+            Action::MoveSplitDrag { col, row } => {
+                self.move_split_drag(col, row);
+            }
+            Action::EndSplitDrag => {
+                self.end_split_drag();
             }
             Action::Ping => {
                 if let Some(idx) = self.selected() {
@@ -1984,9 +2130,9 @@ impl App {
         self.agent_pending_call.as_ref()
     }
 
-    /// 最近一次 Agent 回复
-    pub fn agent_last_reply(&self) -> &str {
-        &self.agent_last_reply
+    /// 对话历史条数
+    pub fn agent_history_count(&self) -> usize {
+        self.agent_history.len()
     }
 
     /// 当前权限级别中文标签
@@ -1994,9 +2140,9 @@ impl App {
         self.agent_config.permission_level().label()
     }
 
-    /// 对话历史条数
-    pub fn agent_history_count(&self) -> usize {
-        self.agent_history.len()
+    /// Agent 对话线程（用户/助手消息 + 工具步骤）
+    pub fn agent_thread(&self) -> &[AgentChatEntry] {
+        &self.agent_thread
     }
 
     // ── AI Agent 后台会话 ──────────────────────────────
@@ -2022,12 +2168,20 @@ impl App {
                 self.mode = Mode::AgentConfirm;
             }
             AgentEvent::Finished { reply, error } => {
+                // 把本轮时间线步骤固化为线程条目（工具调用内联展示）
+                let steps = self.agent_timeline.steps().to_vec();
+                for step in steps {
+                    self.agent_thread.push(AgentChatEntry::Tool(step));
+                }
                 if let Some(error) = error {
                     self.agent_status = AgentStatus::Error;
+                    self.agent_thread
+                        .push(AgentChatEntry::Assistant(format!("⚠ {}", error)));
                     self.set_flash_message(format!("Agent 错误: {}", error), "red");
                 } else {
                     self.agent_status = AgentStatus::Done;
-                    self.agent_last_reply = reply;
+                    self.agent_thread
+                        .push(AgentChatEntry::Assistant(reply.clone()));
                     self.set_flash_message("Agent 执行完成", "green");
                 }
                 self.agent_approval_tx = None;
@@ -2188,6 +2342,17 @@ impl App {
         });
     }
 
+    /// 关闭操作面板/弹窗后应进入的模式：
+    /// SSH 会话仍连接且在 Dashboard 视图时，把焦点还给嵌入式终端（键盘继续转发给 PTY）；
+    /// 否则回到普通模式。
+    fn restore_mode_after_overlay(&mut self) {
+        if self.term_session.is_some() && self.view == View::Dashboard {
+            self.mode = Mode::Terminal;
+        } else {
+            self.mode = Mode::Normal;
+        }
+    }
+
     fn set_timed_flash_message(
         &mut self,
         message: impl Into<String>,
@@ -2207,6 +2372,12 @@ fn run_ping_check(hostname: &str, port: u16) -> (bool, Option<String>) {
         Ok(online) => (online, None),
         Err(error) => (false, Some(error.to_string())),
     }
+}
+
+/// 当前终端区域（以 0,0 为原点；与 mouse.rs 的坐标系约定一致）
+fn terminal_area() -> ratatui::layout::Rect {
+    let (w, h) = crossterm::terminal::size().unwrap_or((0, 0));
+    ratatui::layout::Rect::new(0, 0, w, h)
 }
 
 fn load_saved_password_aliases(hosts: &[HostBlock]) -> HashSet<String> {

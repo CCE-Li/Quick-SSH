@@ -296,19 +296,32 @@ pub fn config_path() -> PathBuf {
 
 /// 加载配置（不存在或损坏时回退默认）
 ///
-/// 布局始终按 `enabled` 重新生成：历史配置中可能残留旧版 `default_layout_for`
-/// 产生的重复 Widget（如两个 Terminal），按模块列表重建可保证布局一致。
+/// 布局与 `enabled` 不一致（历史坏布局 / 缺模块 / 重复模块，如旧 JSON 中的两个
+/// Terminal）时按模块列表重建；一致时保留存储的权重，使用户拖动分隔线调整后的
+/// 布局能在重启后持久化。
 pub fn load_dashboard_config() -> DashboardConfig {
     let path = config_path();
     if let Ok(content) = std::fs::read_to_string(&path) {
         if let Ok(mut config) = serde_json::from_str::<DashboardConfig>(&content) {
             for profile in config.profiles.values_mut() {
-                profile.layout = default_layout_for(&profile.enabled);
+                if !layout_matches_enabled(&profile.layout, &profile.enabled) {
+                    profile.layout = default_layout_for(&profile.enabled);
+                }
             }
             return config;
         }
     }
     default_dashboard_config()
+}
+
+/// 布局树中出现的 Widget 集合是否与 enabled 完全一致（顺序无关，允许嵌套）
+fn layout_matches_enabled(layout: &LayoutNode, enabled: &[WidgetId]) -> bool {
+    let mut found: Vec<WidgetId> = Vec::new();
+    super::layout::collect_widget_ids(layout, &mut found);
+    let mut want = enabled.to_vec();
+    found.sort_by_key(|w| *w as u8);
+    want.sort_by_key(|w| *w as u8);
+    found == want
 }
 
 /// 保存配置到磁盘
@@ -406,5 +419,60 @@ mod tests {
         let mut found = Vec::new();
         collect_widgets(&layout, &mut found);
         assert_eq!(found, vec![WidgetId::Agent]);
+    }
+
+    #[test]
+    fn consistent_layout_is_preserved() {
+        let enabled = vec![WidgetId::Terminal, WidgetId::Agent];
+        let mut layout = default_layout_for(&enabled);
+        // 调整权重后仍与 enabled 一致 → 加载时应保留，而不是重建
+        let LayoutNode::Split { children, .. } = &mut layout else {
+            panic!("应为 split");
+        };
+        children[0].weight = 42;
+        children[1].weight = 58;
+        assert!(layout_matches_enabled(&layout, &enabled));
+        let json = serde_json::to_string(&DashboardConfig {
+            active_profile: "p".into(),
+            profiles: [(
+                "p".to_string(),
+                ProfileConfig {
+                    enabled,
+                    layout: layout.clone(),
+                },
+            )]
+            .into(),
+        })
+        .unwrap();
+        let loaded: DashboardConfig = serde_json::from_str(&json).unwrap();
+        let loaded_layout = &loaded.profiles["p"].layout;
+        let LayoutNode::Split { children, .. } = loaded_layout else {
+            panic!("应为 split");
+        };
+        assert_eq!(children[0].weight, 42);
+    }
+
+    #[test]
+    fn inconsistent_layout_is_rebuilt() {
+        // 历史坏布局：enabled 只有 Agent，但 layout 里残留两个 Agent
+        let enabled = vec![WidgetId::Agent];
+        let layout = LayoutNode::Split {
+            direction: LayoutDirection::Horizontal,
+            children: vec![
+                SplitChild::new(
+                    1,
+                    LayoutNode::Widget {
+                        id: WidgetId::Agent,
+                    },
+                ),
+                SplitChild::new(
+                    1,
+                    LayoutNode::Widget {
+                        id: WidgetId::Agent,
+                    },
+                ),
+            ],
+        };
+        assert!(!layout_matches_enabled(&layout, &enabled));
     }
 }

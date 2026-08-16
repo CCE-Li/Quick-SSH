@@ -156,7 +156,7 @@ impl AgentRunner {
                     );
                     self.emit(AgentEvent::Timeline(timeline.clone()));
                     messages.push(ChatMessage {
-                        role: "tool".to_string(),
+                        role: "user".to_string(),
                         content: format!("工具 {} 被权限拒绝", call.name()),
                     });
                     continue;
@@ -188,7 +188,7 @@ impl AgentRunner {
                 self.emit(AgentEvent::Status(AgentStatus::Ready));
                 self.emit(AgentEvent::Timeline(timeline.clone()));
                 messages.push(ChatMessage {
-                    role: "tool".to_string(),
+                    role: "user".to_string(),
                     content: format!("工具 {} 被用户取消", call.name()),
                 });
                 continue;
@@ -207,7 +207,7 @@ impl AgentRunner {
             self.emit(AgentEvent::Timeline(timeline.clone()));
 
             messages.push(ChatMessage {
-                role: "tool".to_string(),
+                role: "user".to_string(),
                 content: format!("工具 {} 结果:\n{}", call.name(), detail),
             });
         }

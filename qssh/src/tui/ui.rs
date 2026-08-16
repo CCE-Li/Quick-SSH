@@ -126,9 +126,9 @@ fn render_dashboard_body(frame: &mut Frame, area: Rect, app: &mut App) {
         status: app.agent_status(),
         steps: timeline.steps().to_vec(),
         started,
-        last_reply: app.agent_last_reply().to_string(),
         permission: app.agent_permission_label().to_string(),
         history: app.agent_history_count(),
+        thread: app.agent_thread().to_vec(),
         focused: matches!(app.mode, Mode::AgentOps),
     };
     crate::tui::dashboard::ui::render_dashboard(
@@ -838,7 +838,12 @@ fn render_detail(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_status_bar(frame: &mut Frame, area: Rect, app: &App) {
-    let (message, style) = if let Some(flash_message) = &app.flash_message {
+    let (message, style) = if app.split_drag.is_some() {
+        (
+            "拖动分隔线调整窗口大小（松开保存）".to_string(),
+            Style::default().fg(Color::Yellow).bg(Color::DarkGray),
+        )
+    } else if let Some(flash_message) = &app.flash_message {
         let fg = match flash_message.color.as_str() {
             "green" => Color::Green,
             "red" => Color::Red,
@@ -846,12 +851,12 @@ fn render_status_bar(frame: &mut Frame, area: Rect, app: &App) {
             _ => Color::White,
         };
         (
-            flash_message.message.as_str(),
+            flash_message.message.clone(),
             Style::default().fg(fg).bg(Color::DarkGray),
         )
     } else {
         (
-            app.mode.hint(app.view),
+            app.mode.hint(app.view).to_string(),
             Style::default().fg(Color::White).bg(Color::DarkGray),
         )
     };

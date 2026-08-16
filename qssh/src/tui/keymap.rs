@@ -266,6 +266,28 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
     }
 }
 
+/// 嵌入式终端前缀键命令（Ctrl+B 之后按下的按键）→ Action
+///
+/// 终端模式下键盘默认全部转发给 PTY；按 `Ctrl+B` 进入前缀等待状态后，
+/// 下一个按键被解释为 TUI 命令（`d` Docker、`s` 服务、`f` 文件、`l` 日志、
+/// `a` AI Agent、`k` 命令面板、`q`/`x` 断开、`Esc` 仅取消前缀）。
+/// 返回 `None` 表示未识别，该按键应放行给 PTY。
+pub fn map_terminal_prefix_key(key: KeyEvent) -> Option<Action> {
+    use crossterm::event::KeyCode;
+
+    match key.code {
+        KeyCode::Char('d' | 'D') => Some(Action::OpenDockerOps),
+        KeyCode::Char('s' | 'S') => Some(Action::OpenServiceOps),
+        KeyCode::Char('f' | 'F') => Some(Action::OpenFileOps),
+        KeyCode::Char('l' | 'L') => Some(Action::OpenLogOps),
+        KeyCode::Char('a' | 'A') => Some(Action::OpenAgentOps),
+        KeyCode::Char('k' | 'K') => Some(Action::OpenPalette),
+        KeyCode::Char('q' | 'Q' | 'x' | 'X') => Some(Action::CloseTerminal),
+        KeyCode::Esc => Some(Action::None),
+        _ => None,
+    }
+}
+
 /// DashboardConfig 模式下 1-9/0 数字键 → 模块映射
 fn module_key(c: char) -> Option<crate::tui::dashboard::WidgetId> {
     use crate::tui::dashboard::WidgetId;
@@ -353,7 +375,7 @@ impl Mode {
             Mode::AgentConfig => "编辑 Agent 设置: ↑↓/Tab 切换字段，Ctrl+S 保存，Esc 取消",
             Mode::Command => "输入要在选中主机上执行的命令，Enter 执行，Esc 取消",
             Mode::CommandResult => "远程命令执行结果 | q/Esc 关闭",
-            Mode::Terminal => "嵌入式 SSH 终端 | 键盘直接输入 | Esc 或 Ctrl+Shift+C 断开",
+            Mode::Terminal => "嵌入式 SSH 终端 | 键盘直接输入 | Ctrl+B 前缀（d Docker s 服务 f 文件 l 日志 a Agent k 面板 q 断开）| Esc 或 Ctrl+Shift+C 断开",
         }
     }
 }
@@ -364,7 +386,7 @@ mod tests {
 
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-    use super::map_key_to_action;
+    use super::{map_key_to_action, map_terminal_prefix_key};
     use crate::config::types::SshConfig;
     use crate::tui::action::Action;
     use crate::tui::app::App;
@@ -407,5 +429,55 @@ mod tests {
         );
 
         assert!(matches!(action, Action::Ping));
+    }
+
+    #[test]
+    fn terminal_prefix_a_opens_agent() {
+        let action = map_terminal_prefix_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+        assert!(matches!(action, Some(Action::OpenAgentOps)));
+    }
+
+    #[test]
+    fn terminal_prefix_switches_to_ops_panels() {
+        use KeyCode::Char;
+        let cases = [
+            (Char('d'), Action::OpenDockerOps),
+            (Char('s'), Action::OpenServiceOps),
+            (Char('f'), Action::OpenFileOps),
+            (Char('l'), Action::OpenLogOps),
+        ];
+        for (code, expected) in cases {
+            let action = map_terminal_prefix_key(KeyEvent::new(code, KeyModifiers::NONE)).unwrap();
+            assert_eq!(
+                std::mem::discriminant(&action),
+                std::mem::discriminant(&expected),
+                "前缀键 {code:?} 应映射到 {:?}",
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn terminal_prefix_k_opens_palette() {
+        let action = map_terminal_prefix_key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE));
+        assert!(matches!(action, Some(Action::OpenPalette)));
+    }
+
+    #[test]
+    fn terminal_prefix_q_closes_terminal() {
+        let action = map_terminal_prefix_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE));
+        assert!(matches!(action, Some(Action::CloseTerminal)));
+    }
+
+    #[test]
+    fn terminal_prefix_esc_cancels() {
+        let action = map_terminal_prefix_key(KeyEvent::from(KeyCode::Esc));
+        assert!(matches!(action, Some(Action::None)));
+    }
+
+    #[test]
+    fn terminal_prefix_unrecognized_forwards_to_pty() {
+        let action = map_terminal_prefix_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE));
+        assert!(action.is_none());
     }
 }
