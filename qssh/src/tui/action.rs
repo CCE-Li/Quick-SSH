@@ -130,6 +130,10 @@ pub enum Action {
     OpenAgentOps,
     /// 关闭 AI Agent 面板
     CloseAgentOps,
+    /// 鼠标点击聚焦 AI Agent 面板（不重置输入，保留对话现场）
+    FocusAgent,
+    /// 鼠标点击聚焦嵌入式终端面板（SSH 会话仍连接时）
+    FocusTerminal,
     /// 打开 Agent 设置弹窗（编辑 agent.json）
     OpenAgentConfig,
     /// 关闭 Agent 设置弹窗

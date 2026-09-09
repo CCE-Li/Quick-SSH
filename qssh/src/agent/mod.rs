@@ -31,7 +31,8 @@ pub fn available_tools_prompt() -> &'static str {
     "server.status | server.processes | server.disks | server.network\n\
      docker.list | docker.restart(目标=容器) | docker.stop(目标=容器) | docker.delete(目标=容器)\n\
      service.start(目标=服务) | service.stop(目标=服务) | service.restart(目标=服务)\n\
-     files.list(目标=路径) | logs.tail(n=行数)"
+     files.list(目标=路径) | files.mkdir(目标=目录) | files.write(目标=路径, 内容=文本) | files.remove(目标=路径)\n\
+     logs.tail(n=行数) | shell.run(命令=任意 shell 命令)"
 }
 
 /// Agent 后台任务事件（经 mpsc 投递到 UI）

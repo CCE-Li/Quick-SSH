@@ -1,7 +1,11 @@
 //! 极简 HTTP 服务器 + WebUI 路由（零新增依赖）
 //!
-//! `qssh web` 提供本地配置页：查看 / 修改 Agent 配置，并一键测试
+//! `qssh web` 提供本地配置页：查看 / 修改设置，并一键测试
 //! Provider 连接是否成功（复用 [`crate::agent::provider::chat`]）。
+//!
+//! 设置页由 Schema 驱动（见 [`super::schema`]）：`GET /api/settings` 下发分组与
+//! 字段元数据 + 当前值，前端通用渲染；`POST /api/settings` 保存某分组字段。
+//! 新增可设置项时前端无需改动，只需在 schema 里加字段描述与读写映射。
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
@@ -9,10 +13,12 @@ use std::time::Instant;
 
 use serde_json::{json, Value};
 
-use crate::agent::config::{load_agent_config, save_agent_config};
-use crate::agent::permissions::PermissionLevel;
+use crate::agent::config::load_agent_config;
+use crate::agent::permissions::Approval;
 use crate::agent::provider::{chat, list_models, ChatMessage, ProviderKind};
+use crate::agent::tools::ALL_TOOLS;
 
+use super::schema::SettingsCatalog;
 use super::WEBUI_VERSION;
 
 /// 内嵌前端页面（src/web/index.html）
@@ -129,8 +135,9 @@ fn handle_connection(stream: TcpStream) {
             let _ = write_simple(&mut writer, 200, "text/html; charset=utf-8", HTML);
         }
         ("GET", "/api/status") => handle_status(&mut writer),
-        ("GET", "/api/config") => handle_config_get(&mut writer),
-        ("POST", "/api/config") => handle_config_post(&mut writer, &req),
+        ("GET", "/api/settings") => handle_settings_get(&mut writer),
+        ("POST", "/api/settings") => handle_settings_post(&mut writer, &req),
+        ("GET", "/api/tools") => handle_tools(&mut writer),
         ("POST", "/api/test") => handle_test(&mut writer, &req),
         _ => {
             let _ = write_simple(&mut writer, 404, "text/plain", "Not Found");
@@ -173,27 +180,15 @@ fn handle_status(w: &mut TcpStream) {
     );
 }
 
-/// GET /api/config — 读取 Agent 配置
-fn handle_config_get(w: &mut TcpStream) {
-    let config = load_agent_config();
-    let kind = ProviderKind::from_str(&config.provider).unwrap_or_default();
-    let _ = write_json(
-        w,
-        200,
-        &json!({
-            "provider": kind.as_str(),
-            "base_url": config.base_url,
-            "model": config.model,
-            "permission": config.permission,
-            "timeout_secs": config.timeout_secs,
-            "api_key": config.api_key,
-        }),
-    );
+/// GET /api/settings — 所有设置分组（元数据 + 当前值），前端通用渲染
+fn handle_settings_get(w: &mut TcpStream) {
+    let _ = write_json(w, 200, &SettingsCatalog::load_all());
 }
 
-/// POST /api/config — 保存 Agent 配置
-fn handle_config_post(w: &mut TcpStream, req: &Request) {
-    let mut config = load_agent_config();
+/// POST /api/settings — 保存某个分组的字段更新
+///
+/// 请求体：`{ "group": "<id>", "values": { "field": value, ... } }`
+fn handle_settings_post(w: &mut TcpStream, req: &Request) {
     let body: Value = match serde_json::from_slice(&req.body) {
         Ok(v) => v,
         Err(e) => {
@@ -201,48 +196,53 @@ fn handle_config_post(w: &mut TcpStream, req: &Request) {
             return;
         }
     };
-    if let Some(v) = body["provider"].as_str() {
-        if ProviderKind::from_str(v).is_none() {
-            let _ = write_json(
-                w,
-                400,
-                &json!({ "error": "Provider 无效（支持 openai-compatible / opencode / ollama）" }),
-            );
-            return;
-        }
-        config.provider = v.to_string();
-    }
-    if let Some(v) = body["base_url"].as_str() {
-        config.base_url = v.to_string();
-    }
-    if let Some(v) = body["model"].as_str() {
-        config.model = v.to_string();
-    }
-    if let Some(v) = body["permission"].as_str() {
-        if PermissionLevel::from_str(v).is_none() {
-            let _ = write_json(
-                w,
-                400,
-                &json!({ "error": "权限级别无效（read_only / ask_before_execute / auto_safe / full_access）" }),
-            );
-            return;
-        }
-        config.permission = v.to_string();
-    }
-    if let Some(v) = body["timeout_secs"].as_u64() {
-        config.timeout_secs = v.clamp(5, 600);
-    }
-    if let Some(v) = body["api_key"].as_str() {
-        config.api_key = v.trim().to_string();
-    }
-    match save_agent_config(&config) {
-        Ok(_) => {
+    let Some(group) = body["group"].as_str() else {
+        let _ = write_json(w, 400, &json!({ "error": "缺少 group 字段" }));
+        return;
+    };
+    let values = body.get("values").cloned().unwrap_or(Value::Null);
+    match SettingsCatalog::apply(group, &values) {
+        Ok(()) => {
             let _ = write_json(w, 200, &json!({ "ok": true }));
         }
         Err(e) => {
-            let _ = write_json(w, 500, &json!({ "error": format!("保存失败: {e}") }));
+            let _ = write_json(w, 400, &json!({ "error": e }));
         }
     }
+}
+
+/// GET /api/tools — Agent 可用工具清单（名称 / 描述 / 危险等级 / 当前权限下的决策）
+fn handle_tools(w: &mut TcpStream) {
+    let config = load_agent_config();
+    let permission = config.permission_level();
+    let tools: Vec<Value> = ALL_TOOLS
+        .iter()
+        .map(|&id| {
+            let danger = id.danger();
+            let decision = permission.decide(danger);
+            let approval_label = match decision {
+                Approval::Allowed => "直接执行",
+                Approval::NeedsApproval => "需确认",
+                Approval::Denied => "已拒绝",
+            };
+            json!({
+                "name": id.name(),
+                "description": id.description(),
+                "danger": danger.label(),
+                "danger_key": format!("{:?}", danger),
+                "read_only": danger.is_read(),
+                "approval": approval_label,
+            })
+        })
+        .collect();
+    let _ = write_json(
+        w,
+        200,
+        &json!({
+            "permission": permission.label(),
+            "tools": tools,
+        }),
+    );
 }
 
 /// POST /api/test — 用（表单）配置向 Provider 发最小请求，验证连接
@@ -307,6 +307,8 @@ fn truncate(text: &str, max: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent::config::AgentConfig;
+    use crate::agent::permissions::PermissionLevel;
 
     #[test]
     fn reason_phrase_mapping() {
@@ -348,5 +350,43 @@ mod tests {
     fn truncate_long_text_marks() {
         let s = truncate("你好世界，这是一个比较长的回复内容", 5);
         assert!(s.ends_with('…'));
+    }
+
+    #[test]
+    fn tools_endpoint_lists_registry_with_decisions() {
+        // 使用固定权限（执行前确认），不依赖真实 agent.json，保证测试可复现
+        let config = AgentConfig {
+            permission: PermissionLevel::AskBeforeExecute.as_str().to_string(),
+            ..AgentConfig::default()
+        };
+        let permission = config.permission_level();
+        let tools: Vec<Value> = ALL_TOOLS
+            .iter()
+            .map(|&id| {
+                let danger = id.danger();
+                let decision = permission.decide(danger);
+                let approval_label = match decision {
+                    Approval::Allowed => "直接执行",
+                    Approval::NeedsApproval => "需确认",
+                    Approval::Denied => "已拒绝",
+                };
+                json!({
+                    "name": id.name(),
+                    "danger": danger.label(),
+                    "read_only": danger.is_read(),
+                    "approval": approval_label,
+                })
+            })
+            .collect();
+        assert!(tools.len() >= 17, "工具清单应包含全部工具");
+        let names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
+        assert!(names.contains(&"shell.run"));
+        assert!(names.contains(&"files.mkdir"));
+        assert!(names.contains(&"server.status"));
+        // 默认权限（执行前确认）下：只读工具直接执行，shell.run 需确认
+        let shell = tools.iter().find(|t| t["name"] == "shell.run").unwrap();
+        assert_eq!(shell["approval"], "需确认");
+        let status = tools.iter().find(|t| t["name"] == "server.status").unwrap();
+        assert_eq!(status["approval"], "直接执行");
     }
 }

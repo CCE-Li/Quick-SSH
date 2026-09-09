@@ -348,7 +348,7 @@ impl Mode {
                 "d Docker s 服务 f 文件 l 日志 a Agent b 主机列表 Ctrl+K 面板 | q 返回主界面"
             }
             Mode::Normal => {
-                "j↓ k↑ Ctrl+N↓ Ctrl+P↑ gg↕ G↕ /搜索 :命令 a添加 p检测 P全检 b监控 Ctrl+K面板 Ctrl+A Agent Enter连接 空格标记 .地址 q退出 ?帮助"
+                "j↓ k↑ Ctrl+N↓ Ctrl+P↑ gg↕ G↕ /搜索 :命令 a添加 p检测 P全检 b控制台 Ctrl+K面板 Ctrl+A Agent Enter连接 空格标记 .地址 q退出 ?帮助"
             }
             Mode::Search => "输入搜索关键词，Enter 确认，Esc 取消",
             Mode::Add => "字段添加弹窗: Tab 切换字段，Enter 下一项，Ctrl+S 保存，Esc 取消",

@@ -717,9 +717,13 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_body(frame: &mut Frame, area: Rect, app: &mut App) {
+    let weight = app.main_split_weight.clamp(20, 80) as u32;
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)])
+        .constraints([
+            Constraint::Ratio(weight, 100),
+            Constraint::Ratio(100 - weight, 100),
+        ])
         .split(area);
 
     render_detail(frame, chunks[1], &*app);
@@ -777,8 +781,10 @@ fn render_host_list(frame: &mut Frame, area: Rect, app: &mut App) {
     frame.render_stateful_widget(list, area, &mut app.list_state);
 }
 
+/// 详情面板：对长文本按显示宽度硬换行（CJK 全角按 2 列，超长单词也折行），
+/// 避免 `Paragraph::wrap`（WordWrapper）对无空格长 token 不折行而横向溢出。
 fn render_detail(frame: &mut Frame, area: Rect, app: &App) {
-    let detail = if let Some(idx) = app.selected() {
+    let text = if let Some(idx) = app.selected() {
         if let Some(host) = app.hosts.get(idx) {
             let hostname = host.hostname().unwrap_or("-");
             let user = host.user().map(|u| format!("{}@", u)).unwrap_or_default();
@@ -831,14 +837,53 @@ fn render_detail(frame: &mut Frame, area: Rect, app: &App) {
         "选择主机查看详情".to_string()
     };
 
-    let detail = Paragraph::new(detail)
-        .block(Block::default().borders(Borders::ALL).title("详情"))
-        .wrap(ratatui::widgets::Wrap { trim: false });
+    // 内区宽度（去掉 1 行边框 ×2），按此宽度硬换行
+    let inner_width = area.width.saturating_sub(2) as usize;
+    if inner_width == 0 {
+        return;
+    }
+    let lines = wrap_detail_lines(&text, inner_width);
+    let detail = Paragraph::new(lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("详情")
+            .title_alignment(ratatui::layout::Alignment::Left),
+    );
     frame.render_widget(detail, area);
 }
 
+/// 把文本按显示宽度硬折行：先按 `\n` 分逻辑行，再对每一行按 Unicode 显示宽度
+/// 切分（CJK 全角占 2 列），保证长 token 也被折行而不横向溢出。
+fn wrap_detail_lines(text: &str, max_width: usize) -> Vec<Line<'static>> {
+    use unicode_width::UnicodeWidthChar;
+    use unicode_width::UnicodeWidthStr;
+
+    let mut out = Vec::new();
+    for logical in text.split('\n') {
+        if logical.width() <= max_width {
+            out.push(Line::from(logical.to_string()));
+            continue;
+        }
+        let mut buf = String::new();
+        let mut buf_w = 0usize;
+        for ch in logical.chars() {
+            let w = UnicodeWidthChar::width(ch).unwrap_or(0);
+            if !buf.is_empty() && buf_w + w > max_width {
+                out.push(Line::from(std::mem::take(&mut buf)));
+                buf_w = 0;
+            }
+            buf.push(ch);
+            buf_w += w;
+        }
+        if !buf.is_empty() {
+            out.push(Line::from(buf));
+        }
+    }
+    out
+}
+
 fn render_status_bar(frame: &mut Frame, area: Rect, app: &App) {
-    let (message, style) = if app.split_drag.is_some() {
+    let (message, style) = if app.split_drag.is_some() || app.main_split_drag.is_some() {
         (
             "拖动分隔线调整窗口大小（松开保存）".to_string(),
             Style::default().fg(Color::Yellow).bg(Color::DarkGray),
@@ -1037,5 +1082,45 @@ mod tests {
             .collect::<String>();
         assert!(rendered.contains("production server"));
         assert!(rendered.contains("owner: ops"));
+    }
+
+    /// 详情面板对超长文本应自适应换行：`wrap_detail_lines` 按显示宽度硬折行，
+    /// 长 token（无空格连续串 / CJK）也被折行，拼接后文本完整不丢。
+    #[test]
+    fn detail_long_text_wraps() {
+        use unicode_width::UnicodeWidthStr;
+
+        let long_comment = format!(
+            "生产环境服务器，用于部署应用 {}",
+            "与数据库集群和缓存节点保持心跳，出现异常时自动告警".repeat(8)
+        );
+        let detail = format!(
+            "别名: demo\n地址: ********\n密钥: (agent)\n认证: 密钥登录\n状态: ● 在线\n注释: {long_comment}"
+        );
+        let max_width = 24;
+        let lines = super::wrap_detail_lines(&detail, max_width);
+        assert!(!lines.is_empty(), "wrap_detail_lines 不应产生空结果");
+
+        // 每行显示宽度不得超过 max_width（CJK 全角按 2 列）
+        for line in &lines {
+            assert!(
+                line.width() <= max_width,
+                "wrap 后仍有超宽行: {:?}（宽度 {}）",
+                line,
+                line.width()
+            );
+        }
+
+        // 拼接后内容完整：去掉断行边界与空白后，头尾都应保留
+        let joined = lines.iter().map(|l| l.to_string()).collect::<String>();
+        let compact: String = joined.chars().filter(|c| !c.is_whitespace()).collect();
+        assert!(compact.contains("生产环境服务器"), "换行后开头丢失");
+        assert!(compact.contains("自动告警"), "换行后结尾丢失");
+
+        // 纯 ASCII 长 token 也被折行（原 WordWrapper 不折无空格串）
+        let long_ascii = "a".repeat(60);
+        let lines = super::wrap_detail_lines(&long_ascii, 24);
+        assert!(lines.len() > 1, "长 ASCII token 应被折行");
+        assert!(lines.iter().all(|l| l.width() <= 24));
     }
 }

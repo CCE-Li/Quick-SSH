@@ -227,6 +227,10 @@ pub struct App {
     term_prefix: bool,
     /// Dashboard 分隔线拖动状态（None = 未在拖动）
     pub split_drag: Option<SplitDrag>,
+    /// 主界面（主机列表/详情）左栏宽度权重（0-100，默认 50）
+    pub main_split_weight: u16,
+    /// 主界面分隔线拖动中（记录起始权重，None = 未在拖动）
+    pub main_split_drag: Option<u16>,
 }
 
 impl App {
@@ -245,6 +249,7 @@ impl App {
         let (term_tx, term_rx) = mpsc::channel();
         let (cmd_tx, cmd_rx) = mpsc::channel();
         let agent_config = load_agent_config();
+        let main_split_weight = load_main_split_weight().clamp(20, 80);
         Self {
             hosts,
             preamble: config.preamble,
@@ -302,6 +307,8 @@ impl App {
             term_tx,
             term_prefix: false,
             split_drag: None,
+            main_split_weight,
+            main_split_drag: None,
         }
     }
 
@@ -510,11 +517,25 @@ impl App {
     /// 取消分隔线拖动（放弃本次调整，不保存）
     pub fn cancel_split_drag(&mut self) {
         self.split_drag = None;
+        self.main_split_drag = None;
     }
 
-    /// 开始拖动分隔线：命中 Dashboard 布局中的分隔线则记录拖动状态
+    /// 开始拖动分隔线：命中主界面或 Dashboard 布局中的分隔线则记录拖动状态
     fn start_split_drag(&mut self, col: u16, row: u16) {
-        if self.mode != Mode::Normal || self.view != View::Dashboard {
+        if self.mode != Mode::Normal {
+            return;
+        }
+        // 主界面（主机列表 / 详情）：命中垂直分隔线 → 记录左栏起始权重
+        if self.view == View::HostList {
+            let area = terminal_area();
+            let boundary = main_split_boundary(self.main_split_weight, area.width);
+            let on_line = col == boundary.saturating_sub(1) || col == boundary;
+            if on_line {
+                self.main_split_drag = Some(self.main_split_weight);
+            }
+            return;
+        }
+        if self.view != View::Dashboard {
             return;
         }
         let Some(profile) = self
@@ -541,6 +562,17 @@ impl App {
 
     /// 拖动中更新分隔线两侧子节点的权重
     fn move_split_drag(&mut self, col: u16, row: u16) {
+        // 主界面分隔线拖动：按列位置换算左栏权重
+        if let Some(start) = self.main_split_drag {
+            let area = terminal_area();
+            if area.width == 0 {
+                return;
+            }
+            let new_weight = (col as u32 * 100 / area.width as u32) as u16;
+            self.main_split_weight = new_weight.clamp(20, 80);
+            let _ = start;
+            return;
+        }
         let (path, pivot, fixed) = match &self.split_drag {
             Some(drag) => (drag.path.clone(), drag.pivot, drag.fixed.clone()),
             None => return,
@@ -583,6 +615,15 @@ impl App {
 
     /// 结束拖动并持久化调整后的布局
     fn end_split_drag(&mut self) {
+        // 主界面分隔线：保存权重到配置目录下的 ui.json（不写 ~/.qsshrc）
+        if self.main_split_drag.take().is_some() {
+            if let Err(e) = save_main_split_weight(self.main_split_weight) {
+                self.set_flash_message(format!("布局保存失败: {}", e), "red");
+            } else {
+                self.set_flash_message("布局已调整并保存", "green");
+            }
+            return;
+        }
         if self.split_drag.take().is_none() {
             return;
         }
@@ -1320,12 +1361,38 @@ impl App {
             }
             // ── AI Agent 面板 ────────────────────────────
             Action::OpenAgentOps => {
+                // 打开面板时刷新配置，使 WebUI 修改的权限级别即时反映到状态栏/面板
+                self.refresh_agent_config();
                 self.mode = Mode::AgentOps;
                 self.agent_input.clear();
                 self.agent_status = AgentStatus::Ready;
             }
             Action::CloseAgentOps => {
                 self.restore_mode_after_overlay();
+            }
+            Action::FocusAgent => {
+                // 鼠标点击聚焦 Agent 面板：不重置输入，保留对话现场
+                if self.view == View::Dashboard {
+                    self.mode = Mode::AgentOps;
+                }
+            }
+            Action::FocusTerminal => {
+                // 鼠标点击聚焦终端面板：SSH 会话仍连接时切回嵌入式终端；
+                // 会话不存在或已断开时（如经主机列表全屏 SSH 后回到 Dashboard），
+                // 直接发起连接，使终端标签页具备“点击即激活”的标签页式体验。
+                if self.view != View::Dashboard {
+                    return;
+                }
+                let alive = self
+                    .term_session
+                    .as_ref()
+                    .map(|s| s.status != crate::tui::term::TermStatus::Exited)
+                    .unwrap_or(false);
+                if alive {
+                    self.mode = Mode::Terminal;
+                } else {
+                    self.start_terminal_session();
+                }
             }
             Action::OpenAgentConfig => {
                 self.agent_form = Some(AgentFormState::new(&self.agent_config));
@@ -1406,10 +1473,14 @@ impl App {
                             self.mode = Mode::DashboardConfig;
                         }
                         PaletteAction::EditAgentConfig => {
+                            // 打开设置前刷新配置，确保表单展示的是磁盘最新值
+                            self.refresh_agent_config();
                             self.agent_form = Some(AgentFormState::new(&self.agent_config));
                             self.mode = Mode::AgentConfig;
                         }
                         PaletteAction::OpenAgent => {
+                            // 打开面板前刷新配置，使 WebUI 修改的权限级别即时生效
+                            self.refresh_agent_config();
                             self.mode = Mode::AgentOps;
                             self.agent_input.clear();
                             self.agent_status = AgentStatus::Ready;
@@ -1590,7 +1661,11 @@ impl App {
                 self.mode = Mode::Normal;
             }
             Action::Connect => {
-                self.start_terminal_session();
+                // 主机列表主界面的连接由事件循环负责（退出 TUI 全屏 SSH）；
+                // 此处仅处理 Dashboard 控制台内的嵌入式终端连接。
+                if self.view == View::Dashboard {
+                    self.start_terminal_session();
+                }
             }
             Action::CloseTerminal => {
                 self.close_terminal_session();
@@ -2140,6 +2215,14 @@ impl App {
         self.agent_config.permission_level().label()
     }
 
+    /// 重新从磁盘加载 Agent 配置（WebUI / 设置面板修改后即时生效）。
+    ///
+    /// `agent.json` 可能被 WebUI（`qssh web`）或外部编辑，而 TUI 启动时只加载一次；
+    /// 每次发起 Agent 会话前刷新，保证权限级别等设置与磁盘一致。
+    fn refresh_agent_config(&mut self) {
+        self.agent_config = load_agent_config();
+    }
+
     /// Agent 对话线程（用户/助手消息 + 工具步骤）
     pub fn agent_thread(&self) -> &[AgentChatEntry] {
         &self.agent_thread
@@ -2191,6 +2274,8 @@ impl App {
 
     /// 启动 LLM 会话（后台线程，阻塞执行；UI 通过事件接收进度）
     fn start_agent_chat(&mut self, input: String) {
+        // 每次会话前刷新配置，使 WebUI 修改的权限级别立即生效
+        self.refresh_agent_config();
         let Some(alias) = self.monitor_target.clone() else {
             self.set_flash_message("未在监控状态，无法使用 Agent", "red");
             return;
@@ -2237,6 +2322,8 @@ impl App {
 
     /// 直接执行用户手动输入的工具调用（无 LLM 时可用）
     fn run_agent_tool(&mut self, call: ToolCall, _input: String) {
+        // 每次执行前刷新配置，使 WebUI 修改的权限级别立即生效
+        self.refresh_agent_config();
         let Some(alias) = self.monitor_target.clone() else {
             self.set_flash_message("未在监控状态，无法执行工具", "red");
             return;
@@ -2374,10 +2461,55 @@ fn run_ping_check(hostname: &str, port: u16) -> (bool, Option<String>) {
     }
 }
 
-/// 当前终端区域（以 0,0 为原点；与 mouse.rs 的坐标系约定一致）
+/// 当前 Dashboard 渲染区域（以 0,0 为原点；与 mouse.rs 的坐标系约定一致）。
+/// 主体位于 1 行标题栏与 1 行状态栏之间，与 ui.rs 渲染及鼠标命中保持一致。
 fn terminal_area() -> ratatui::layout::Rect {
     let (w, h) = crossterm::terminal::size().unwrap_or((0, 0));
-    ratatui::layout::Rect::new(0, 0, w, h)
+    ratatui::layout::Rect::new(0, 1, w, h.saturating_sub(2))
+}
+
+/// 主界面左栏（主机列表）宽度权重对应的垂直分隔线 x 坐标（绝对终端列）
+fn main_split_boundary(weight: u16, width: u16) -> u16 {
+    let weight = weight.clamp(0, 100);
+    (width as u32 * weight as u32 / 100) as u16
+}
+
+/// 主界面分隔权重配置文件路径（与 dashboard.json 同目录，独立 JSON 文件）
+fn ui_config_path() -> PathBuf {
+    crate::tui::dashboard::config::config_path()
+        .parent()
+        .map(|p| p.join("ui.json"))
+        .unwrap_or_else(|| PathBuf::from("ui.json"))
+}
+
+/// 加载主界面主机列表左栏权重（默认 50）
+fn load_main_split_weight() -> u16 {
+    let path = ui_config_path();
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str::<UiConfig>(&s).ok())
+        .and_then(|c| c.main_split_weight)
+        .unwrap_or(50)
+}
+
+/// 保存主界面主机列表左栏权重
+fn save_main_split_weight(weight: u16) -> anyhow::Result<()> {
+    let path = ui_config_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let config = UiConfig {
+        main_split_weight: Some(weight),
+    };
+    let content = serde_json::to_string_pretty(&config)?;
+    std::fs::write(&path, content)?;
+    Ok(())
+}
+
+/// 主界面 UI 配置（独立 JSON，不触碰手写的 ~/.qsshrc）
+#[derive(serde::Serialize, serde::Deserialize)]
+struct UiConfig {
+    main_split_weight: Option<u16>,
 }
 
 fn load_saved_password_aliases(hosts: &[HostBlock]) -> HashSet<String> {
@@ -2394,6 +2526,7 @@ fn load_saved_password_aliases(hosts: &[HostBlock]) -> HashSet<String> {
 mod tests {
     use super::App;
     use crate::config::types::SshConfig;
+    use crate::tui::action::{Action, Mode, View};
     use std::path::PathBuf;
     use std::time::{Duration, Instant};
 
@@ -2416,5 +2549,126 @@ mod tests {
 
         app.expire_flash_message();
         assert!(app.flash_message.is_none());
+    }
+
+    #[test]
+    fn focus_agent_switches_to_agent_ops_without_resetting_input() {
+        let mut app = App::new(
+            SshConfig {
+                hosts: vec![],
+                preamble: String::new(),
+            },
+            PathBuf::from("dummy"),
+        );
+        app.view = View::Dashboard;
+        app.agent_input = String::from("查看日志");
+        app.apply(Action::FocusAgent);
+        assert_eq!(app.mode, Mode::AgentOps);
+        assert_eq!(app.agent_input, "查看日志");
+    }
+
+    #[test]
+    fn focus_agent_only_in_dashboard_view() {
+        let mut app = App::new(
+            SshConfig {
+                hosts: vec![],
+                preamble: String::new(),
+            },
+            PathBuf::from("dummy"),
+        );
+        app.view = View::HostList;
+        app.apply(Action::FocusAgent);
+        assert_ne!(app.mode, Mode::AgentOps);
+    }
+
+    #[test]
+    fn focus_terminal_requires_live_session() {
+        let mut app = App::new(
+            SshConfig {
+                hosts: vec![],
+                preamble: String::new(),
+            },
+            PathBuf::from("dummy"),
+        );
+        app.view = View::Dashboard;
+        app.apply(Action::FocusTerminal);
+        // 无会话时不应进入 Terminal 模式
+        assert_ne!(app.mode, Mode::Terminal);
+    }
+
+    #[test]
+    fn main_split_drag_updates_weight() {
+        let mut app = App::new(
+            SshConfig {
+                hosts: vec![],
+                preamble: String::new(),
+            },
+            PathBuf::from("dummy"),
+        );
+        app.view = View::HostList;
+        app.mode = Mode::Normal;
+        app.main_split_drag = Some(50);
+        // 拖动到第 70 列（假设终端宽 100 → 权重 70），应用后应 clamp 在 20..80
+        app.apply(Action::MoveSplitDrag { col: 70, row: 5 });
+        assert!(app.main_split_weight >= 20 && app.main_split_weight <= 80);
+        // 拖到极端左（col=2）应 clamp 到 20
+        app.apply(Action::MoveSplitDrag { col: 2, row: 5 });
+        assert_eq!(app.main_split_weight, 20);
+        // 结束拖动清除状态
+        app.apply(Action::EndSplitDrag);
+        assert!(app.main_split_drag.is_none());
+    }
+
+    /// refresh_agent_config 会把磁盘上的 agent.json 权限刷新进内存（与 WebUI 修改保持一致）
+    #[test]
+    fn refresh_agent_config_reloads_disk_permission() {
+        use crate::agent::config::{config_path, AgentConfig};
+        use crate::agent::permissions::PermissionLevel;
+
+        // 备份原文件，测试后恢复
+        let path = config_path();
+        let original = std::fs::read_to_string(&path).ok();
+
+        // 写一个 full_access 配置到磁盘
+        let test_config = AgentConfig {
+            permission: PermissionLevel::FullAccess.as_str().to_string(),
+            ..AgentConfig::default()
+        };
+        crate::agent::config::save_agent_config(&test_config).expect("save test config");
+
+        // App 构造时加载的是磁盘上的 full_access
+        let mut app = App::new(
+            SshConfig {
+                hosts: vec![],
+                preamble: String::new(),
+            },
+            PathBuf::from("dummy"),
+        );
+        assert_eq!(
+            app.agent_config.permission_level(),
+            PermissionLevel::FullAccess
+        );
+
+        // 模拟 WebUI 把磁盘配置改为 read_only，再调用 refresh
+        let ro_config = AgentConfig {
+            permission: PermissionLevel::ReadOnly.as_str().to_string(),
+            ..AgentConfig::default()
+        };
+        crate::agent::config::save_agent_config(&ro_config).expect("save ro config");
+        app.refresh_agent_config();
+        assert_eq!(
+            app.agent_config.permission_level(),
+            PermissionLevel::ReadOnly
+        );
+
+        // 恢复原文件
+        match original {
+            Some(content) => {
+                let _ = std::fs::write(&path, content);
+            }
+            None => {
+                let _ = std::fs::remove_file(&path);
+            }
+        }
     }
 }

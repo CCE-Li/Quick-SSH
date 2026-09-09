@@ -52,8 +52,14 @@ main {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 20px;
+  margin-bottom: 24px;
 }
-.panel h2 { font-size: 15px; margin-bottom: 16px; }
+.panel h2 { font-size: 15px; margin-bottom: 8px; }
+.group-desc {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+}
 .field { margin-bottom: 16px; }
 .field label {
   display: block;
@@ -72,6 +78,25 @@ main {
   outline: none;
 }
 .field input:focus, .field select:focus { border-color: var(--accent); }
+.multiselect { display: flex; flex-wrap: wrap; gap: 8px; }
+.ms-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text);
+}
+.ms-item input { accent-color: var(--accent); }
+.field-hint {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
 .actions { display: flex; gap: 12px; margin-top: 20px; align-items: center; }
 .btn {
   padding: 10px 18px;
@@ -86,7 +111,7 @@ main {
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-ghost { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
 .btn-ghost:hover { border-color: var(--accent); }
-#save-msg { font-size: 13px; margin-left: 8px; }
+.save-msg { font-size: 13px; margin-left: 8px; }
 .test-result {
   margin-top: 16px;
   padding: 14px 16px;
@@ -98,6 +123,7 @@ main {
   background: var(--panel-2);
   white-space: pre-wrap;
   word-break: break-all;
+  flex: 1;
 }
 .test-result.ok { color: var(--green); border-color: var(--green); }
 .test-result.err { color: var(--red); border-color: var(--red); }
@@ -108,6 +134,37 @@ main {
   padding-top: 12px;
   border-top: 1px solid var(--border);
 }
+/* Agent 工具清单 */
+.tools-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tools-table th, .tools-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.tools-table th {
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 12px;
+}
+.tool-name {
+  font-family: "Cascadia Code", Consolas, monospace;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.tool-desc { color: var(--text-dim); }
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+}
+.tag.read { color: var(--green); border-color: var(--green); }
+.tag.safewrite { color: #fbbf24; border-color: #fbbf24; }
+.tag.dangerous { color: var(--red); border-color: var(--red); }
+.tag.approved { color: var(--green); }
+.tag.confirm { color: #fbbf24; }
+.tag.denied { color: var(--red); }
 footer {
   text-align: center;
   padding: 20px;
@@ -124,57 +181,40 @@ footer {
 </header>
 
 <main>
+  <datalist id="model-list"></datalist>
+  <div id="groups"></div>
+
   <div class="panel">
-    <h2>Agent 配置</h2>
+    <h2>Agent 可用工具 <span id="tools-perm" class="badge"></span></h2>
 
-    <div class="field">
-      <label>Provider（供应商）</label>
-      <select id="cfg-provider">
-        <option value="opencode">opencode-go（推荐）</option>
-        <option value="openai">OpenAI Compatible</option>
-        <option value="ollama">Ollama</option>
-      </select>
+    <div class="field" style="margin-bottom:8px;">
+      <label for="perm-select">权限级别（选择后立即保存并刷新工具审批方式）</label>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <select id="perm-select" style="flex:1;">
+          <option value="ask_before_execute">执行前确认（默认）</option>
+          <option value="read_only">只读</option>
+          <option value="auto_safe">自动安全</option>
+          <option value="full_access">完全访问</option>
+        </select>
+        <button class="btn btn-primary" id="perm-save-btn">保存权限</button>
+      </div>
+      <span id="perm-msg" style="font-size:13px;color:var(--text-dim);"></span>
     </div>
 
-    <div class="field">
-      <label>API Key</label>
-      <input id="cfg-apikey" type="password" placeholder="留空则使用环境变量 / opencode auth.json" autocomplete="off">
-    </div>
-
-    <div class="field">
-      <label>Base URL</label>
-      <input id="cfg-baseurl" placeholder="https://api.openai.com/v1">
-    </div>
-
-    <div class="field">
-      <label>Model（连接成功后自动获取）</label>
-      <input id="cfg-model" list="model-list" placeholder="点击测试连接后自动填充模型列表">
-      <datalist id="model-list"></datalist>
-    </div>
-
-    <div class="field">
-      <label>权限级别</label>
-      <select id="cfg-perm">
-        <option value="ask_before_execute">执行前确认（默认）</option>
-        <option value="read_only">只读</option>
-        <option value="auto_safe">自动安全</option>
-        <option value="full_access">完全访问</option>
-      </select>
-    </div>
-
-    <div class="field">
-      <label>请求超时（秒）</label>
-      <input id="cfg-timeout" type="number" min="5" max="600">
-    </div>
-
-    <div class="actions">
-      <button class="btn btn-primary" id="test-btn">测试连接</button>
-      <button class="btn btn-ghost" id="save-btn">保存配置</button>
-      <span id="save-msg"></span>
-    </div>
-
-    <div class="test-result" id="test-result"></div>
-    <div class="key-hint" id="key-hint"></div>
+    <p style="font-size:13px;color:var(--text-dim);margin-bottom:12px;">
+      选择权限级别并保存后，下表每项工具的审批方式会立即更新。
+    </p>
+    <table class="tools-table">
+      <thead>
+        <tr>
+          <th>工具</th>
+          <th>说明</th>
+          <th>危险等级</th>
+          <th>当前权限下</th>
+        </tr>
+      </thead>
+      <tbody id="tools-body"></tbody>
+    </table>
   </div>
 </main>
 
@@ -183,19 +223,19 @@ footer {
 <script>
 const $ = (id) => document.getElementById(id);
 
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
+// ── 顶栏状态 ─────────────────────────────────────────────
 async function loadStatus() {
   try {
     const res = await fetch('/api/status');
     const data = await res.json();
     $('provider-badge').textContent = data.provider_label;
     $('perm-badge').textContent = '权限: ' + data.permission_label;
-    $('cfg-provider').value = data.provider;
-    $('cfg-apikey').value = data.api_key || '';
-    $('cfg-baseurl').value = data.base_url;
-    $('cfg-model').value = data.model;
-    $('cfg-perm').value = data.permission;
-    $('cfg-timeout').value = data.timeout_secs;
-    $('key-hint').textContent = '🔑 ' + data.key_hint;
     $('footer').textContent = 'Quick-SSH WebUI v' + data.version;
   } catch (e) {
     $('provider-badge').textContent = '服务异常';
@@ -203,28 +243,150 @@ async function loadStatus() {
   }
 }
 
-async function saveConfig() {
-  const body = {
-    provider: $('cfg-provider').value,
-    base_url: $('cfg-baseurl').value.trim(),
-    model: $('cfg-model').value.trim(),
-    permission: $('cfg-perm').value,
-    timeout_secs: parseInt($('cfg-timeout').value, 10) || 60,
-    api_key: $('cfg-apikey').value.trim(),
-  };
-  const msg = $('save-msg');
+// ── Schema 驱动：通用分组渲染 ────────────────────────────
+async function renderGroups() {
+  try {
+    const res = await fetch('/api/settings');
+    const data = await res.json();
+    const host = $('groups');
+    host.innerHTML = '';
+    (data.groups || []).forEach((g) => host.appendChild(buildGroup(g)));
+  } catch (e) {
+    $('groups').innerHTML =
+      '<div class="panel"><h2>设置加载失败</h2><p style="color:var(--red)">' + esc(e.message) + '</p></div>';
+  }
+}
+
+function fieldControl(f) {
+  const key = f.key;
+  if (f.kind === 'select') {
+    return '<select data-key="' + key + '">' +
+      (f.options || []).map((o) => '<option value="' + esc(o.value) + '">' + esc(o.label) + '</option>').join('') +
+      '</select>';
+  }
+  if (f.kind === 'multiselect') {
+    return '<div class="multiselect" data-key="' + key + '">' +
+      (f.options || []).map((o) =>
+        '<label class="ms-item"><input type="checkbox" value="' + esc(o.value) + '">' + esc(o.label) + '</label>'
+      ).join('') +
+      '</div>';
+  }
+  if (f.kind === 'number') {
+    const min = f.min == null ? '' : f.min;
+    const max = f.max == null ? '' : f.max;
+    return '<input data-key="' + key + '" type="number" min="' + min + '" max="' + max + '">';
+  }
+  const type = f.kind === 'password' ? 'password' : 'text';
+  const extra = f.kind === 'password' ? ' autocomplete="off"' : '';
+  return '<input data-key="' + key + '" type="' + type + '" placeholder="' + esc(f.placeholder || '') + '"' + extra + '>';
+}
+
+// 写入当前值
+function fillFieldValue(div, f, v) {
+  if (f.kind === 'multiselect') {
+    const box = div.querySelector('.multiselect[data-key="' + f.key + '"]');
+    const chosen = new Set(Array.isArray(v) ? v : []);
+    box.querySelectorAll('input[type=checkbox]').forEach((cb) => { cb.checked = chosen.has(cb.value); });
+    return;
+  }
+  const el = div.querySelector('[data-key="' + f.key + '"]');
+  el.value = v == null ? '' : String(v);
+}
+
+function buildGroup(g) {
+  const div = document.createElement('div');
+  div.className = 'panel';
+  let h = '<h2>' + esc(g.title) + '</h2>';
+  if (g.description) h += '<p class="group-desc">' + esc(g.description) + '</p>';
+  (g.fields || []).forEach((f) => {
+    h += '<div class="field"><label>' + esc(f.label) + '</label>' + fieldControl(f);
+    if (f.hint) h += '<div class="field-hint">' + esc(f.hint) + '</div>';
+    h += '</div>';
+  });
+  if (g.test) {
+    h += '<div class="actions"><button class="btn btn-primary test-btn">' + esc(g.test.label) +
+         '</button><div class="test-result"></div></div>';
+  }
+  h += '<div class="actions"><button class="btn btn-ghost save-btn">保存配置</button>' +
+       '<span class="save-msg"></span></div>';
+  if (g.path) h += '<div class="key-hint">📄 配置文件：' + esc(g.path) + '</div>';
+  div.innerHTML = h;
+
+  const values = g.values || {};
+  (g.fields || []).forEach((f) => fillFieldValue(div, f, values[f.key]));
+
+  // reload_on_change 字段：变化时联动刷新（如切换 Profile 后重填模块复选框）
+  (g.fields || []).forEach((f) => {
+    if (!f.reload_on_change) return;
+    const ctrl = div.querySelector('[data-key="' + f.key + '"]');
+    if (ctrl) ctrl.addEventListener('change', () => handleReload(div, g, f));
+  });
+
+  // 测试动作：把本组当前字段值 POST 到声明端点
+  const testBtn = div.querySelector('.test-btn');
+  if (testBtn && g.test) {
+    testBtn.addEventListener('click', () => testGroup(div, g, testBtn));
+  }
+  // 保存动作
+  const saveBtn = div.querySelector('.save-btn');
+  saveBtn.addEventListener('click', () => saveGroup(div, g));
+
+  // Agent 分组专用：Model 输入框关联模型列表 datalist
+  if (g.id === 'agent') {
+    const modelEl = div.querySelector('[data-key="model"]');
+    if (modelEl) modelEl.setAttribute('list', 'model-list');
+  }
+  return div;
+}
+
+// reload_on_change 联动：dashboard 切换 Profile 时用下发的 _profiles 本地重填模块复选框；
+// 其余分组回退为整页重拉
+function handleReload(div, g, f) {
+  if (g.id === 'dashboard' && f.key === 'active_profile') {
+    const sel = div.querySelector('[data-key="active_profile"]');
+    const list = (g.values && g.values._profiles) ? g.values._profiles[sel.value] : null;
+    const box = div.querySelector('.multiselect[data-key="enabled"]');
+    if (box) {
+      box.querySelectorAll('input[type=checkbox]').forEach((cb) => {
+        cb.checked = list ? list.indexOf(cb.value) >= 0 : false;
+      });
+    }
+    return;
+  }
+  renderGroups();
+}
+
+function collectValues(div, fields) {
+  const values = {};
+  (fields || []).forEach((f) => {
+    if (f.kind === 'multiselect') {
+      const box = div.querySelector('.multiselect[data-key="' + f.key + '"]');
+      values[f.key] = Array.from(box.querySelectorAll('input[type=checkbox]:checked'))
+        .map((cb) => cb.value);
+      return;
+    }
+    const el = div.querySelector('[data-key="' + f.key + '"]');
+    let v = el.value;
+    if (f.kind === 'number') v = v === '' ? null : Number(v);
+    values[f.key] = v;
+  });
+  return values;
+}
+
+async function saveGroup(div, g) {
+  const msg = div.querySelector('.save-msg');
   msg.textContent = '保存中…';
   try {
-    const res = await fetch('/api/config', {
+    const res = await fetch('/api/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ group: g.id, values: collectValues(div, g.fields) }),
     });
     const data = await res.json();
     if (data.ok) {
       msg.textContent = '✓ 已保存';
-      msg.style.color = '';
-      loadStatus();
+      msg.style.color = 'var(--green)';
+      if (g.id === 'agent') { loadStatus(); loadTools(); }
     } else {
       msg.textContent = '✗ ' + (data.error || '保存失败');
       msg.style.color = 'var(--red)';
@@ -235,36 +397,19 @@ async function saveConfig() {
   }
 }
 
-function renderModelList(models) {
-  const dl = $('model-list');
-  dl.innerHTML = '';
-  (models || []).forEach((m) => {
-    const opt = document.createElement('option');
-    opt.value = m;
-    dl.appendChild(opt);
-  });
-}
-
-async function testConnection() {
-  const btn = $('test-btn');
-  const box = $('test-result');
+async function testGroup(div, g, btn) {
+  const box = div.querySelector('.test-result');
+  const label = btn.textContent;
   btn.disabled = true;
   btn.textContent = '测试中…';
   box.style.display = 'block';
   box.className = 'test-result';
   box.textContent = '正在连接 Provider，请稍候…';
-  const body = {
-    provider: $('cfg-provider').value,
-    base_url: $('cfg-baseurl').value.trim(),
-    model: $('cfg-model').value.trim(),
-    timeout_secs: parseInt($('cfg-timeout').value, 10) || 60,
-    api_key: $('cfg-apikey').value.trim(),
-  };
   try {
-    const res = await fetch('/api/test', {
+    const res = await fetch(g.test.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify(collectValues(div, g.fields)),
     });
     const data = await res.json();
     if (data.ok) {
@@ -286,14 +431,89 @@ async function testConnection() {
     box.textContent = '✗ 请求失败：' + e.message;
   } finally {
     btn.disabled = false;
-    btn.textContent = '测试连接';
+    btn.textContent = label;
   }
 }
 
-$('test-btn').addEventListener('click', testConnection);
-$('save-btn').addEventListener('click', saveConfig);
+function renderModelList(models) {
+  const dl = $('model-list');
+  dl.innerHTML = '';
+  (models || []).forEach((m) => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    dl.appendChild(opt);
+  });
+}
+
+// ── 工具清单面板 ─────────────────────────────────────────
+function dangerClass(dangerKey) {
+  const k = (dangerKey || '').toLowerCase();
+  if (k.includes('read')) return 'read';
+  if (k.includes('safewrite')) return 'safewrite';
+  return 'dangerous';
+}
+function approvalClass(label) {
+  if (label === '直接执行') return 'approved';
+  if (label === '需确认') return 'confirm';
+  return 'denied';
+}
+
+async function loadTools() {
+  try {
+    const res = await fetch('/api/tools');
+    const data = await res.json();
+    $('tools-perm').textContent = '权限: ' + data.permission;
+    const statusRes = await fetch('/api/status');
+    const status = await statusRes.json();
+    $('perm-select').value = status.permission;
+    const body = $('tools-body');
+    body.innerHTML = '';
+    (data.tools || []).forEach((t) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td class="tool-name">' + esc(t.name) + '</td>' +
+        '<td class="tool-desc">' + esc(t.description) + '</td>' +
+        '<td><span class="tag ' + dangerClass(t.danger_key) + '">' + esc(t.danger) + '</span></td>' +
+        '<td><span class="tag ' + approvalClass(t.approval) + '">' + esc(t.approval) + '</span></td>';
+      body.appendChild(tr);
+    });
+  } catch (e) {
+    $('tools-body').innerHTML =
+      '<tr><td colspan="4" style="color:var(--red)">工具清单加载失败：' + esc(e.message) + '</td></tr>';
+  }
+}
+
+async function savePermission() {
+  const msg = $('perm-msg');
+  msg.textContent = '保存中…';
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ group: 'agent', values: { permission: $('perm-select').value } }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      msg.textContent = '✓ 已保存';
+      msg.style.color = 'var(--green)';
+      loadStatus();
+      loadTools();
+      renderGroups();
+    } else {
+      msg.textContent = '✗ ' + (data.error || '保存失败');
+      msg.style.color = 'var(--red)';
+    }
+  } catch (e) {
+    msg.textContent = '✗ 网络错误';
+    msg.style.color = 'var(--red)';
+  }
+}
+
+$('perm-save-btn').addEventListener('click', savePermission);
 
 loadStatus();
+renderGroups();
+loadTools();
 </script>
 </body>
 </html>

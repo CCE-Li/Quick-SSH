@@ -29,7 +29,36 @@ pub enum ToolId {
     ServiceRestart,
     FilesList,
     LogsTail,
+    /// 任意 Shell 命令执行（指令控制服务器核心）
+    ShellRun,
+    /// 创建文件夹
+    FilesMkdir,
+    /// 写入文件内容
+    FilesWrite,
+    /// 删除文件或目录
+    FilesRemove,
 }
+
+/// 全部工具标识（注册表顺序）
+pub const ALL_TOOLS: [ToolId; 17] = [
+    ToolId::ServerStatus,
+    ToolId::Processes,
+    ToolId::Disks,
+    ToolId::Network,
+    ToolId::DockerList,
+    ToolId::DockerRestart,
+    ToolId::DockerStop,
+    ToolId::DockerDelete,
+    ToolId::ServiceStart,
+    ToolId::ServiceStop,
+    ToolId::ServiceRestart,
+    ToolId::FilesList,
+    ToolId::LogsTail,
+    ToolId::ShellRun,
+    ToolId::FilesMkdir,
+    ToolId::FilesWrite,
+    ToolId::FilesRemove,
+];
 
 impl ToolId {
     /// 工具名称（LLM 调用名 + 时间线显示）
@@ -48,6 +77,10 @@ impl ToolId {
             ToolId::ServiceRestart => "service.restart",
             ToolId::FilesList => "files.list",
             ToolId::LogsTail => "logs.tail",
+            ToolId::ShellRun => "shell.run",
+            ToolId::FilesMkdir => "files.mkdir",
+            ToolId::FilesWrite => "files.write",
+            ToolId::FilesRemove => "files.remove",
         }
     }
 
@@ -67,6 +100,10 @@ impl ToolId {
             ToolId::ServiceRestart => "重启系统服务",
             ToolId::FilesList => "远程文件列表",
             ToolId::LogsTail => "查看系统日志（journalctl）",
+            ToolId::ShellRun => "执行任意 Shell 命令（指令控制服务器）",
+            ToolId::FilesMkdir => "创建文件夹（mkdir -p）",
+            ToolId::FilesWrite => "写入文件内容",
+            ToolId::FilesRemove => "删除文件或目录（rm -rf）",
         }
     }
 
@@ -80,11 +117,16 @@ impl ToolId {
             | ToolId::DockerList
             | ToolId::FilesList
             | ToolId::LogsTail => DangerLevel::Read,
-            ToolId::ServiceStart | ToolId::DockerRestart => DangerLevel::SafeWrite,
+            ToolId::ServiceStart
+            | ToolId::DockerRestart
+            | ToolId::FilesMkdir
+            | ToolId::FilesWrite => DangerLevel::SafeWrite,
             ToolId::DockerStop
             | ToolId::DockerDelete
             | ToolId::ServiceStop
-            | ToolId::ServiceRestart => DangerLevel::Dangerous,
+            | ToolId::ServiceRestart
+            | ToolId::ShellRun
+            | ToolId::FilesRemove => DangerLevel::Dangerous,
         }
     }
 }
@@ -96,6 +138,10 @@ pub struct ToolArgs {
     pub target: String,
     /// 日志行数（仅 logs.tail）
     pub lines: Option<usize>,
+    /// 要执行的 Shell 命令（仅 shell.run）
+    pub command: Option<String>,
+    /// 要写入的文件内容（仅 files.write）
+    pub content: Option<String>,
 }
 
 /// 工具调用请求（LLM 返回 / 用户手动构造）
@@ -160,18 +206,30 @@ pub fn parse_tool_call(text: &str) -> Option<ToolCall> {
                 let key = key.trim().trim_start_matches("arg_").trim();
                 let value = value.trim().trim_matches('"').trim_matches('\'');
                 match key {
-                    "target" | "id" | "name" | "service" | "path" | "container" => {
+                    "target" | "id" | "name" | "service" | "path" | "container" | "目标"
+                    | "目录" | "路径" | "文件夹" => {
                         args.target = value.to_string();
                     }
                     "lines" | "n" | "tail" => {
                         args.lines = value.parse::<usize>().ok();
                     }
+                    "command" | "cmd" | "命令" | "指令" => {
+                        args.command = Some(value.to_string());
+                    }
+                    "content" | "text" | "内容" | "文本" => {
+                        args.content = Some(value.to_string());
+                    }
                     _ => {}
                 }
             } else {
-                // 无 key 的第一个值视为 target
-                if args.target.is_empty() {
-                    args.target = pair.trim_matches('"').trim_matches('\'').to_string();
+                // 无 key 的第一个值视为 target；shell.run 视为命令
+                let val = pair.trim_matches('"').trim_matches('\'').to_string();
+                if !val.is_empty() {
+                    if tool == ToolId::ShellRun {
+                        args.command = Some(val);
+                    } else if args.target.is_empty() {
+                        args.target = val;
+                    }
                 }
             }
         }
@@ -206,6 +264,10 @@ fn match_tool_name(name: &str) -> Option<ToolId> {
         ToolId::ServiceRestart,
         ToolId::FilesList,
         ToolId::LogsTail,
+        ToolId::ShellRun,
+        ToolId::FilesMkdir,
+        ToolId::FilesWrite,
+        ToolId::FilesRemove,
     ];
     // 1) 精确匹配完整名称（消除 docker.restart / service.restart 等歧义）
     if let Some(id) = all.iter().copied().find(|id| id.name() == normalized) {
@@ -258,6 +320,39 @@ pub fn execute_tool(executor: &dyn RemoteExecutor, call: &ToolCall) -> ToolResul
             let lines = call.args.lines.unwrap_or(50).min(200);
             executor.exec(&journalctl_command(None, lines))
         }
+        ToolId::ShellRun => {
+            let command = call
+                .args
+                .command
+                .clone()
+                .or_else(|| (!call.args.target.is_empty()).then(|| call.args.target.clone()))
+                .unwrap_or_default();
+            executor.exec(&command)
+        }
+        ToolId::FilesMkdir => {
+            let path = &call.args.target;
+            executor.exec(&format!(
+                "mkdir -p {}",
+                crate::monitor::files::shell_quote(path)
+            ))
+        }
+        ToolId::FilesWrite => {
+            let path = &call.args.target;
+            let content = call.args.content.clone().unwrap_or_default();
+            // 用 printf 写入，避免 heredoc 特殊字符问题；内容经单引号转义
+            executor.exec(&format!(
+                "printf '%s' {} > {}",
+                crate::monitor::files::shell_quote(&content),
+                crate::monitor::files::shell_quote(path)
+            ))
+        }
+        ToolId::FilesRemove => {
+            let path = &call.args.target;
+            executor.exec(&format!(
+                "rm -rf -- {}",
+                crate::monitor::files::shell_quote(path)
+            ))
+        }
     };
 
     match result {
@@ -297,6 +392,93 @@ mod tests {
         let call = parse_tool_call("tool:server.status").expect("parse");
         assert_eq!(call.tool, ToolId::ServerStatus);
         assert_eq!(call.args.target, "");
+    }
+
+    #[test]
+    fn parse_shell_run_command() {
+        let call = parse_tool_call("tool:shell.run 命令=mkdir -p /tmp/demo").expect("parse");
+        assert_eq!(call.tool, ToolId::ShellRun);
+        assert_eq!(call.args.command.as_deref(), Some("mkdir -p /tmp/demo"));
+        // 无 key 形式：裸命令视为 command
+        let call2 = parse_tool_call("tool:shell.run ls -la /var").expect("parse");
+        assert_eq!(call2.tool, ToolId::ShellRun);
+        assert_eq!(call2.args.command.as_deref(), Some("ls -la /var"));
+    }
+
+    #[test]
+    fn parse_files_mkdir_and_write() {
+        let call = parse_tool_call("tool:files.mkdir 目录=/srv/app").expect("parse");
+        assert_eq!(call.tool, ToolId::FilesMkdir);
+        assert_eq!(call.args.target, "/srv/app");
+
+        let call =
+            parse_tool_call("tool:files.write 目标=/etc/hostname, 内容=myhost").expect("parse");
+        assert_eq!(call.tool, ToolId::FilesWrite);
+        assert_eq!(call.args.target, "/etc/hostname");
+        assert_eq!(call.args.content.as_deref(), Some("myhost"));
+    }
+
+    #[test]
+    fn execute_file_tools_build_commands() {
+        use crate::monitor::executor::{ExecError, ExecOutput};
+        struct Recording(std::sync::Mutex<Vec<String>>);
+        impl RemoteExecutor for Recording {
+            fn exec(&self, command: &str) -> Result<ExecOutput, ExecError> {
+                self.0.lock().unwrap().push(command.to_string());
+                Ok(ExecOutput {
+                    exit_code: Some(0),
+                    stdout: String::new(),
+                    stderr: String::new(),
+                })
+            }
+        }
+
+        let cmds = std::sync::Arc::new(Recording(std::sync::Mutex::new(Vec::new())));
+
+        let mkdir = ToolCall {
+            tool: ToolId::FilesMkdir,
+            args: ToolArgs {
+                target: "/tmp/demo".into(),
+                ..Default::default()
+            },
+        };
+        execute_tool(&*cmds, &mkdir);
+        let write = ToolCall {
+            tool: ToolId::FilesWrite,
+            args: ToolArgs {
+                target: "/tmp/demo/app.conf".into(),
+                content: Some("a=1\nb=2".into()),
+                ..Default::default()
+            },
+        };
+        execute_tool(&*cmds, &write);
+        let remove = ToolCall {
+            tool: ToolId::FilesRemove,
+            args: ToolArgs {
+                target: "/tmp/demo".into(),
+                ..Default::default()
+            },
+        };
+        execute_tool(&*cmds, &remove);
+
+        let recorded = cmds.0.lock().unwrap().clone();
+        assert!(recorded.iter().any(|c| c.starts_with("mkdir -p")));
+        assert!(recorded.iter().any(|c| c.starts_with("printf")));
+        assert!(recorded.iter().any(|c| c.starts_with("rm -rf")));
+    }
+
+    #[test]
+    fn new_tools_danger_levels() {
+        assert_eq!(ToolId::FilesMkdir.danger(), DangerLevel::SafeWrite);
+        assert_eq!(ToolId::FilesWrite.danger(), DangerLevel::SafeWrite);
+        assert_eq!(ToolId::FilesRemove.danger(), DangerLevel::Dangerous);
+        assert_eq!(ToolId::ShellRun.danger(), DangerLevel::Dangerous);
+        // 只读权限应拒绝 shell.run / files.remove
+        use crate::agent::permissions::PermissionLevel;
+        assert_eq!(
+            PermissionLevel::ReadOnly.decide(ToolId::ShellRun.danger()),
+            crate::agent::permissions::Approval::Denied
+        );
     }
 
     #[test]
