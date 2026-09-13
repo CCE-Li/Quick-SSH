@@ -5,7 +5,7 @@
 //! - 操作面板（Docker / 服务 / 文件 / 日志）：点击选中、滚轮滚动
 //! - 命令面板：点击选中、滚轮滚动
 //! - Dashboard：点击监控 Widget 打开对应操作面板；点击 Terminal / AI Agent 切换聚焦
-//! - 终端 / Agent 面板：点击对方 Widget 即可在两者间切换焦点（标签页式使用）
+//! - 终端 / Agent 面板：点击分隔线可拖动调整布局；点击对方 Widget 即可在两者间切换焦点（标签页式使用）
 //!
 //! 坐标系：crossterm 0.28 的 `column` / `row` 与 ratatui 一致，均为 0 起始。
 
@@ -80,8 +80,14 @@ fn left_click(app: &App, col: u16, row: u16) -> Action {
                 widget_click(app, col, row)
             }
         }
-        // 终端 / Agent 面板：点击 Dashboard 上任意 Widget 切换聚焦（不做分隔线拖动）
-        Mode::Terminal | Mode::AgentOps => widget_click(app, col, row),
+        // 终端 / Agent 面板：先判断分隔线拖动，否则点击 Widget 切换聚焦
+        Mode::Terminal | Mode::AgentOps => {
+            if is_on_divider(app, col, row) {
+                Action::StartSplitDrag { col, row }
+            } else {
+                widget_click(app, col, row)
+            }
+        }
         Mode::DockerOps => panel_index_at(row, col, OPS_POPUP_W, OPS_POPUP_H, app.docker_count())
             .map_or(Action::None, Action::SelectListItem),
         Mode::ServiceOps => panel_index_at(row, col, OPS_POPUP_W, OPS_POPUP_H, app.service_count())
@@ -134,6 +140,8 @@ fn scroll(app: &App, delta: isize) -> Action {
                 Action::MoveDown
             }
         }
+        // 终端模式：滚轮控制回看历史
+        Mode::Terminal => Action::TermScroll(if up { 3 } else { -3 }),
         Mode::DockerOps => panel_scroll(Action::DockerOpsMove(-1), Action::DockerOpsMove(1), up),
         Mode::ServiceOps => panel_scroll(Action::ServiceOpsMove(-1), Action::ServiceOpsMove(1), up),
         Mode::FileOps => panel_scroll(Action::FileOpsMove(-1), Action::FileOpsMove(1), up),
@@ -445,9 +453,19 @@ mod tests {
     }
 
     #[test]
-    fn scroll_in_terminal_mode_is_ignored() {
+    fn scroll_in_terminal_mode_scrolls_history() {
         let mut a = app();
         a.mode = Mode::Terminal;
+        let action = map_mouse_to_action(
+            MouseEvent {
+                kind: MouseEventKind::ScrollUp,
+                column: 0,
+                row: 0,
+                modifiers: crossterm::event::KeyModifiers::NONE,
+            },
+            &a,
+        );
+        assert!(matches!(action, Action::TermScroll(d) if d > 0));
         let action = map_mouse_to_action(
             MouseEvent {
                 kind: MouseEventKind::ScrollDown,
@@ -457,7 +475,7 @@ mod tests {
             },
             &a,
         );
-        assert!(matches!(action, Action::None));
+        assert!(matches!(action, Action::TermScroll(d) if d < 0));
     }
 
     /// 主界面（HostList 视图）点击分隔线 → StartSplitDrag

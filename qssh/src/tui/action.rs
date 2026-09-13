@@ -154,6 +154,11 @@ pub enum Action {
     CommandSubmit,
     /// 关闭远程命令执行结果弹窗
     CloseCommandResult,
+    /// 终端回看滚动（正数向下，负数向上）
+    TermScroll(isize),
+    /// 终端回看滚动到底部（最新输出）
+    #[allow(dead_code)]
+    TermScrollToBottom,
     /// 关闭嵌入式终端会话（Esc / Ctrl+Shift+C）
     CloseTerminal,
     /// 开始拖动 Dashboard 分隔线（调整相邻窗口大小）

@@ -80,6 +80,8 @@ pub struct TermSession {
     finished: bool,
     /// 是否已主动终止（用于通知读取线程退出）
     killed: Arc<AtomicBool>,
+    /// 回看滚动偏移（0 = 最新，正值 = 向上回看的行数）
+    pub scroll_offset: usize,
 }
 
 impl TermSession {
@@ -108,7 +110,8 @@ impl TermSession {
         drop(slave);
 
         // 共享解析器：后台线程喂数据，渲染线程读屏幕
-        let parser = Arc::new(Mutex::new(vt100::Parser::new(rows, cols, 0)));
+        // scrollback=1000：保留最近 1000 行历史，供鼠标回看
+        let parser = Arc::new(Mutex::new(vt100::Parser::new(rows, cols, 1000)));
 
         // 克隆读端给后台线程
         let mut reader = master.try_clone_reader().context("无法获取 PTY 读取端")?;
@@ -157,6 +160,7 @@ impl TermSession {
             exit_code: None,
             finished: false,
             killed,
+            scroll_offset: 0,
         })
     }
 
@@ -236,10 +240,32 @@ impl TermSession {
         self.finished
     }
 
+    /// 向上回看（delta > 0 向上，delta < 0 向下）
+    pub fn scroll(&mut self, delta: isize) {
+        if let Ok(parser) = self.parser.lock() {
+            // scrollback() 返回当前已保存的历史行数（最大可回看量）
+            let max_offset = parser.screen().scrollback();
+            if delta > 0 {
+                self.scroll_offset = (self.scroll_offset + delta as usize).min(max_offset);
+            } else {
+                self.scroll_offset = self.scroll_offset.saturating_sub((-delta) as usize);
+            }
+        }
+    }
+
+    /// 回到最新输出（取消回看）
+    pub fn scroll_to_bottom(&mut self) {
+        self.scroll_offset = 0;
+    }
+
     /// 渲染到 ratatui buffer
     pub fn render(&self, area: Rect, buf: &mut Buffer) {
-        if let Ok(parser) = self.parser.lock() {
-            render_terminal(&parser, area, buf);
+        if let Ok(mut parser) = self.parser.lock() {
+            // 临时设置 scrollback 偏移，渲染后立即复原为 0
+            // vt100::set_scrollback 只影响 screen() 视口，不影响 process()
+            parser.set_scrollback(self.scroll_offset);
+            render_terminal(&parser, area, buf, self.scroll_offset > 0);
+            parser.set_scrollback(0);
         }
     }
 
@@ -297,7 +323,10 @@ fn map_color(c: vt100::Color) -> Color {
 }
 
 /// 将 vt100 屏幕网格渲染到 ratatui Buffer
-pub fn render_terminal(parser: &vt100::Parser, area: Rect, buf: &mut Buffer) {
+///
+/// 调用前应通过 `parser.set_scrollback(offset)` 设置视口；
+/// `in_scrollback` 为 true 时隐藏光标并在右上角显示回看提示。
+pub fn render_terminal(parser: &vt100::Parser, area: Rect, buf: &mut Buffer, in_scrollback: bool) {
     let screen = parser.screen();
     let (rows, cols) = screen.size();
 
@@ -332,15 +361,35 @@ pub fn render_terminal(parser: &vt100::Parser, area: Rect, buf: &mut Buffer) {
                     style = style.add_modifier(Modifier::REVERSED);
                 }
             }
-            let cell = buf.cell_mut((target_x, target_y));
-            if let Some(cell) = cell {
+            if let Some(cell) = buf.cell_mut((target_x, target_y)) {
                 cell.set_char(ch);
                 cell.set_style(style);
             }
         }
     }
 
-    // 终端光标：块状反色显示（尊重远程应用 DECTCEM 的隐藏状态）
+    // 回看模式：隐藏光标，右上角显示「↑ 回看中」提示
+    if in_scrollback {
+        let hint = " ↑ 回看中 ";
+        let hint_x = area.x + area.width.saturating_sub(hint.chars().count() as u16);
+        let hint_y = area.y;
+        let indicator_style = Style::default()
+            .fg(Color::Black)
+            .bg(Color::Yellow)
+            .add_modifier(Modifier::BOLD);
+        for (i, ch) in hint.chars().enumerate() {
+            let tx = hint_x + i as u16;
+            if tx < buf.area.width && hint_y < buf.area.height {
+                if let Some(cell) = buf.cell_mut((tx, hint_y)) {
+                    cell.set_char(ch);
+                    cell.set_style(indicator_style);
+                }
+            }
+        }
+        return;
+    }
+
+    // 正常模式：终端光标块状反色显示（尊重远程应用 DECTCEM 的隐藏状态）
     if !screen.hide_cursor() {
         let (row, col) = screen.cursor_position();
         if row < render_rows && col < render_cols {
@@ -348,7 +397,6 @@ pub fn render_terminal(parser: &vt100::Parser, area: Rect, buf: &mut Buffer) {
             let target_y = area.y + row;
             if let Some(cell) = buf.cell_mut((target_x, target_y)) {
                 let style = cell.style();
-                // `Reset` 表示默认颜色（终端默认白字黑底），按此参与反色
                 let fg = match style.fg {
                     Some(Color::Reset) | None => Color::White,
                     Some(c) => c,
@@ -520,7 +568,7 @@ mod tests {
         let mut parser = vt100::Parser::new(24, 80, 0);
         parser.process(b"AB");
         let mut buf = Buffer::empty(Rect::new(0, 0, 80, 24));
-        render_terminal(&parser, Rect::new(0, 0, 80, 24), &mut buf);
+        render_terminal(&parser, Rect::new(0, 0, 80, 24), &mut buf, false);
         let row: String = buf.content[..2].iter().map(|c| c.symbol()).collect();
         assert_eq!(row, "AB");
     }
@@ -535,7 +583,7 @@ mod tests {
         // 输入 "ab"，光标应停在 (0, 2)
         parser.process(b"ab");
         let mut buf = Buffer::empty(Rect::new(0, 0, 80, 24));
-        render_terminal(&parser, Rect::new(0, 0, 80, 24), &mut buf);
+        render_terminal(&parser, Rect::new(0, 0, 80, 24), &mut buf, false);
 
         let (row, col) = parser.screen().cursor_position();
         assert_eq!((row, col), (0, 2));
@@ -554,7 +602,7 @@ mod tests {
         let mut parser = vt100::Parser::new(24, 80, 0);
         parser.process(b"ab\x1b[?25l"); // 隐藏光标
         let mut buf = Buffer::empty(Rect::new(0, 0, 80, 24));
-        render_terminal(&parser, Rect::new(0, 0, 80, 24), &mut buf);
+        render_terminal(&parser, Rect::new(0, 0, 80, 24), &mut buf, false);
 
         let cell = &buf.content[(2) as usize];
         // 光标隐藏时该格保持默认样式（不反色）

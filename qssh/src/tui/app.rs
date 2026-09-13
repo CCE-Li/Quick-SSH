@@ -522,7 +522,12 @@ impl App {
 
     /// 开始拖动分隔线：命中主界面或 Dashboard 布局中的分隔线则记录拖动状态
     fn start_split_drag(&mut self, col: u16, row: u16) {
-        if self.mode != Mode::Normal {
+        // Dashboard 视图下，Terminal / AgentOps 模式同样允许拖动分隔线；
+        // 主机列表视图及弹窗类模式不允许拖动。
+        let allow = matches!(self.mode, Mode::Normal)
+            || (self.view == View::Dashboard
+                && matches!(self.mode, Mode::Terminal | Mode::AgentOps));
+        if !allow {
             return;
         }
         // 主界面（主机列表 / 详情）：命中垂直分隔线 → 记录左栏起始权重
@@ -1669,6 +1674,16 @@ impl App {
             }
             Action::CloseTerminal => {
                 self.close_terminal_session();
+            }
+            Action::TermScroll(delta) => {
+                if let Some(session) = self.term_session.as_mut() {
+                    session.scroll(delta);
+                }
+            }
+            Action::TermScrollToBottom => {
+                if let Some(session) = self.term_session.as_mut() {
+                    session.scroll_to_bottom();
+                }
             }
             // ── Dashboard 分隔线拖动 ─────────────────────
             Action::StartSplitDrag { col, row } => {
