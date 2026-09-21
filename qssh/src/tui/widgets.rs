@@ -46,7 +46,7 @@ pub fn render_confirm_dialog(frame: &mut Frame, area: Rect, title: &str, message
 /// 渲染帮助弹窗
 #[allow(dead_code)]
 pub fn render_help_popup(frame: &mut Frame, area: Rect) {
-    let popup_area = centered_rect(60, 70, area);
+    let popup_area = centered_rect(60, 80, area);
     let help_text = "\
 ┌─ 键盘快捷键 ──────────────────────┐
 │                                    │
@@ -64,6 +64,11 @@ pub fn render_help_popup(frame: &mut Frame, area: Rect) {
 │  Enter       连接主机              │
 │  q / Esc     退出/取消             │
 │  ?           帮助                  │
+│                                    │
+├─ 鼠标操作 ────────────────────────┤
+│  点击主机      选中                │
+│  滚轮          滚动列表            │
+│  点击 Widget   打开对应操作面板    │
 │                                    │
 └────────────────────────────────────┘";
 

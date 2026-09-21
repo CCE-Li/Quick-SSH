@@ -1,7 +1,10 @@
 pub mod action;
 pub mod app;
+pub mod dashboard;
 pub mod editor;
 pub mod event;
 pub mod keymap;
+pub mod mouse;
+pub mod term;
 pub mod ui;
 pub mod widgets;

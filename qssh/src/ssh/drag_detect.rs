@@ -10,13 +10,70 @@ use std::path::PathBuf;
 
 // ── 辅助函数 ─────────────────────────────────────────────
 
-/// 去除终端粘贴模式标记（bracketed paste mode markers）
+/// 去除终端粘贴模式标记（bracketed paste mode markers）及所有 ANSI 转义序列
 pub fn strip_paste_markers(text: &str) -> String {
-    text.replace("\x1b[200~", "")
+    // 先剥掉常见标记（兼容旧逻辑），再剥掉其余 ANSI 转义序列（如 CSI 聚焦事件
+    // `\x1b[I`/`\x1b[O`、SS3 等），否则残留序列会拼到路径末尾导致 path.exists() 失败。
+    let text = text
+        .replace("\x1b[200~", "")
         .replace("\x1b[201~", "")
         .replace("\x1b[?2004h", "")
         .replace("\x1b[?2004l", "")
-        .replace('\x10', "") // DLE (Device Control Escape)
+        .replace('\x10', "");
+    strip_ansi_sequences(&text)
+}
+
+/// 去除所有 ANSI 转义序列（ESC 引导的 CSI/OSC/SS3 等）
+fn strip_ansi_sequences(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b == 0x1b {
+            // 转义序列：消耗 ESC 及其后续内容
+            i += 1;
+            if i >= bytes.len() {
+                break;
+            }
+            match bytes[i] {
+                b'[' => {
+                    // CSI：一直消耗到终结字节（0x40..=0x7E）
+                    i += 1;
+                    while i < bytes.len() {
+                        let c = bytes[i];
+                        i += 1;
+                        if (0x40..=0x7E).contains(&c) {
+                            break;
+                        }
+                    }
+                }
+                b']' => {
+                    // OSC：消耗到 BEL 或 ST（ESC \）
+                    i += 1;
+                    while i < bytes.len() {
+                        let c = bytes[i];
+                        i += 1;
+                        if c == 0x07 {
+                            break;
+                        }
+                        if c == 0x1b && i < bytes.len() && bytes[i] == b'\\' {
+                            i += 1;
+                            break;
+                        }
+                    }
+                }
+                _ => {
+                    // SS3 / 其他双字符转义：再消耗一个字节
+                    i += 1;
+                }
+            }
+            continue;
+        }
+        out.push(b);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// 判断字符串是否看起来像 Windows 绝对路径 (X:\... 或 X:/...)
@@ -285,6 +342,22 @@ mod tests {
         let text = "\x1b[200~C:\\test.txt\x1b[201~";
         let result = strip_paste_markers(text);
         assert_eq!(result, "C:\\test.txt");
+    }
+
+    #[test]
+    fn test_strip_focus_events_after_paste() {
+        // Windows Terminal 拖拽粘贴末尾会附上聚焦事件，必须一并剥掉，
+        // 否则会拼到路径末尾导致 path.exists() 失败。
+        let text = "\x1b[200~C:\\Users\\test\\file.zip\x1b[201~\x1b[I";
+        let result = strip_paste_markers(text);
+        assert_eq!(result, "C:\\Users\\test\\file.zip");
+    }
+
+    #[test]
+    fn test_strip_ss3_focus_out() {
+        let text = "C:\\Users\\test\\file.zip\x1b[O";
+        let result = strip_paste_markers(text);
+        assert_eq!(result, "C:\\Users\\test\\file.zip");
     }
 
     #[test]

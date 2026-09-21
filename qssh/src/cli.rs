@@ -82,6 +82,13 @@ pub enum Command {
         file: String,
     },
 
+    /// 启动本地 WebUI（AI Agent 网页界面）
+    Web {
+        /// 监听端口（默认 17890）
+        #[arg(long, short, default_value_t = crate::web::DEFAULT_PORT)]
+        port: u16,
+    },
+
     /// 打印帮助信息
     Help,
 
