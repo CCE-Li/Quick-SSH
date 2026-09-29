@@ -435,7 +435,7 @@ fn start_drag_session(target: &SshTarget, extra_args: &[String]) -> Result<i32> 
     // ── stdin 读取线程（控制台 → channel） ─────────────────
     let (tx, rx) = std::sync::mpsc::channel::<Vec<u8>>();
 
-    let _stdin_reader = std::thread::Builder::new()
+    let stdin_reader = std::thread::Builder::new()
         .name("ssh-stdin-reader".into())
         .spawn(move || {
             read_stdin(tx);
@@ -490,11 +490,87 @@ fn start_drag_session(target: &SshTarget, extra_args: &[String]) -> Result<i32> 
     }
 
     // ── 等待 ssh 退出 ─────────────────────────────────────
+    // 先关闭接收端：线程一旦从阻塞读取返回就会因 send 失败而退出，
+    // 而不是继续挂在控制台输入上。
+    drop(rx);
     drop(ssh_stdin);
     let _ = stdout_handle.join();
     let _ = stderr_handle.join();
     let status = child.wait().context("等待 ssh 进程结束失败")?;
+
+    // 回收 stdin 读取线程，避免其残留并抢走 TUI 恢复后的第一次按键
+    reap_stdin_reader(stdin_reader);
+
     Ok(status.code().unwrap_or(-1))
+}
+
+/// 会话结束：唤醒并回收 stdin 读取线程。
+///
+/// 该线程阻塞在控制台 `stdin().read()` 上，而 Windows 的同步控制台读取无法通过
+/// `CancelSynchronousIo` 取消（见 microsoft/terminal#12143）。这里改为向控制台
+/// 输入缓冲区写入一条无副作用的按键记录（F1，TUI 各模式均未绑定），使阻塞的读取
+/// 立即返回，线程随即因接收端已关闭而退出。
+///
+/// 若不做这一步，线程会残留在控制台输入句柄上，与恢复后的 TUI 争抢输入，
+/// 表现为“每次连接服务器后，退出程序需要按两次 q”。
+#[cfg(windows)]
+fn reap_stdin_reader(reader: std::thread::JoinHandle<()>) {
+    const STD_INPUT_HANDLE: u32 = 0xFFFFFFF6;
+    const KEY_EVENT: u16 = 0x0001;
+    const VK_F1: u16 = 0x70;
+    const VK_F1_SCAN: u16 = 0x3B;
+
+    // 与 wincon.h 的 INPUT_RECORD / KEY_EVENT_RECORD 内存布局一致（20 字节）
+    #[repr(C)]
+    struct KeyEventRecord {
+        key_down: i32,
+        repeat_count: u16,
+        virtual_key_code: u16,
+        virtual_scan_code: u16,
+        unicode_char: u16,
+        control_key_state: u32,
+    }
+
+    #[repr(C)]
+    struct InputRecord {
+        event_type: u16,
+        _padding: u16,
+        key_event: KeyEventRecord,
+    }
+
+    extern "system" {
+        fn GetStdHandle(nStdHandle: u32) -> isize;
+        fn WriteConsoleInputW(
+            hConsoleInput: isize,
+            lpBuffer: *const InputRecord,
+            nLength: u32,
+            lpNumberOfEventsWritten: *mut u32,
+        ) -> i32;
+    }
+
+    let record = InputRecord {
+        event_type: KEY_EVENT,
+        _padding: 0,
+        key_event: KeyEventRecord {
+            key_down: 1,
+            repeat_count: 1,
+            virtual_key_code: VK_F1,
+            virtual_scan_code: VK_F1_SCAN,
+            unicode_char: 0,
+            control_key_state: 0,
+        },
+    };
+
+    let injected = unsafe {
+        let handle = GetStdHandle(STD_INPUT_HANDLE);
+        let mut written = 0u32;
+        WriteConsoleInputW(handle, &record, 1, &mut written) != 0 && written == 1
+    };
+
+    // 仅在成功注入唤醒记录后 join，避免注入失败时线程仍阻塞导致挂起
+    if injected {
+        let _ = reader.join();
+    }
 }
 
 /// stdin 读取线程：从控制台读取输入并通过 channel 发送

@@ -481,8 +481,10 @@ impl App {
                     if let Some(session) = self.term_session.as_mut() {
                         session.handle_exit(code);
                     }
+                    // 会话结束后同样回到主机列表主界面（与主动断开一致），
+                    // 使 q 一次即可退出程序；仅在焦点仍在终端时切换，避免打断已打开的操作面板。
                     if self.mode == Mode::Terminal {
-                        self.mode = Mode::Normal;
+                        self.return_to_host_list();
                     }
                     self.set_flash_message("SSH 会话已结束", "yellow");
                 }
@@ -678,12 +680,22 @@ impl App {
     }
 
     /// 关闭嵌入式终端会话（断开 SSH）
+    ///
+    /// 断开后回到主机列表主界面（而非停留在 Dashboard），这样用户直接按一次 `q`
+    /// 即可退出程序，符合轻量化应用的操作直觉。
     pub fn close_terminal_session(&mut self) {
         if let Some(mut session) = self.term_session.take() {
             session.kill();
         }
-        self.mode = Mode::Normal;
+        self.return_to_host_list();
         self.set_flash_message("已断开 SSH 会话", "yellow");
+    }
+
+    /// 返回主机列表主界面：切换视图、复位模式并停止后台监控
+    fn return_to_host_list(&mut self) {
+        self.view = View::HostList;
+        self.mode = Mode::Normal;
+        self.stop_monitoring();
     }
 
     /// 启动对当前选中主机的后台监控（进入 Dashboard 视图时调用）
@@ -2609,6 +2621,23 @@ mod tests {
         app.apply(Action::FocusTerminal);
         // 无会话时不应进入 Terminal 模式
         assert_ne!(app.mode, Mode::Terminal);
+    }
+
+    #[test]
+    fn close_terminal_session_returns_to_host_list() {
+        let mut app = App::new(
+            SshConfig {
+                hosts: vec![],
+                preamble: String::new(),
+            },
+            PathBuf::from("dummy"),
+        );
+        app.view = View::Dashboard;
+        app.mode = Mode::Terminal;
+        app.close_terminal_session();
+        // 断开后回到主机列表主界面，按一次 q 即可退出程序
+        assert_eq!(app.view, View::HostList);
+        assert_eq!(app.mode, Mode::Normal);
     }
 
     #[test]
