@@ -30,6 +30,7 @@ cargo clippy --workspace -- -D warnings
 - **不实现 SSH 协议**：一律 spawn 系统 `ssh`/`scp`。TUI 内嵌终端用 `portable-pty` 分配 PTY + `vt100` 解析 ANSI（`tui/term.rs`）。
 - **AskPass 自调用**：保存过密码的主机 spawn ssh 时把 `current_exe` 设为 `SSH_ASKPASS`；`main.rs` 开头先调 `credentials::handle_askpass_request()`，若环境变量 `QSSH_ASKPASS_ACTIVE=1` 则直接打印密码并退出。因此运行中的 qssh 必须是最新构建，改动后 `cargo install` 才能让已安装的 qssh 正确自动填密码。
 - **TUI 事件流**：`event.rs` 事件循环 → `keymap.rs` 按键映射 → `Action` → `App::apply()` → `ui.rs` 渲染，100ms tick；状态唯一来源是 `App`。Dashboard 监控走后台调度器 + mpsc 事件回传。
+- **主机列表快捷键**：`Enter` 走全屏 SSH（`event.rs` 用 `ratatui::try_restore()` 交接给系统 ssh）；`Ctrl+Enter` 或**把主机项拖到窗口边缘松手** → 以 `CREATE_NEW_CONSOLE` 新开终端窗口连接（`ssh/spawn.rs::spawn_connection_window`）；`<`/`>`（Shift+, / Shift+.）上/下移动选中主机并写回 `~/.ssh/config`。只有 Dashboard 视图内的 `Enter` 才是嵌入式终端连接。
 
 ## 配置文件（改动前先确认改哪个）
 
@@ -48,7 +49,9 @@ cargo clippy --workspace -- -D warnings
 
 - 连接后键盘**默认全部转发给 PTY**（TUI 快捷键不生效，除非按前缀键）。
 - `Ctrl+B` 是前缀键（tmux 风格），随后按键解释为 TUI 命令：`d` Docker、`s` 服务、`f` 文件、`l` 日志、`a` AI Agent、`k` 命令面板，`q`/`x` 断开，`Esc` 取消前缀；未识别按键放行给 PTY。
-- 断开快捷键：`Esc` 或 `Ctrl+Shift+C`。`Ctrl+A` 在终端模式下会转发给远端 shell，不是 Agent 快捷键。
+- **断开只用 `Ctrl+B` 后 `q`/`x`，或 `Ctrl+Shift+C`**；`Esc` 不作为断开键（原样转发给远端，否则与 vim 等冲突）。`Ctrl+A` 会转发给远端 shell，不是 Agent 快捷键。
+- 断开（或会话自行结束）后**停留在嵌入式面板**：丢弃会话、清空终端并居中显示小电视空闲图案；`Enter` 原地重连，`q`/`Esc` 返回主机列表。
+- Windows 下 ConPTY 在 `ssh` 退出后**不一定 EOF**（读取线程会一直阻塞），主循环每 tick 轮询子进程状态（`TermSession::poll_child_exit`）来判定会话已结束。
 - 关闭操作面板（Docker/服务/文件/日志/Agent/命令面板/设置弹窗等）时若 SSH 仍连接，焦点回到终端（`Mode::Terminal`），键盘继续转发给 PTY；这是刻意设计（`App::restore_mode_after_overlay`）。
 
 ## 风格约定
