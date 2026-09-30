@@ -806,6 +806,33 @@ fn spawn_windows_upload_window(uploader: &Path, args: &[String]) {
         .spawn();
 }
 
+/// 在新终端窗口中打开到该主机的 SSH 连接（不占用当前 TUI）
+///
+/// Windows 下以 `CREATE_NEW_CONSOLE` 启动本程序并传入别名（走 `qssh <alias>` 直连路径），
+/// 新窗口里就是普通的交互式 SSH 会话，当前 TUI 不受影响。
+pub fn spawn_connection_window(target: &SshTarget) -> Result<()> {
+    let exe = std::env::current_exe().context("无法定位 qssh 可执行文件")?;
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+        Command::new(&exe)
+            .arg(&target.alias)
+            .creation_flags(CREATE_NEW_CONSOLE)
+            .spawn()
+            .context("无法打开新终端窗口")?;
+        Ok(())
+    }
+
+    #[cfg(not(windows))]
+    {
+        // 复用「在新终端中启动本程序」的逻辑
+        spawn_unix_upload_window(&exe, std::slice::from_ref(&target.alias));
+        Ok(())
+    }
+}
+
 /// Unix: 尝试多种方式在新终端中启动上传器
 #[cfg(not(windows))]
 #[allow(dead_code)]

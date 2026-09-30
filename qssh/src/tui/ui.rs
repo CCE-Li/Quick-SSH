@@ -89,6 +89,52 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         }
         _ => {}
     }
+
+    // 拖动主机项时绘制跟随光标的浮动标签（拖拽反馈）
+    render_drag_ghost(frame, app);
+}
+
+/// 拖动主机项时，在光标处绘制浮动标签（高对比样式），作为「正在拖动」的视觉反馈
+fn render_drag_ghost(frame: &mut Frame, app: &App) {
+    use unicode_width::UnicodeWidthStr;
+
+    if app.host_drag.is_none() {
+        return;
+    }
+    let Some((col, row)) = app.host_drag_pos else {
+        return;
+    };
+    let Some(host) = app.selected().and_then(|idx| app.hosts.get(idx)) else {
+        return;
+    };
+
+    // 贴边时给出「松手即开新窗口」的提示（绿色 + 文字）
+    let label = if app.host_drag_outside {
+        format!(" {} → 新窗口 ", host.alias)
+    } else {
+        format!(" {} ", host.alias)
+    };
+    let width = label.as_str().width() as u16;
+    let area = frame.area();
+    if width == 0 || area.width == 0 || area.height == 0 {
+        return;
+    }
+    // 标签始终保持在窗口内
+    let x = col.min(area.width.saturating_sub(width));
+    let y = row.min(area.height.saturating_sub(1));
+    let rect = Rect::new(x, y, width.min(area.width), 1);
+
+    let bg = if app.host_drag_outside {
+        Color::Green
+    } else {
+        Color::Cyan
+    };
+    let style = Style::default()
+        .fg(Color::Black)
+        .bg(bg)
+        .add_modifier(Modifier::BOLD);
+    frame.render_widget(ratatui::widgets::Clear, rect);
+    frame.render_widget(Paragraph::new(Line::from(Span::styled(label, style))), rect);
 }
 
 /// Dashboard 主体：按活动 Profile 布局渲染各 Widget
@@ -1122,5 +1168,71 @@ mod tests {
         let lines = super::wrap_detail_lines(&long_ascii, 24);
         assert!(lines.len() > 1, "长 ASCII token 应被折行");
         assert!(lines.iter().all(|l| l.width() <= 24));
+    }
+
+    /// 拖动主机项时，在光标处绘制高对比浮动标签（拖拽反馈）
+    #[test]
+    fn drag_ghost_follows_cursor() {
+        let config = SshConfig {
+            hosts: vec![HostBlock {
+                alias: "web-01".into(),
+                directives: vec![SshDirective::HostName("example.com".into())],
+                raw_text: String::new(),
+            }],
+            preamble: String::new(),
+        };
+        let mut app = App::new(config, PathBuf::from("unused-test-config"));
+        app.list_state.select(Some(0));
+
+        let backend = TestBackend::new(40, 12);
+        let mut terminal = Terminal::new(backend).expect("test terminal should initialize");
+
+        // 未拖动：光标处没有浮动标签（不是青色背景）
+        terminal
+            .draw(|frame| render(frame, &mut app))
+            .expect("TUI should render");
+        assert_ne!(
+            terminal
+                .backend()
+                .buffer()
+                .cell((7, 5))
+                .map(|cell| cell.style().bg),
+            Some(Some(ratatui::style::Color::Cyan)),
+            "未拖动时不应有浮动标签"
+        );
+
+        // 拖动中：标签出现在光标处（青色背景，含别名首字符）
+        app.host_drag = Some(0);
+        app.host_drag_pos = Some((6, 5));
+        terminal
+            .draw(|frame| render(frame, &mut app))
+            .expect("TUI should render");
+        let cell = terminal
+            .backend()
+            .buffer()
+            .cell((7, 5))
+            .expect("光标处应有单元格");
+        assert_eq!(
+            cell.style().bg,
+            Some(ratatui::style::Color::Cyan),
+            "拖动时应绘制浮动标签"
+        );
+        assert_eq!(cell.symbol(), "w");
+
+        // 贴边：标签变绿并附带「新窗口」提示（松手才开新窗口）
+        app.host_drag_outside = true;
+        terminal
+            .draw(|frame| render(frame, &mut app))
+            .expect("TUI should render");
+        let cell = terminal
+            .backend()
+            .buffer()
+            .cell((7, 5))
+            .expect("光标处应有单元格");
+        assert_eq!(
+            cell.style().bg,
+            Some(ratatui::style::Color::Green),
+            "贴边时标签应变为绿色"
+        );
     }
 }

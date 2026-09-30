@@ -136,6 +136,12 @@ pub struct App {
     pub search_keyword: String,
     /// 已选择（标记）的主机
     pub marked: Vec<usize>,
+    /// 鼠标正在拖动的主机（可见列表下标）；用于「拖到窗口边缘开新窗口」
+    pub host_drag: Option<usize>,
+    /// 拖动中的鼠标坐标（用于绘制跟随光标的浮动标签）
+    pub host_drag_pos: Option<(u16, u16)>,
+    /// 拖动是否已到达窗口边缘（松手即在新窗口连接）
+    pub host_drag_outside: bool,
     /// 主机在线状态: alias → online
     pub host_status: HashMap<String, bool>,
     /// 正在后台检测中的主机
@@ -261,6 +267,9 @@ impl App {
             input_buffer: String::new(),
             search_keyword: String::new(),
             marked: Vec::new(),
+            host_drag: None,
+            host_drag_pos: None,
+            host_drag_outside: false,
             host_status: HashMap::new(),
             pending_pings: HashSet::new(),
             flash_message: None,
@@ -374,6 +383,45 @@ impl App {
         let content = crate::config::render_config(&config);
         std::fs::write(&self.config_path, content)?;
         Ok(())
+    }
+
+    /// 将选中主机在列表中上/下移动一位（与相邻的**可见**主机交换），并写回 SSH 配置文件
+    fn move_selected_host(&mut self, delta: isize) {
+        let visible = self.visible_indices();
+        let Some(pos) = self.list_state.selected() else {
+            return;
+        };
+        let target_pos = pos as isize + delta;
+        if target_pos < 0 || target_pos as usize >= visible.len() {
+            return;
+        }
+        let target_pos = target_pos as usize;
+        let (from, to) = (visible[pos], visible[target_pos]);
+        if from == to {
+            return;
+        }
+
+        let alias = self.hosts[from].alias.clone();
+        self.hosts.swap(from, to);
+
+        // 多选标记是按下标存的，交换后同步这两个下标的归属，保持“被标记的主机”不变
+        let from_marked = self.marked.contains(&from);
+        let to_marked = self.marked.contains(&to);
+        self.marked.retain(|&i| i != from && i != to);
+        if from_marked {
+            self.marked.push(to);
+        }
+        if to_marked {
+            self.marked.push(from);
+        }
+
+        if let Err(e) = self.save_config() {
+            self.set_flash_message(format!("保存失败: {}", e), "red");
+            return;
+        }
+        // 保持选中被移动的主机
+        self.list_state.select(Some(target_pos));
+        self.set_flash_message(format!("已移动主机 \"{}\"", alias), "green");
     }
 
     pub fn handle_form_key(&mut self, key: KeyEvent) {
@@ -703,6 +751,32 @@ impl App {
         self.set_flash_message("已断开 SSH 会话", "yellow");
     }
 
+    /// 在新的终端窗口中连接当前选中主机（Ctrl+Enter / 鼠标拖到窗口边缘；不占用当前 TUI）
+    pub fn connect_in_new_window(&mut self) {
+        self.clear_host_drag();
+        let Some(idx) = self.selected() else {
+            self.set_flash_message("未选择主机", "yellow");
+            return;
+        };
+        let Some(host) = self.hosts.get(idx) else {
+            return;
+        };
+        let target = SshTarget::from_host(host);
+        match crate::ssh::spawn::spawn_connection_window(&target) {
+            Ok(()) => {
+                self.set_flash_message(format!("已在新的终端窗口中连接 {}", target.alias), "green")
+            }
+            Err(e) => self.set_flash_message(format!("打开新终端窗口失败: {}", e), "red"),
+        }
+    }
+
+    /// 结束主机拖动状态（清除跟随光标的浮动标签）
+    fn clear_host_drag(&mut self) {
+        self.host_drag = None;
+        self.host_drag_pos = None;
+        self.host_drag_outside = false;
+    }
+
     /// 启动对当前选中主机的后台监控（进入 Dashboard 视图时调用）
     pub fn start_monitoring(&mut self) {
         if self.monitor_target.is_some() {
@@ -806,6 +880,22 @@ impl App {
                     self.list_state.select(Some(len - 1));
                 }
             }
+            Action::MoveHost(delta) => self.move_selected_host(delta),
+            Action::StartHostDrag { idx, col, row } => {
+                if idx < self.visible_indices().len() {
+                    self.list_state.select(Some(idx));
+                    self.host_drag = Some(idx);
+                    self.host_drag_pos = Some((col, row));
+                    self.host_drag_outside = false;
+                }
+            }
+            Action::HostDragMove { col, row, outside } => {
+                if self.host_drag.is_some() {
+                    self.host_drag_pos = Some((col, row));
+                    self.host_drag_outside = outside;
+                }
+            }
+            Action::EndHostDrag => self.clear_host_drag(),
             Action::SelectListItem(idx) => match self.mode {
                 Mode::Normal => {
                     if idx < self.visible_indices().len() {
@@ -1694,6 +1784,7 @@ impl App {
                     self.start_terminal_session();
                 }
             }
+            Action::ConnectNewWindow => self.connect_in_new_window(),
             Action::CloseTerminal => {
                 self.close_terminal_session();
             }
@@ -2649,6 +2740,54 @@ mod tests {
         assert_eq!(app.view, View::Dashboard);
         assert_eq!(app.mode, Mode::Normal);
         assert!(app.term_session.is_none());
+    }
+
+    /// </> 调整主机顺序：与相邻可见主机交换，并写回 SSH 配置文件
+    #[test]
+    fn move_selected_host_reorders_and_persists() {
+        use crate::config::types::{HostBlock, SshDirective};
+        use crate::tui::action::View;
+
+        let path = std::env::temp_dir().join("qssh_move_host_test_config");
+        let mut app = App::new(
+            SshConfig {
+                hosts: vec![],
+                preamble: String::new(),
+            },
+            path.clone(),
+        );
+        app.hosts = (0..3)
+            .map(|i| HostBlock {
+                alias: format!("host{i}"),
+                directives: vec![SshDirective::HostName(format!("h{i}.example.com"))],
+                raw_text: String::new(),
+            })
+            .collect();
+        app.view = View::HostList;
+        app.list_state.select(Some(1)); // host1
+
+        fn order(app: &App) -> Vec<String> {
+            app.hosts.iter().map(|h| h.alias.clone()).collect()
+        }
+
+        // 上移：与 host0 交换，选中跟随被移动的主机
+        app.apply(Action::MoveHost(-1));
+        assert_eq!(order(&app), vec!["host1", "host0", "host2"]);
+        assert_eq!(app.selected(), Some(0));
+
+        // 下移回原位
+        app.apply(Action::MoveHost(1));
+        assert_eq!(order(&app), vec!["host0", "host1", "host2"]);
+        assert_eq!(app.selected(), Some(1));
+
+        // 已写回配置文件
+        let saved = std::fs::read_to_string(&path).expect("配置应已保存");
+        assert!(
+            saved.contains("host0") && saved.contains("host1"),
+            "{saved}"
+        );
+
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]

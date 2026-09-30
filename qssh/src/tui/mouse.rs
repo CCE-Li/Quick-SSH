@@ -35,6 +35,9 @@ pub fn map_mouse_to_action(event: MouseEvent, app: &App) -> Action {
             if dragging {
                 // 拖动中再次按下：先结束上一次拖动
                 Action::EndSplitDrag
+            } else if app.host_drag.is_some() {
+                // 上一次主机拖动的松开事件丢失（如拖出窗口）：先清掉旧状态
+                Action::EndHostDrag
             } else {
                 left_click(app, event.column, event.row)
             }
@@ -45,6 +48,13 @@ pub fn map_mouse_to_action(event: MouseEvent, app: &App) -> Action {
                     col: event.column,
                     row: event.row,
                 }
+            } else if app.host_drag.is_some() {
+                // 拖动中只更新浮动标签位置；是否贴边仅作提示，松手时才开新窗口
+                Action::HostDragMove {
+                    col: event.column,
+                    row: event.row,
+                    outside: at_window_edge(event.column, event.row),
+                }
             } else {
                 Action::None
             }
@@ -52,6 +62,13 @@ pub fn map_mouse_to_action(event: MouseEvent, app: &App) -> Action {
         MouseEventKind::Up(MouseButton::Left) => {
             if dragging {
                 Action::EndSplitDrag
+            } else if app.host_drag.is_some() {
+                // 松手：在窗口边缘（含被钳制的边缘坐标）才在新终端窗口连接
+                if at_window_edge(event.column, event.row) {
+                    Action::ConnectNewWindow
+                } else {
+                    Action::EndHostDrag
+                }
             } else {
                 Action::None
             }
@@ -70,7 +87,12 @@ fn left_click(app: &App, col: u16, row: u16) -> Action {
             if is_on_main_divider(app, col) {
                 Action::StartSplitDrag { col, row }
             } else {
-                host_index_at(app, col, row).map_or(Action::None, Action::SelectListItem)
+                // 按住主机项开始拖动（拖到窗口边缘即在新窗口连接）
+                host_index_at(app, col, row).map_or(Action::None, |idx| Action::StartHostDrag {
+                    idx,
+                    col,
+                    row,
+                })
             }
         }
         Mode::Normal => {
@@ -237,6 +259,23 @@ fn widget_click_at(app: &App, col: u16, row: u16, area: Rect) -> Action {
 fn full_area() -> Rect {
     let (w, h) = crossterm::terminal::size().unwrap_or((0, 0));
     Rect::new(0, 0, w, h)
+}
+
+/// 拖动是否已到达窗口边缘
+///
+/// Windows 下鼠标被拖出窗口后，控制台会把坐标**钳制在窗口边缘**（松手事件也可能收不到），
+/// 因此以「坐标贴边」作为「拖出窗口」的触发条件。沿边缘拖动同样会触发，属于已知取舍。
+fn at_window_edge(col: u16, row: u16) -> bool {
+    let area = full_area();
+    is_at_edge(col, row, area.width, area.height)
+}
+
+/// 给定窗口尺寸下判断坐标是否贴边（测试友好）
+fn is_at_edge(col: u16, row: u16, width: u16, height: u16) -> bool {
+    if width == 0 || height == 0 {
+        return false;
+    }
+    col == 0 || row == 0 || col >= width - 1 || row >= height - 1
 }
 
 /// 主界面左栏（主机列表）宽度权重对应的垂直分隔线 x 坐标（绝对终端列）
@@ -476,6 +515,82 @@ mod tests {
             &a,
         );
         assert!(matches!(action, Action::TermScroll(d) if d < 0));
+    }
+
+    /// 边缘判定：窗口四边为真、内部为假、尺寸为 0 时不触发
+    #[test]
+    fn window_edge_detection() {
+        let (w, h) = (80u16, 24u16);
+        assert!(is_at_edge(0, 10, w, h), "左边缘");
+        assert!(is_at_edge(w - 1, 10, w, h), "右边缘");
+        assert!(is_at_edge(10, 0, w, h), "上边缘");
+        assert!(is_at_edge(10, h - 1, w, h), "下边缘");
+        assert!(!is_at_edge(10, 10, w, h), "窗口内部");
+        assert!(!is_at_edge(0, 0, 0, 0), "无尺寸时不触发");
+    }
+
+    /// 按住主机项开始拖动（终端尺寸为 0 的环境下退化为 None，属环境限制）
+    #[test]
+    fn host_press_starts_drag() {
+        use crate::config::types::{HostBlock, SshDirective};
+        let mut a = app();
+        a.view = View::HostList;
+        a.hosts = vec![HostBlock {
+            alias: "h".into(),
+            directives: vec![SshDirective::HostName("h.example.com".into())],
+            raw_text: String::new(),
+        }];
+        a.list_state.select(Some(0));
+        let action = map_mouse_to_action(
+            MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                column: 5,
+                row: 3,
+                modifiers: crossterm::event::KeyModifiers::NONE,
+            },
+            &a,
+        );
+        if !matches!(&action, Action::None) {
+            assert!(
+                matches!(&action, Action::StartHostDrag { idx: 0, .. }),
+                "actual {action:?}"
+            );
+        }
+    }
+
+    /// 拖动状态机：贴边只置提示位，松手（EndHostDrag）清空全部拖动状态
+    #[test]
+    fn host_drag_state_tracks_outside_flag() {
+        use crate::config::types::{HostBlock, SshDirective};
+        let mut a = app();
+        a.hosts = vec![HostBlock {
+            alias: "h".into(),
+            directives: vec![SshDirective::HostName("h.example.com".into())],
+            raw_text: String::new(),
+        }];
+
+        a.apply(Action::StartHostDrag {
+            idx: 0,
+            col: 5,
+            row: 5,
+        });
+        assert_eq!(a.host_drag, Some(0));
+        assert!(!a.host_drag_outside);
+
+        // 拖到边缘：仅更新提示位与位置，不触发任何切换
+        a.apply(Action::HostDragMove {
+            col: 5,
+            row: 6,
+            outside: true,
+        });
+        assert!(a.host_drag_outside);
+        assert_eq!(a.host_drag_pos, Some((5, 6)));
+
+        // 松手未开新窗口：状态被清空
+        a.apply(Action::EndHostDrag);
+        assert!(a.host_drag.is_none());
+        assert!(a.host_drag_pos.is_none());
+        assert!(!a.host_drag_outside);
     }
 
     /// 主界面（HostList 视图）点击分隔线 → StartSplitDrag

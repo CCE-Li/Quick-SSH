@@ -24,7 +24,25 @@ pub enum Action {
     MoveDown,
     MoveTop,
     MoveBottom,
+    /// 在主机列表中上/下移动选中主机（调整 ~/.ssh/config 中的顺序；正数向下，负数向上）
+    MoveHost(isize),
     Connect,
+    /// 在新的终端窗口中连接选中主机（不占用当前 TUI；快捷键 Ctrl+Enter）
+    ConnectNewWindow,
+    /// 开始拖动主机列表项（鼠标按住主机项；携带按下坐标用于绘制浮动标签）
+    StartHostDrag {
+        idx: usize,
+        col: u16,
+        row: u16,
+    },
+    /// 主机拖动中（更新浮动标签位置；`outside` 表示已在窗口边缘、松手将开新窗口）
+    HostDragMove {
+        col: u16,
+        row: u16,
+        outside: bool,
+    },
+    /// 结束主机拖动（松开左键）
+    EndHostDrag,
     ToggleSelect,
     /// 切换地址显示/隐藏
     ToggleAddress,

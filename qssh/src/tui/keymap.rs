@@ -19,6 +19,8 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
                     KeyCode::Char('k' | 'K') => return Action::OpenPalette,
                     KeyCode::Char('a' | 'A') => return Action::OpenAgentOps,
                     KeyCode::Char(' ') => return Action::OpenAgentOps,
+                    // Ctrl+Enter：在新的终端窗口中连接选中主机
+                    KeyCode::Enter => return Action::ConnectNewWindow,
                     _ => {}
                 }
             }
@@ -28,6 +30,15 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
                 KeyCode::Char('k') | KeyCode::Up => Action::MoveUp,
                 KeyCode::Char('g') => Action::MoveTop,
                 KeyCode::Char('G') => Action::MoveBottom,
+                // Shift+, / Shift+. （即 < / >）：在主列表中上/下移动主机顺序
+                KeyCode::Char('<') => match app.view {
+                    crate::tui::action::View::HostList => Action::MoveHost(-1),
+                    _ => Action::None,
+                },
+                KeyCode::Char('>') => match app.view {
+                    crate::tui::action::View::HostList => Action::MoveHost(1),
+                    _ => Action::None,
+                },
                 KeyCode::Enter => Action::Connect,
                 KeyCode::Char(' ') => Action::ToggleSelect,
                 KeyCode::Char('e') => Action::StartEdit,
@@ -349,7 +360,7 @@ impl Mode {
                 "d Docker s 服务 f 文件 l 日志 a Agent b 主机列表 Ctrl+K 面板 | Esc/q 返回主界面"
             }
             Mode::Normal => {
-                "j↓ k↑ Ctrl+N↓ Ctrl+P↑ gg↕ G↕ /搜索 :命令 a添加 p检测 P全检 b控制台 Ctrl+K面板 Ctrl+A Agent Enter连接 空格标记 .地址 q退出 ?帮助"
+                "j↓ k↑ Ctrl+N↓ Ctrl+P↑ gg↕ G↕ </>调序 /搜索 :命令 a添加 p检测 P全检 b控制台 Ctrl+K面板 Ctrl+A Agent Enter连接 Ctrl+Enter新窗口 空格标记 .地址 q退出 ?帮助"
             }
             Mode::Search => "输入搜索关键词，Enter 确认，Esc 取消",
             Mode::Add => "字段添加弹窗: Tab 切换字段，Enter 下一项，Ctrl+S 保存，Esc 取消",
@@ -504,6 +515,37 @@ mod tests {
         assert!(matches!(
             map_key_to_action(KeyEvent::from(KeyCode::Esc), &app),
             Action::ShowHostList
+        ));
+    }
+
+    /// Ctrl+Enter 在新的终端窗口中连接选中主机
+    #[test]
+    fn ctrl_enter_connects_in_new_window() {
+        let action =
+            map_key_to_action(KeyEvent::new(KeyCode::Enter, KeyModifiers::CONTROL), &app());
+        assert!(matches!(action, Action::ConnectNewWindow));
+    }
+
+    /// 主机列表 </> 上下调整顺序；Dashboard 下不响应
+    #[test]
+    fn angle_brackets_reorder_on_hostlist_only() {
+        use crate::tui::action::View;
+
+        let mut app = app();
+        app.view = View::HostList;
+        assert!(matches!(
+            map_key_to_action(KeyEvent::new(KeyCode::Char('<'), KeyModifiers::SHIFT), &app),
+            Action::MoveHost(-1)
+        ));
+        assert!(matches!(
+            map_key_to_action(KeyEvent::new(KeyCode::Char('>'), KeyModifiers::SHIFT), &app),
+            Action::MoveHost(1)
+        ));
+
+        app.view = View::Dashboard;
+        assert!(matches!(
+            map_key_to_action(KeyEvent::new(KeyCode::Char('>'), KeyModifiers::SHIFT), &app),
+            Action::None
         ));
     }
 }
