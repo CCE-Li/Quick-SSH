@@ -8,7 +8,7 @@ use ratatui::layout::Rect;
 use ratatui::prelude::Widget;
 use ratatui::style::{Color, Style};
 use ratatui::text::Line;
-use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Wrap};
 
 use super::config::WidgetId;
 
@@ -72,6 +72,7 @@ impl WidgetModule for MockWidget {
         };
         let block = Block::default()
             .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
             .title(self.title())
             .border_style(border_style);
         let lines = self.render_lines();

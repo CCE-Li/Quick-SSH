@@ -1,7 +1,8 @@
+use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, List, ListItem, Paragraph};
 use ratatui::Frame;
 
 use crate::agent::timeline::AgentStatus;
@@ -94,10 +95,25 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     render_drag_ghost(frame, app);
 }
 
-/// 拖动主机项时，在光标处绘制浮动标签（高对比样式），作为「正在拖动」的视觉反馈
-fn render_drag_ghost(frame: &mut Frame, app: &App) {
-    use unicode_width::UnicodeWidthStr;
+/// 清空浮动标签占用的区域（并向左多清一格）
+///
+/// 若标签左边界正好落在**全角字符的右半格**上，该全角字符仍占着两列，
+/// ratatui 生成差分时会跳过其右侧单元格，导致块边框「缺一条边」。
+/// 多清左边一格可把这个全角字符一并移除。
+fn clear_overlay_area(buf: &mut Buffer, rect: Rect) {
+    let start_x = rect.x.saturating_sub(1);
+    let end_x = rect.x.saturating_add(rect.width);
+    for y in rect.y..rect.y.saturating_add(rect.height) {
+        for x in start_x..end_x {
+            if let Some(cell) = buf.cell_mut((x, y)) {
+                cell.reset();
+            }
+        }
+    }
+}
 
+/// 拖动主机项时，在光标处绘制浮动标签（圆角卡片，拖拽反馈）
+fn render_drag_ghost(frame: &mut Frame, app: &App) {
     if app.host_drag.is_none() {
         return;
     }
@@ -107,34 +123,63 @@ fn render_drag_ghost(frame: &mut Frame, app: &App) {
     let Some(host) = app.selected().and_then(|idx| app.hosts.get(idx)) else {
         return;
     };
+    render_drag_card(frame, app, &host.alias, col, row);
+}
 
-    // 贴边时给出「松手即开新窗口」的提示（绿色 + 文字）
-    let label = if app.host_drag_outside {
-        format!(" {} → 新窗口 ", host.alias)
+/// 标签文字：贴边时附带「松手即开新窗口」的提示
+fn drag_label_text(app: &App, alias: &str) -> String {
+    if app.host_drag_outside {
+        format!("↕ {alias}  → 新窗口")
     } else {
-        format!(" {} ", host.alias)
-    };
-    let width = label.as_str().width() as u16;
-    let area = frame.area();
-    if width == 0 || area.width == 0 || area.height == 0 {
-        return;
+        format!("↕ {alias}")
     }
-    // 标签始终保持在窗口内
-    let x = col.min(area.width.saturating_sub(width));
-    let y = row.min(area.height.saturating_sub(1));
-    let rect = Rect::new(x, y, width.min(area.width), 1);
+}
 
-    let bg = if app.host_drag_outside {
+/// 标签主色：拖动中青色，贴到窗口边缘（松手将开新窗口）转为绿色
+fn drag_label_color(app: &App) -> Color {
+    if app.host_drag_outside {
         Color::Green
     } else {
         Color::Cyan
-    };
-    let style = Style::default()
-        .fg(Color::Black)
-        .bg(bg)
-        .add_modifier(Modifier::BOLD);
-    frame.render_widget(ratatui::widgets::Clear, rect);
-    frame.render_widget(Paragraph::new(Line::from(Span::styled(label, style))), rect);
+    }
+}
+
+/// 三行浮层卡片样式：带圆角边框的小卡片，边框颜色随状态变化
+fn render_drag_card(frame: &mut Frame, app: &App, alias: &str, col: u16, row: u16) {
+    use ratatui::layout::Alignment;
+    use unicode_width::UnicodeWidthStr;
+
+    let text = drag_label_text(app, alias);
+    let width = text.as_str().width() as u16 + 4; // 左右边框 + 内边距
+    let height = 3u16; // 上下边框 + 内容行
+    let area = frame.area();
+    if area.width < 4 || area.height < 3 {
+        return;
+    }
+    let x = col.min(area.width.saturating_sub(width));
+    let y = row.min(area.height.saturating_sub(height));
+    let rect = Rect::new(x, y, width.min(area.width), height.min(area.height));
+
+    let color = drag_label_color(app);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(color));
+    let inner = block.inner(rect);
+
+    clear_overlay_area(frame.buffer_mut(), rect);
+    frame.render_widget(block, rect);
+    if inner.width == 0 || inner.height == 0 {
+        return;
+    }
+    frame.render_widget(
+        Paragraph::new(Line::from(Span::styled(
+            text,
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
+        )))
+        .alignment(Alignment::Center),
+        inner,
+    );
 }
 
 /// Dashboard 主体：按活动 Profile 布局渲染各 Widget
@@ -227,7 +272,8 @@ fn render_dashboard_config_popup(frame: &mut Frame, area: Rect, app: &App) {
 
     for (idx, id) in crate::tui::dashboard::ALL_WIDGETS.iter().enumerate() {
         let checked = enabled.contains(id);
-        let marker = if checked { "[x]" } else { "[ ]" };
+        // 圆形勾选标记（● 已选 / ○ 未选）
+        let marker = if checked { "●" } else { "○" };
         let key = match idx {
             0..=8 => format!("{}", idx + 1),
             9 => "0".to_string(),
@@ -245,6 +291,7 @@ fn render_dashboard_config_popup(frame: &mut Frame, area: Rect, app: &App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(" Dashboard Configuration ");
     let paragraph = Paragraph::new(lines).block(block);
     frame.render_widget(paragraph, popup);
@@ -261,6 +308,7 @@ fn render_docker_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
         let paragraph = Paragraph::new("暂无容器数据").block(
             Block::default()
                 .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
                 .title(" Docker 容器操作 "),
         );
         frame.render_widget(paragraph, popup);
@@ -296,7 +344,12 @@ fn render_docker_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
         app.monitor_target_alias().unwrap_or("-")
     );
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(title))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title(title),
+        )
         .highlight_style(
             Style::default()
                 .bg(Color::Blue)
@@ -338,6 +391,7 @@ fn render_docker_confirm_popup(frame: &mut Frame, area: Rect, app: &App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(color))
         .title(" Docker 危险操作确认 ");
     frame.render_widget(Paragraph::new(lines).block(block), popup);
@@ -354,6 +408,7 @@ fn render_service_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
         let paragraph = Paragraph::new("暂无服务数据").block(
             Block::default()
                 .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
                 .title(" 系统服务操作 "),
         );
         frame.render_widget(paragraph, popup);
@@ -401,7 +456,12 @@ fn render_service_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
         app.monitor_target_alias().unwrap_or("-")
     );
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(title))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title(title),
+        )
         .highlight_style(
             Style::default()
                 .bg(Color::Blue)
@@ -443,6 +503,7 @@ fn render_service_confirm_popup(frame: &mut Frame, area: Rect, app: &App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(color))
         .title(" 服务危险操作确认 ");
     frame.render_widget(Paragraph::new(lines).block(block), popup);
@@ -456,8 +517,12 @@ fn render_file_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(ratatui::widgets::Clear, popup);
 
     let Some(snapshot) = app.docker_snapshot() else {
-        let paragraph = Paragraph::new("暂无文件数据")
-            .block(Block::default().borders(Borders::ALL).title(" 文件浏览 "));
+        let paragraph = Paragraph::new("暂无文件数据").block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title(" 文件浏览 "),
+        );
         frame.render_widget(paragraph, popup);
         return;
     };
@@ -494,7 +559,12 @@ fn render_file_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
         app.monitor_target_alias().unwrap_or("-")
     );
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(title))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title(title),
+        )
         .highlight_style(
             Style::default()
                 .bg(Color::Blue)
@@ -533,6 +603,7 @@ fn render_file_confirm_popup(frame: &mut Frame, area: Rect, app: &App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(color))
         .title(" 文件操作确认 ");
     frame.render_widget(Paragraph::new(lines).block(block), popup);
@@ -575,7 +646,12 @@ fn render_log_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
         app.monitor_target_alias().unwrap_or("-")
     );
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(title))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title(title),
+        )
         .highlight_style(
             Style::default()
                 .bg(Color::Blue)
@@ -608,6 +684,7 @@ fn render_log_filter_popup(frame: &mut Frame, area: Rect, app: &App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(" 日志筛选 unit ");
     frame.render_widget(Paragraph::new(lines).block(block), popup);
 }
@@ -641,7 +718,10 @@ fn render_search_popup(frame: &mut Frame, area: Rect, app: &App) {
         Line::from("  Enter 确认    Esc 取消"),
     ];
 
-    let block = Block::default().borders(Borders::ALL).title(" 搜索主机 ");
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .title(" 搜索主机 ");
     frame.render_widget(Paragraph::new(lines).block(block), popup);
 }
 
@@ -676,6 +756,7 @@ fn render_command_popup(frame: &mut Frame, area: Rect, app: &App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(" 远程命令执行 ");
     frame.render_widget(Paragraph::new(lines).block(block), popup);
 }
@@ -742,6 +823,7 @@ fn render_command_result_popup(frame: &mut Frame, area: Rect, app: &App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(format!(" 执行结果 — {}: {} ", result.alias, result.command));
     frame.render_widget(Paragraph::new(lines).block(block), popup);
 }
@@ -816,7 +898,12 @@ fn render_host_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .collect();
 
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("主机列表"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title("主机列表"),
+        )
         .highlight_style(
             Style::default()
                 .bg(Color::Blue)
@@ -892,6 +979,7 @@ fn render_detail(frame: &mut Frame, area: Rect, app: &App) {
     let detail = Paragraph::new(lines).block(
         Block::default()
             .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
             .title("详情")
             .title_alignment(ratatui::layout::Alignment::Left),
     );
@@ -992,7 +1080,10 @@ fn render_agent_confirm_popup(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(ratatui::widgets::Clear, popup);
 
     let Some(call) = app.agent_pending_call() else {
-        let block = Block::default().borders(Borders::ALL).title(" Agent 确认 ");
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title(" Agent 确认 ");
         frame.render_widget(Paragraph::new("  没有待确认的操作").block(block), popup);
         return;
     };
@@ -1040,6 +1131,7 @@ fn render_agent_confirm_popup(frame: &mut Frame, area: Rect, app: &App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(" ⚠ 危险操作确认 — Agent ");
     frame.render_widget(Paragraph::new(lines).block(block), popup);
 }
@@ -1061,6 +1153,7 @@ fn render_agent_config_popup(frame: &mut Frame, area: Rect, app: &App) {
     );
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(title)
         .style(Style::default().bg(Color::Black));
 
@@ -1095,9 +1188,10 @@ mod tests {
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
 
-    use super::render;
+    use super::{render, render_dashboard_config_popup};
     use crate::config::types::{HostBlock, SshConfig, SshDirective};
     use crate::tui::app::App;
+    use ratatui::style::Color;
 
     #[test]
     fn renders_host_comments_in_list_and_detail() {
@@ -1201,38 +1295,114 @@ mod tests {
             "未拖动时不应有浮动标签"
         );
 
-        // 拖动中：标签出现在光标处（青色背景，含别名首字符）
+        // 拖动中：光标处出现圆角卡片（边框青色、含别名）
         app.host_drag = Some(0);
         app.host_drag_pos = Some((6, 5));
         terminal
             .draw(|frame| render(frame, &mut app))
             .expect("TUI should render");
-        let cell = terminal
+        let text: String = terminal
             .backend()
             .buffer()
-            .cell((7, 5))
-            .expect("光标处应有单元格");
-        assert_eq!(
-            cell.style().bg,
-            Some(ratatui::style::Color::Cyan),
-            "拖动时应绘制浮动标签"
-        );
-        assert_eq!(cell.symbol(), "w");
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect();
+        let corner = terminal
+            .backend()
+            .buffer()
+            .cell((6, 5))
+            .expect("卡片左上角应有单元格");
+        assert_eq!(corner.symbol(), "╭", "应为圆角卡片\n{text}");
+        assert_eq!(corner.style().fg, Some(Color::Cyan), "拖动中边框应为青色");
+        assert!(text.contains("web-01"), "卡片应显示别名\n{text}");
 
-        // 贴边：标签变绿并附带「新窗口」提示（松手才开新窗口）
+        // 贴边：边框转绿（松手才开新窗口）
         app.host_drag_outside = true;
         terminal
             .draw(|frame| render(frame, &mut app))
             .expect("TUI should render");
-        let cell = terminal
+        let corner = terminal
             .backend()
             .buffer()
-            .cell((7, 5))
-            .expect("光标处应有单元格");
-        assert_eq!(
-            cell.style().bg,
-            Some(ratatui::style::Color::Green),
-            "贴边时标签应变为绿色"
+            .cell((6, 5))
+            .expect("卡片左上角应有单元格");
+        assert_eq!(corner.style().fg, Some(Color::Green), "贴边时边框应为绿色");
+    }
+
+    /// 「Dashboard 配置」弹窗：勾选标记为圆形 ●/○，边框为圆角
+    #[test]
+    fn config_popup_uses_circle_markers_and_rounded_border() {
+        let app = App::new(
+            SshConfig {
+                hosts: vec![],
+                preamble: String::new(),
+            },
+            PathBuf::from("unused-test-config"),
         );
+        let backend = TestBackend::new(60, 30);
+        let mut terminal = Terminal::new(backend).expect("test terminal should initialize");
+        terminal
+            .draw(|frame| {
+                let area = frame.area();
+                render_dashboard_config_popup(frame, area, &app);
+            })
+            .expect("TUI should render");
+
+        let text: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect();
+        assert!(text.contains('●'), "应有已勾选标记 ●\n{text}");
+        assert!(text.contains('○'), "应有未勾选标记 ○\n{text}");
+        assert!(
+            text.contains('╭') && text.contains('╯'),
+            "边框应为圆角\n{text}"
+        );
+    }
+
+    /// 演示拖拽标签在真实主界面上的观感
+    /// （`cargo test -p quick-ssh --bin qssh demo_drag_label_on_ui -- --nocapture`）
+    #[test]
+    fn demo_drag_label_on_ui() {
+        let mut app = App::new(
+            SshConfig {
+                hosts: vec![],
+                preamble: String::new(),
+            },
+            PathBuf::from("unused-test-config"),
+        );
+        app.hosts = ["web-01", "db-prod", "cache-02", "bastion"]
+            .iter()
+            .map(|alias| HostBlock {
+                alias: (*alias).into(),
+                directives: vec![SshDirective::HostName(format!("{alias}.example.com"))],
+                raw_text: String::new(),
+            })
+            .collect();
+        app.list_state.select(Some(1));
+        app.host_drag = Some(1);
+        app.host_drag_pos = Some((24, 7));
+
+        for outside in [false, true] {
+            app.host_drag_outside = outside;
+            let backend = TestBackend::new(78, 14);
+            let mut terminal = Terminal::new(backend).expect("test terminal should initialize");
+            terminal
+                .draw(|frame| render(frame, &mut app))
+                .expect("TUI should render");
+
+            let buf = terminal.backend().buffer();
+            println!("=== 拖拽标签 | 贴边={outside} ===");
+            for y in 0..buf.area.height {
+                let line: String = (0..buf.area.width)
+                    .map(|x| buf.cell((x, y)).map(|c| c.symbol()).unwrap_or(" "))
+                    .collect();
+                println!("{line}");
+            }
+        }
     }
 }

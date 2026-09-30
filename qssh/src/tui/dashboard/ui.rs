@@ -7,7 +7,7 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::prelude::Widget;
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 
 use super::config::{ProfileConfig, WidgetId};
@@ -101,6 +101,7 @@ fn render_agent_widget(view: &AgentWidgetView, area: Rect, buf: &mut Buffer) {
     );
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(title)
         .border_style(border_style);
     let inner = block.inner(area);
@@ -341,6 +342,7 @@ fn render_terminal_widget(
     };
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(title)
         .border_style(border_style);
     let inner_area = block.inner(area);
@@ -385,6 +387,7 @@ fn render_terminal_idle(area: Rect, buf: &mut Buffer, focused: bool) {
     };
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(" 嵌入式终端 ")
         .border_style(border_style);
     let inner = block.inner(area);
@@ -492,6 +495,7 @@ pub fn render_palette_popup(frame: &mut Frame, query: &str, selected: usize) {
 
     let outer = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(" Command Palette ");
     let inner = outer.inner(popup);
     outer.render(popup, frame.buffer_mut());
@@ -501,8 +505,12 @@ pub fn render_palette_popup(frame: &mut Frame, query: &str, selected: usize) {
         .constraints([Constraint::Length(3), Constraint::Min(0)])
         .split(inner);
 
-    let input =
-        Paragraph::new(query).block(Block::default().borders(Borders::ALL).title(" Query "));
+    let input = Paragraph::new(query).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title(" Query "),
+    );
     frame.render_widget(input, chunks[0]);
 
     let items: Vec<_> = filter_palette(PALETTE_ACTIONS, query);
@@ -522,7 +530,12 @@ pub fn render_palette_popup(frame: &mut Frame, query: &str, selected: usize) {
         })
         .collect();
     let list = List::new(list_items)
-        .block(Block::default().borders(Borders::ALL).title(" Actions "))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .title(" Actions "),
+        )
         .highlight_symbol("> ");
     let mut state = ListState::default();
     state.select(Some(selected.min(items.len().saturating_sub(1))));

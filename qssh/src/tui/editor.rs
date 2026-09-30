@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::{anyhow, bail};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::widgets::{Block, Borders};
+use ratatui::widgets::{Block, BorderType, Borders};
 use tui_textarea::TextArea;
 
 use crate::config::types::{HostBlock, SshDirective};
@@ -109,6 +109,7 @@ impl FormField {
             Block::default()
                 .title(title)
                 .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
                 .border_style(Style::default().fg(border)),
         );
         self.textarea.set_cursor_line_style(cursor_line_style);

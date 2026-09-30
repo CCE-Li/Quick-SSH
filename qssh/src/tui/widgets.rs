@@ -1,6 +1,6 @@
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style};
-use ratatui::widgets::{Block, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
 use ratatui::Frame;
 
 use crate::tui::app::App;
@@ -36,6 +36,7 @@ pub fn render_confirm_dialog(frame: &mut Frame, area: Rect, title: &str, message
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .style(Style::default().bg(Color::DarkGray));
 
     let paragraph = Paragraph::new(message).block(block);
@@ -75,6 +76,7 @@ pub fn render_help_popup(frame: &mut Frame, area: Rect) {
     let block = Block::default()
         .title("帮助")
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .style(Style::default().bg(Color::Black));
 
     let paragraph = Paragraph::new(help_text).block(block);
@@ -92,6 +94,7 @@ pub fn render_host_form_popup(frame: &mut Frame, area: Rect, app: &App) {
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .style(Style::default().bg(Color::Black));
 
     let inner = block.inner(popup_area);
