@@ -5,7 +5,6 @@
 //! `poll_background_tasks` 中消费，保证 UI 永不因 SSH 阻塞。
 
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::thread::JoinHandle;
 use std::time::Duration;
 
 use super::platform::Collector;
@@ -23,7 +22,6 @@ struct MonitorTask {
     alias: String,
     /// 停止信号（置为 true 时线程退出）
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
-    handle: Option<JoinHandle<()>>,
 }
 
 /// 后台调度器
@@ -63,7 +61,9 @@ impl MonitorScheduler {
         let alias_for_task = alias.clone();
         let alias_for_event = alias.clone();
 
-        let handle = std::thread::spawn(move || {
+        // 采集线程独立运行、不保留句柄：停止时仅置位 stop 标志，
+        // 线程在本轮采集/等待结束后自行退出（见 stop_target 的说明）。
+        std::thread::spawn(move || {
             loop {
                 if stop_clone.load(std::sync::atomic::Ordering::Relaxed) {
                     break;
@@ -83,28 +83,25 @@ impl MonitorScheduler {
         self.tasks.push(MonitorTask {
             alias: alias_for_task,
             stop,
-            handle: Some(handle),
         });
     }
 
     /// 停止指定目标的监控
+    ///
+    /// 仅置位停止标志，**不 join** 采集线程：线程可能正阻塞在一次 SSH 采集或
+    /// 采集间隔的等待中，join 会让调用方（UI 主循环）卡顿最长一个采集间隔
+    /// （外加一次采集耗时）。线程会在本轮结束后自行退出。
     pub fn stop_target(&mut self, alias: &str) {
         if let Some(pos) = self.tasks.iter().position(|t| t.alias == alias) {
             let task = self.tasks.remove(pos);
             task.stop.store(true, std::sync::atomic::Ordering::Relaxed);
-            if let Some(handle) = task.handle {
-                let _ = handle.join();
-            }
         }
     }
 
-    /// 停止全部监控任务
+    /// 停止全部监控任务（同上，只发停止信号，不阻塞等待线程结束）
     pub fn stop_all(&mut self) {
         for task in self.tasks.drain(..) {
             task.stop.store(true, std::sync::atomic::Ordering::Relaxed);
-            if let Some(handle) = task.handle {
-                let _ = handle.join();
-            }
         }
     }
 

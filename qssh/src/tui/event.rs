@@ -140,11 +140,12 @@ fn run_event_loop(mut terminal: DefaultTerminal, app: &mut App) -> Result<()> {
                         continue;
                     }
 
-                    // 断开快捷键：Esc / Ctrl+Shift+C
-                    let close = key.code == KeyCode::Esc
-                        || (key.code == KeyCode::Char('c')
-                            && key.modifiers.contains(KeyModifiers::CONTROL)
-                            && key.modifiers.contains(KeyModifiers::SHIFT));
+                    // 断开快捷键：仅 Ctrl+Shift+C。
+                    // Esc 必须放行给远端（vim 等程序依赖 Esc 退出插入模式），
+                    // 因此不作为断开键；断开走 Ctrl+Shift+C 或 Ctrl+B 前缀的 q/x。
+                    let close = key.code == KeyCode::Char('c')
+                        && key.modifiers.contains(KeyModifiers::CONTROL)
+                        && key.modifiers.contains(KeyModifiers::SHIFT);
                     if close {
                         app.apply(Action::CloseTerminal);
                     } else {

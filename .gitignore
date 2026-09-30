@@ -23,3 +23,5 @@ completions/
 scripts/tools/
 
 
+# ai提示词
+.commandcode/

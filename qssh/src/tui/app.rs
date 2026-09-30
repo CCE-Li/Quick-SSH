@@ -474,22 +474,34 @@ impl App {
             match event {
                 TermEvent::Output => {
                     if let Some(session) = self.term_session.as_mut() {
-                        session.mark_running();
+                        // 只有屏幕出现实际内容才视为连接成功：握手期间 PTY 可能先输出
+                        // 清屏/光标/标题等控制序列，此时「连接中」动画应继续播放。
+                        if session.has_visible_content() {
+                            session.mark_running();
+                        }
                     }
                 }
-                TermEvent::Exited { code } => {
-                    if let Some(session) = self.term_session.as_mut() {
-                        session.handle_exit(code);
-                    }
-                    // 会话结束后同样回到主机列表主界面（与主动断开一致），
-                    // 使 q 一次即可退出程序；仅在焦点仍在终端时切换，避免打断已打开的操作面板。
-                    if self.mode == Mode::Terminal {
-                        self.return_to_host_list();
-                    }
-                    self.set_flash_message("SSH 会话已结束", "yellow");
-                }
+                TermEvent::Exited { code } => self.handle_term_exit(code),
             }
         }
+        // Windows ConPTY 下 ssh 退出后 PTY 读端不一定 EOF（读取线程可能一直阻塞），
+        // 这里主动轮询子进程状态，及时把面板切回空闲态（清空终端、显示小电视）。
+        if let Some(code) = self.term_session.as_mut().and_then(|s| s.poll_child_exit()) {
+            self.handle_term_exit(Some(code));
+        }
+    }
+
+    /// 处理嵌入式终端会话结束：回收会话（清空终端内容），回到空闲面板等待重连
+    fn handle_term_exit(&mut self, code: Option<i32>) {
+        if let Some(mut session) = self.term_session.take() {
+            session.handle_exit(code);
+        }
+        // 停留在嵌入式面板等待 Enter 重连（q/Esc 返回主机列表）；
+        // 仅在焦点仍在终端时复位，避免打断已打开的操作面板。
+        if self.mode == Mode::Terminal {
+            self.mode = Mode::Normal;
+        }
+        self.set_flash_message("SSH 会话已结束", "yellow");
     }
 
     /// 向嵌入式终端写入键盘输入（转发给 PTY）
@@ -669,7 +681,7 @@ impl App {
                     self.start_monitoring();
                 }
                 self.set_flash_message(
-                    format!("已连接 {}（Esc 或 Ctrl+Shift+C 断开）", target.alias),
+                    format!("已连接 {}（Ctrl+B 后按 q 断开）", target.alias),
                     "green",
                 );
             }
@@ -681,21 +693,14 @@ impl App {
 
     /// 关闭嵌入式终端会话（断开 SSH）
     ///
-    /// 断开后回到主机列表主界面（而非停留在 Dashboard），这样用户直接按一次 `q`
-    /// 即可退出程序，符合轻量化应用的操作直觉。
+    /// 断开后**停留在嵌入式终端面板**：丢弃会话（清空终端残留内容）并显示空闲图案，
+    /// 便于按 Enter 原地重连；按 q/Esc 返回主机列表。
     pub fn close_terminal_session(&mut self) {
         if let Some(mut session) = self.term_session.take() {
             session.kill();
         }
-        self.return_to_host_list();
-        self.set_flash_message("已断开 SSH 会话", "yellow");
-    }
-
-    /// 返回主机列表主界面：切换视图、复位模式并停止后台监控
-    fn return_to_host_list(&mut self) {
-        self.view = View::HostList;
         self.mode = Mode::Normal;
-        self.stop_monitoring();
+        self.set_flash_message("已断开 SSH 会话", "yellow");
     }
 
     /// 启动对当前选中主机的后台监控（进入 Dashboard 视图时调用）
@@ -732,6 +737,11 @@ impl App {
     fn handle_monitor_event(&mut self, event: BackgroundEvent) {
         match event {
             BackgroundEvent::MonitorSnapshot(snapshot) => {
+                // 停止监控时不 join 采集线程，可能在途有一次采集结果迟到；
+                // 仅接受当前监控目标的快照，避免离开 Dashboard 后出现游离的告警/数据。
+                if self.monitor_target.as_deref() != Some(snapshot.alias.as_str()) {
+                    return;
+                }
                 for widget in &mut self.dashboard_widgets {
                     widget.set_snapshot(Some(&snapshot));
                 }
@@ -2624,7 +2634,7 @@ mod tests {
     }
 
     #[test]
-    fn close_terminal_session_returns_to_host_list() {
+    fn close_terminal_session_stays_on_dashboard() {
         let mut app = App::new(
             SshConfig {
                 hosts: vec![],
@@ -2635,9 +2645,10 @@ mod tests {
         app.view = View::Dashboard;
         app.mode = Mode::Terminal;
         app.close_terminal_session();
-        // 断开后回到主机列表主界面，按一次 q 即可退出程序
-        assert_eq!(app.view, View::HostList);
+        // 断开后停留在嵌入式面板（清空终端、显示空闲图案），q/Esc 才返回主机列表
+        assert_eq!(app.view, View::Dashboard);
         assert_eq!(app.mode, Mode::Normal);
+        assert!(app.term_session.is_none());
     }
 
     #[test]

@@ -1,5 +1,7 @@
 //! Dashboard 渲染：布局 + Widget + 命令面板弹窗
 
+use std::time::Duration;
+
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::prelude::Widget;
@@ -53,13 +55,15 @@ pub fn render_dashboard(
     agent_view: Option<&AgentWidgetView>,
 ) {
     for (id, rect) in compute_layout(&profile.layout, area) {
-        // 嵌入式终端：使用真实会话渲染
+        // 嵌入式终端：真实会话渲染；未连接/已断开时显示空闲图案（清除残留内容）
         if id == WidgetId::Terminal {
-            if let Some(session) = term_session {
-                let buf = frame.buffer_mut();
-                render_terminal_widget(session, rect, buf, focused == Some(WidgetId::Terminal));
-                continue;
+            let is_focused = focused == Some(WidgetId::Terminal);
+            let buf = frame.buffer_mut();
+            match term_session {
+                Some(session) => render_terminal_widget(session, rect, buf, is_focused),
+                None => render_terminal_idle(rect, buf, is_focused),
             }
+            continue;
         }
         // AI Agent：内嵌输入框面板
         if id == WidgetId::Agent {
@@ -343,8 +347,141 @@ fn render_terminal_widget(
     // 先画边框，再在内区域渲染 PTY 屏幕（内区域不覆盖边框）
     block.render(area, buf);
     if inner_area.height > 0 && inner_area.width > 0 {
-        session.render(inner_area, buf);
+        // 连接中：PTY 尚无输出，用旋转动画替代空白屏幕
+        let elapsed = session.started_at.elapsed();
+        if should_show_connecting_anim(session.status, elapsed) {
+            render_connecting(inner_area, buf, elapsed, &session.target.alias);
+        } else {
+            session.render(inner_area, buf);
+        }
     }
+}
+
+/// 终端空闲/已断开时的图案：bilibili 小电视（闭眼）。各行等宽，居中显示不变形。
+const IDLE_ART: [&str; 6] = [
+    r"   \   /  ",
+    r"    \_/   ",
+    r"┌────────┐",
+    r"│  -  -  │",
+    r"│   __   │",
+    r"└────────┘",
+];
+/// 空闲面板提示语
+const IDLE_HINT: &str = "按 Enter 连接到所选主机";
+
+/// 渲染终端空闲面板（未连接 / 已断开）：清除残留屏幕内容，居中显示小电视图案
+fn render_terminal_idle(area: Rect, buf: &mut Buffer, focused: bool) {
+    use ratatui::layout::Alignment;
+    use ratatui::prelude::Modifier;
+    use ratatui::style::Style;
+    use ratatui::widgets::Block;
+
+    let border_style = if focused {
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" 嵌入式终端 ")
+        .border_style(border_style);
+    let inner = block.inner(area);
+    block.render(area, buf);
+    if inner.width == 0 || inner.height == 0 {
+        return;
+    }
+
+    // 图案 + 空行 + 提示整体垂直居中
+    let total = IDLE_ART.len() as u16 + 2;
+    let start_y = inner.y + inner.height.saturating_sub(total) / 2;
+    let art_style = Style::default().fg(Color::Magenta);
+    for (i, line) in IDLE_ART.iter().enumerate() {
+        let y = start_y + i as u16;
+        if y >= inner.y + inner.height {
+            break;
+        }
+        let row = Rect {
+            x: inner.x,
+            y,
+            width: inner.width,
+            height: 1,
+        };
+        Paragraph::new(Line::from(Span::styled(*line, art_style)))
+            .alignment(Alignment::Center)
+            .render(row, buf);
+    }
+
+    let hint_y = start_y + IDLE_ART.len() as u16 + 1;
+    if hint_y < inner.y + inner.height {
+        let row = Rect {
+            x: inner.x,
+            y: hint_y,
+            width: inner.width,
+            height: 1,
+        };
+        Paragraph::new(Line::from(Span::styled(
+            IDLE_HINT,
+            Style::default().fg(Color::DarkGray),
+        )))
+        .alignment(Alignment::Center)
+        .render(row, buf);
+    }
+}
+
+/// 连接动画帧（4 帧 ASCII，保证各终端字体均可渲染）
+const SPINNER_FRAMES: [&str; 4] = ["|", "/", "-", "\\"];
+/// 每帧时长：约 120ms/帧 → 每圈约 0.5s
+const SPINNER_FRAME_MS: u128 = 120;
+/// 连接动画最短展示时长：连接很快时也至少播完这么久，避免一闪而过
+const MIN_CONNECT_ANIM: Duration = Duration::from_millis(500);
+
+/// 是否展示「连接中」动画
+///
+/// - `Connecting`：握手期间全程展示；
+/// - `Running`：已连上，但不足 [`MIN_CONNECT_ANIM`] 时继续展示（快连时动画一闪而过）；
+/// - `Exited`：立即让位给终端内容，错误信息不延迟。
+fn should_show_connecting_anim(status: crate::tui::term::TermStatus, elapsed: Duration) -> bool {
+    use crate::tui::term::TermStatus;
+    match status {
+        TermStatus::Connecting => true,
+        TermStatus::Running => elapsed < MIN_CONNECT_ANIM,
+        TermStatus::Exited => false,
+    }
+}
+
+/// 依据已等待时长取当前动画帧
+fn spinner_frame(elapsed: Duration) -> &'static str {
+    let idx = (elapsed.as_millis() / SPINNER_FRAME_MS) as usize % SPINNER_FRAMES.len();
+    SPINNER_FRAMES[idx]
+}
+
+/// 连接中面板：居中显示旋转动画 + 「正在连接 <alias> …」
+fn render_connecting(area: Rect, buf: &mut Buffer, elapsed: Duration, alias: &str) {
+    use ratatui::layout::Alignment;
+    use ratatui::prelude::Modifier;
+    use ratatui::style::Style;
+    use ratatui::text::{Line, Span};
+
+    let line = Line::from(vec![
+        Span::styled(
+            spinner_frame(elapsed),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(format!(" 正在连接 {alias} …")),
+    ]);
+    let row = Rect {
+        x: area.x,
+        y: area.y + area.height / 2,
+        width: area.width,
+        height: 1,
+    };
+    Paragraph::new(line)
+        .alignment(Alignment::Center)
+        .render(row, buf);
 }
 
 /// 渲染命令面板弹窗（Ctrl+K）
@@ -557,6 +694,88 @@ mod tests {
         assert!(
             compact.contains(&tail),
             "尾部 {tail:?} 被吞；渲染内容: {compact:?}"
+        );
+    }
+
+    /// 连接动画帧按时间轮转（约 120ms/帧，循环）
+    #[test]
+    fn spinner_frame_rotates_over_time() {
+        use std::time::Duration;
+        assert_eq!(spinner_frame(Duration::ZERO), "|");
+        assert_eq!(spinner_frame(Duration::from_millis(120)), "/");
+        assert_eq!(spinner_frame(Duration::from_millis(240)), "-");
+        assert_eq!(spinner_frame(Duration::from_millis(360)), "\\");
+        assert_eq!(spinner_frame(Duration::from_millis(480)), "|");
+    }
+
+    /// 连接中面板居中渲染动画帧与目标别名
+    #[test]
+    fn connecting_panel_renders_spinner_and_alias() {
+        use std::time::Duration;
+        let area = Rect::new(0, 0, 40, 5);
+        let mut buf = Buffer::empty(area);
+        render_connecting(area, &mut buf, Duration::ZERO, "web-01");
+        let rendered: String = buf.content().iter().map(|c| c.symbol()).collect();
+        // 宽字符（CJK）占用两列，尾随单元格为空白，比较前先去掉空白
+        let compact: String = rendered.chars().filter(|c| !c.is_whitespace()).collect();
+        assert!(
+            compact.contains("|正在连接web-01"),
+            "rendered: {rendered:?}"
+        );
+    }
+
+    /// 动画展示判定：握手期间全程展示；已连上但不足最短时长仍展示；断开立即让位
+    #[test]
+    fn connecting_anim_visibility_rules() {
+        use crate::tui::term::TermStatus;
+        assert!(should_show_connecting_anim(
+            TermStatus::Connecting,
+            Duration::ZERO
+        ));
+        assert!(should_show_connecting_anim(
+            TermStatus::Connecting,
+            Duration::from_secs(10)
+        ));
+        // 快连场景：已连上但仍需播满最短时长
+        assert!(should_show_connecting_anim(
+            TermStatus::Running,
+            Duration::from_millis(200)
+        ));
+        assert!(!should_show_connecting_anim(
+            TermStatus::Running,
+            MIN_CONNECT_ANIM
+        ));
+        // 断开后立即显示终端（错误信息不延迟）
+        assert!(!should_show_connecting_anim(
+            TermStatus::Exited,
+            Duration::from_millis(10)
+        ));
+    }
+
+    /// 小电视图案每行等宽（居中渲染不变形）
+    #[test]
+    fn idle_art_lines_are_equal_width() {
+        let width = IDLE_ART[0].chars().count();
+        assert!(
+            IDLE_ART.iter().all(|line| line.chars().count() == width),
+            "图案各行应等宽: {:?}",
+            IDLE_ART
+        );
+    }
+
+    /// 空闲面板居中渲染小电视图案与「按 Enter 连接」提示
+    #[test]
+    fn idle_terminal_renders_tv_art_and_hint() {
+        let area = Rect::new(0, 0, 40, 12);
+        let mut buf = Buffer::empty(area);
+        render_terminal_idle(area, &mut buf, false);
+        let rendered: String = buf.content().iter().map(|c| c.symbol()).collect();
+        let compact: String = rendered.chars().filter(|c| !c.is_whitespace()).collect();
+        assert!(compact.contains("┌────────┐"), "rendered: {rendered:?}");
+        assert!(compact.contains("│--│"), "rendered: {rendered:?}");
+        assert!(
+            compact.contains("按Enter连接到所选主机"),
+            "rendered: {rendered:?}"
         );
     }
 }

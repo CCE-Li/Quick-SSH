@@ -20,6 +20,7 @@ use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use anyhow::{Context, Result};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -60,6 +61,11 @@ impl TermStatus {
     }
 }
 
+/// vt100 屏幕是否包含可见文本（忽略仅由 ANSI 控制序列产生的空白屏幕）
+fn screen_has_visible_content(screen: &vt100::Screen) -> bool {
+    !screen.contents().trim().is_empty()
+}
+
 /// 嵌入式终端会话：PTY 进程 + vt100 解析器 + 事件通道
 pub struct TermSession {
     /// 目标主机（面板标题栏展示）
@@ -82,6 +88,8 @@ pub struct TermSession {
     killed: Arc<AtomicBool>,
     /// 回看滚动偏移（0 = 最新，正值 = 向上回看的行数）
     pub scroll_offset: usize,
+    /// 会话创建时刻（「连接中」旋转动画的计时基准）
+    pub started_at: Instant,
 }
 
 impl TermSession {
@@ -161,6 +169,7 @@ impl TermSession {
             finished: false,
             killed,
             scroll_offset: 0,
+            started_at: Instant::now(),
         })
     }
 
@@ -211,11 +220,35 @@ impl TermSession {
         self.exit_code = Some(130);
     }
 
-    /// 标记会话进入运行态（收到首个 PTY 输出时调用）
+    /// 标记会话进入运行态（屏幕出现可见内容时调用）
     pub fn mark_running(&mut self) {
         if self.status == TermStatus::Connecting {
             self.status = TermStatus::Running;
         }
+    }
+
+    /// 屏幕是否已出现可见文本
+    ///
+    /// 用于判断 SSH 是否真正连上：握手期间 PTY 可能已输出控制序列
+    /// （清屏、光标、窗口标题等），此时屏幕仍为空，不应视为连接成功。
+    pub fn has_visible_content(&self) -> bool {
+        match self.parser.lock() {
+            Ok(parser) => screen_has_visible_content(parser.screen()),
+            Err(_) => false,
+        }
+    }
+
+    /// 轮询子进程是否已退出
+    ///
+    /// Windows ConPTY 下 `ssh` 退出后 PTY 读端**不一定** EOF，读取线程可能一直阻塞，
+    /// 因此不能只依赖 [`TermEvent::Exited`]；需要由主循环主动查询子进程状态。
+    /// 返回退出码；进程仍在运行时返回 `None`。
+    pub fn poll_child_exit(&mut self) -> Option<i32> {
+        let status = self
+            .child
+            .as_mut()
+            .and_then(|child| child.try_wait().ok().flatten())?;
+        Some(status.exit_code() as i32)
     }
 
     /// 处理会话退出事件（由主循环在收到 `TermEvent::Exited` 时调用）
@@ -608,5 +641,18 @@ mod tests {
         // 光标隐藏时该格保持默认样式（不反色）
         assert_eq!(cell.style().fg, Some(Color::Reset));
         assert_eq!(cell.style().bg, Some(Color::Reset));
+    }
+
+    /// 仅控制序列（清屏/光标/标题）不算连接成功，出现可见文本才算
+    #[test]
+    fn visible_content_ignores_control_sequences() {
+        let mut parser = vt100::Parser::new(4, 20, 0);
+        assert!(!screen_has_visible_content(parser.screen()));
+        // 典型的 ConPTY/ssh 起始输出：清屏 + 归位 + 窗口标题
+        parser.process(b"\x1b[?25l\x1b[2J\x1b[m\x1b[H\x1b]0;ssh\x07");
+        assert!(!screen_has_visible_content(parser.screen()));
+        // 远端打印内容后才是「已连接」
+        parser.process(b"Welcome!\r\n$ ");
+        assert!(screen_has_visible_content(parser.screen()));
     }
 }

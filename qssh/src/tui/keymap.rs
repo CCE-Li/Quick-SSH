@@ -64,7 +64,8 @@ pub fn map_key_to_action(key: KeyEvent, app: &App) -> Action {
                     crate::tui::action::View::Dashboard => Action::OpenLogOps,
                     _ => Action::None,
                 },
-                // 仅主机列表主界面按 q/Esc 退出；Dashboard 控制面板上 q/Esc 返回主界面
+                // 主机列表：q/Esc 退出程序。Dashboard（含空闲终端面板）：q/Esc 返回主机列表。
+                // 连接中/已连接时由 Terminal 模式接管键盘，不会走到这里。
                 KeyCode::Char('q') | KeyCode::Esc => match app.view {
                     crate::tui::action::View::HostList => Action::Quit,
                     crate::tui::action::View::Dashboard => Action::ShowHostList,
@@ -345,7 +346,7 @@ impl Mode {
     pub fn hint(&self, view: View) -> &str {
         match self {
             Mode::Normal if view == View::Dashboard => {
-                "d Docker s 服务 f 文件 l 日志 a Agent b 主机列表 Ctrl+K 面板 | q 返回主界面"
+                "d Docker s 服务 f 文件 l 日志 a Agent b 主机列表 Ctrl+K 面板 | Esc/q 返回主界面"
             }
             Mode::Normal => {
                 "j↓ k↑ Ctrl+N↓ Ctrl+P↑ gg↕ G↕ /搜索 :命令 a添加 p检测 P全检 b控制台 Ctrl+K面板 Ctrl+A Agent Enter连接 空格标记 .地址 q退出 ?帮助"
@@ -375,7 +376,7 @@ impl Mode {
             Mode::AgentConfig => "编辑 Agent 设置: ↑↓/Tab 切换字段，Ctrl+S 保存，Esc 取消",
             Mode::Command => "输入要在选中主机上执行的命令，Enter 执行，Esc 取消",
             Mode::CommandResult => "远程命令执行结果 | q/Esc 关闭",
-            Mode::Terminal => "嵌入式 SSH 终端 | 键盘直接输入 | Ctrl+B 前缀（d Docker s 服务 f 文件 l 日志 a Agent k 面板 q 断开）| Esc 或 Ctrl+Shift+C 断开",
+            Mode::Terminal => "嵌入式 SSH 终端 | 键盘直接输入（Esc 转发给远端，不用于断开）| Ctrl+B 前缀（d Docker s 服务 f 文件 l 日志 a Agent k 面板 q 断开）| Ctrl+Shift+C 断开",
         }
     }
 }
@@ -479,5 +480,30 @@ mod tests {
     fn terminal_prefix_unrecognized_forwards_to_pty() {
         let action = map_terminal_prefix_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE));
         assert!(action.is_none());
+    }
+
+    /// 主机列表 q/Esc 退出程序；Dashboard（空闲终端面板）q/Esc 返回主机列表
+    #[test]
+    fn q_binding_differs_by_view() {
+        use crate::tui::action::View;
+
+        let mut app = app();
+        app.view = View::HostList;
+        assert!(matches!(
+            map_key_to_action(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE), &app),
+            Action::Quit
+        ));
+
+        // 空闲 Dashboard（未连接/已断开）：q/Esc 返回主机列表
+        app.view = View::Dashboard;
+        assert!(app.term_session.is_none());
+        assert!(matches!(
+            map_key_to_action(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE), &app),
+            Action::ShowHostList
+        ));
+        assert!(matches!(
+            map_key_to_action(KeyEvent::from(KeyCode::Esc), &app),
+            Action::ShowHostList
+        ));
     }
 }
