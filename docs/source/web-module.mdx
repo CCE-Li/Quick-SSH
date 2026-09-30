@@ -1,0 +1,58 @@
+---
+title: Web 模块
+description: Quick-SSH web 模块的详细文档，包含零依赖 HTTP 服务、接口路由与 schema 驱动的设置页。
+keywords:
+  - web
+  - http
+  - schema
+  - settings
+  - webui
+---
+
+# Web 模块
+
+Web 模块位于 [`qssh/src/web/`](/qssh/src/web/)，实现 `qssh web` 命令背后的本地 WebUI。
+
+## 模块结构
+
+```
+web/
+├── mod.rs        # DEFAULT_PORT = 17890
+├── server.rs     # 零依赖 HTTP 服务与路由
+├── schema.rs     # 设置目录（SettingsCatalog），schema 驱动表单
+└── index.html    # 内嵌的深色响应式前端
+```
+
+## server.rs — HTTP 服务
+
+服务基于标准库 `std::net::TcpListener`，手写极简 HTTP 解析，每连接一个线程，仅绑定 `127.0.0.1`。
+
+| 方法 | 路径 | 处理函数 | 说明 |
+|------|------|---------|------|
+| GET | `/` | — | 返回内嵌的 `index.html` |
+| GET | `/api/status` | `handle_status` | 版本、服务商、模型、权限、超时等 |
+| GET | `/api/settings` | `handle_settings_get` | 读取全部设置（元数据 + 当前值） |
+| POST | `/api/settings` | `handle_settings_post` | 请求体 `{ group, values }`，写回对应文件 |
+| GET | `/api/tools` | `handle_tools` | 工具注册表及当前权限下的处理方式 |
+| POST | `/api/test` | `handle_test` | 向服务商发最小请求，返回耗时、回复与模型列表 |
+
+## schema.rs — 设置目录
+
+```rust
+pub struct SettingsCatalog;
+impl SettingsCatalog {
+    pub fn groups() -> Vec<GroupSpec>;
+    pub fn load_all() -> Value;
+    pub fn apply(group: &str, values: &Value) -> Result<()>;
+}
+```
+
+注册三个分组：
+
+| 分组 | 目标文件 | 字段 |
+|------|---------|------|
+| `agent` | `agent.json` | provider / api_key / base_url / model / permission / timeout_secs |
+| `program` | `~/.qsshrc` | default_port / ping_timeout_secs / upload_concurrency |
+| `dashboard` | `dashboard.json` | active_profile / enabled |
+
+新增一个设置项只需添加 `FieldSpec` 并在对应的 `apply_*_to` 中加一个分支，前端 HTML/JS 无需改动——表单完全由 schema 生成。所有数值字段在写入前做范围 clamp。

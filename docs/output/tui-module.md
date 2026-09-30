@@ -7,13 +7,21 @@ TUI 模块位于 [`qssh/src/tui/`](/qssh/src/tui/)，采用事件驱动架构，
 ```
 tui/
 ├── mod.rs        # 模块声明
-├── action.rs     # Action + Mode 枚举
+├── action.rs     # Action / Mode / View 枚举
 ├── app.rs        # 应用状态与业务逻辑
 ├── event.rs      # 事件循环
 ├── keymap.rs     # 键盘映射 + Mode 标签/提示
+├── term.rs       # 嵌入式终端（portable-pty + vt100）
+├── mouse.rs      # 鼠标事件映射
 ├── ui.rs         # 渲染逻辑
 ├── widgets.rs    # 自定义组件（弹窗等）
-└── editor.rs     # 主机编辑表单
+├── editor.rs     # 主机 / Agent 编辑表单
+└── dashboard/    # 工作台
+    ├── config.rs # Profile 与布局持久化
+    ├── layout.rs # 布局引擎与分隔线拖拽
+    ├── widgets.rs# WidgetModule trait 与组件渲染
+    ├── palette.rs# 命令面板
+    └── ui.rs     # 工作台渲染、终端/Agent 面板、动画
 ```
 
 ## 架构模式：Event → Action → State → Render
@@ -23,7 +31,7 @@ TUI 采用单向数据流架构：
 ```
 [Crossterm Event]
       ↓
-[map_key_to_action()] → Action 枚举
+[map_key_to_action() / mouse] → Action 枚举
       ↓
 [App::apply(action)] → State 更新
       ↓
@@ -32,165 +40,93 @@ TUI 采用单向数据流架构：
 [tick 等待 100ms] → 下一轮循环
 ```
 
-### 各层职责
-
 | 层 | 文件 | 职责 |
 |----|------|------|
-| **事件** | `event.rs` | 事件循环，轮询键盘输入，分发给 keymap |
-| **意图** | `keymap.rs` | 将按键映射为 Action，提供 Mode 标签和提示 |
-| **逻辑** | `app.rs` | 处理 Action 更新状态，管理后台任务 |
-| **渲染** | `ui.rs` / `widgets.rs` | 根据状态渲染 UI |
-| **表单** | `editor.rs` | 主机编辑弹窗表单 |
+| **事件** | `event.rs` | 事件循环，轮询键盘/鼠标，处理终端键位拦截 |
+| **意图** | `keymap.rs` / `mouse.rs` | 将按键/鼠标映射为 Action，提供 Mode 标签和提示 |
+| **逻辑** | `app.rs` | 处理 Action 更新状态，管理后台线程 |
+| **渲染** | `ui.rs` / `widgets.rs` / `dashboard/ui.rs` | 根据状态渲染 UI |
+| **表单** | `editor.rs` | 主机 / Agent 编辑弹窗表单 |
 
-## action.rs — Action 与 Mode
+## action.rs — View / Action / Mode
 
-### Action 枚举
+### View
 
-`Action` 枚举表示用户的所有可能意图，共 20+ 种：
+两个顶层视图：`HostList`（主机列表）与 `Dashboard`（工作台）。
 
-```rust
-pub enum Action {
-    None,
-    MoveUp, MoveDown, MoveTop, MoveBottom,
-    Connect, ToggleSelect, ToggleAddress,
-    Delete, ConfirmDelete(bool),
-    StartSearch, SearchInput(String), SearchSubmit, CancelSearch,
-    StartAdd, StartEdit,
-    Ping, PingAll,
-    ShowHelp, HideHelp,
-    Quit,
-    // ... 预留更多
-}
-```
+### Action
 
-### Mode 枚举
+`Action` 枚举覆盖导航、主机操作、视图切换、工作台、运维面板、Agent、远程命令和终端控制等几十种意图，例如 `MoveUp`、`MoveHost(isize)`、`Connect`、`ConnectNewWindow`、`ShowDashboard`、`OpenDockerOps`、`OpenAgentOps`、`TerminalKey`、`CloseTerminal` 等。Action 是纯数据，便于测试。
 
-`Mode` 枚举表示 TUI 的交互模式：
+### Mode
 
-| 模式 | 说明 |
-|------|------|
-| `Normal` | 默认模式，浏览主机列表 |
-| `Search` | 搜索模式，输入关键词过滤 |
-| `Add` | 新增主机模式，弹窗表单 |
-| `Edit` | 编辑主机模式，弹窗表单 |
-| `Confirm` | 删除确认模式 |
-| `Help` | 帮助弹窗模式 |
-| `Rename` / `Export` / `Import` | 预留模式 |
+`Mode` 枚举表示当前交互模式，每个模式实现 `label()`（状态栏徽标）与 `hint()`（状态栏提示）。可达的模式包括：
 
-每个 Mode 都实现了 `label()` 和 `hint()` 方法，用于标题栏和状态栏显示。
+`Normal`、`Search`、`Add`、`Edit`、`Confirm`、`Help`、`Palette`、`DashboardConfig`、`DockerOps`、`DockerConfirm`、`ServiceOps`、`ServiceConfirm`、`FileOps`、`FileConfirm`、`LogOps`、`LogFilter`、`AgentOps`、`AgentConfig`、`AgentConfirm`、`Command`、`CommandResult`、`Terminal`。
+
+<Note>
+  `Rename` / `Export` / `Import` 仍有 label/hint 定义，但当前没有键位与 Action 驱动，属于旧版 UI 的遗留模式。
+</Note>
 
 ## app.rs — 应用状态
 
-### App 结构体
+`App` 是 TUI 的唯一数据源，除主机列表、搜索、标记、Ping 状态外，还持有工作台状态（监控快照、组件、布局）与终端会话。后台任务通过 mpsc channel 与 UI 通信：
 
-`App` 结构体是 TUI 的唯一数据源：
+| 后台任务 | 说明 |
+|----------|------|
+| Ping | 单机 / 全量 TCP 检测 |
+| Monitor | 工作台周期性采集 |
+| Agent | AI 会话与审批往返 |
+| Remote command | `:` 远程命令执行 |
+| Terminal | PTY 读取线程 |
 
-```rust
-pub struct App {
-    pub hosts: Vec<HostBlock>,
-    pub preamble: String,
-    pub config_path: PathBuf,
-    pub list_state: ListState,
-    pub mode: Mode,
-    pub input_buffer: String,
-    pub search_keyword: String,
-    pub marked: Vec<usize>,
-    pub host_status: HashMap<String, bool>,
-    pub pending_pings: HashSet<String>,
-    pub flash_message: Option<FlashMessage>,
-    pub host_form: Option<HostFormState>,
-    pub remembered_password_aliases: HashSet<String>,
-    pub running: bool,
-    pub show_address: bool,
-    // 内部通道
-    ping_rx: Receiver<PingEvent>,
-    ping_tx: Sender<PingEvent>,
-}
-```
-
-### 核心方法
-
-| 方法 | 说明 |
-|------|------|
-| `new(config, config_path)` | 初始化应用状态 |
-| `apply(action)` | 核心状态变更方法，处理所有 Action；删除时按标记集合批量执行 |
-| `handle_form_key(key)` | 处理编辑表单中的键盘事件 |
-| `poll_background_tasks()` | 轮询后台 Ping 检测结果 |
-| `save_config()` | 将内存中的 hosts 写回 SSH 配置文件 |
-| `commit_host_form()` | 提交编辑表单（新增/编辑） |
-
-### Ping 后台任务
-
-Ping 检测通过 `mpsc::channel` 异步通信：
-
-```
-单机检测：
-App → start_single_ping() → thread::spawn → TCP connect → send PingEvent → App.handle_ping_event()
-
-全量检测：
-App → start_ping_all() → 多线程并发 → 每个线程检测一台 → send BatchHostFinished → 全部完成后 send BatchCompleted
-```
+`restore_mode_after_overlay()` 在关闭面板时决定焦点：若面板打开期间 SSH 终端仍存活则回到 `Mode::Terminal`，否则回到 `Mode::Normal`。
 
 ## event.rs — 事件循环
 
-`start()` 函数是 TUI 的入口点：
-
-```
-加载 SSH 配置 → ratatui::try_init() → 创建 App → run_event_loop() → ratatui::try_restore()
-```
-
-事件循环（100ms tick）：
+`start()` 是 TUI 入口，事件循环以 **100ms** 为 tick：
 
 ```
 while app.running:
-    poll_background_tasks()    // 处理后台检测结果
-    expire_flash_message()     // 过期闪烁消息清除
-    render()                   // 绘制界面
-    poll(tick_rate)            // 等待事件（100ms 超时）
-    if event:                  // 有按键事件
-        if Add/Edit mode → handle_form_key()
-        else → map_key_to_action() → apply() → 处理 Connect
-    else:                      // tick 超时
-        apply(Action::None)    // 空操作（可用于定时刷新）
+    poll_background_tasks()
+    expire_flash_message()
+    render()
+    poll(100ms)
+    if event:
+        if Terminal 模式 → 转发给 PTY（Ctrl+B 前缀除外）
+        elif Add/Edit/AgentConfig → handle_form_key()
+        else → map_key_to_action() → apply()
 ```
 
-### Connect 特殊处理
+在主机列表中按 `Enter` 连接时，会先关闭鼠标捕获，`ratatui::try_restore()` 退出备用屏幕，运行全屏 SSH 会话，返回后再 `try_init()`。Windows 下键盘轮询用 `catch_unwind` 包裹，吞掉 crossterm-winapi 在非法 `INPUT_RECORD` 上的 panic。
 
-连接操作需要终端控制权，在事件循环中特殊处理：
+## term.rs — 嵌入式终端
 
-1. `ratatui::try_restore()` — 退出 TUI 备用屏幕
-2. 发送 `\x1b[?25h` — 确保主屏幕光标可见
-3. `start_interactive_session()` — 启动 SSH 会话
-4. 会话退出后 `ratatui::try_init()` — 重新进入 TUI
+- 用 `portable-pty` 分配 PTY（Windows 为 ConPTY），后台线程读取输出送入 `vt100::Parser`（回滚 1000 行）
+- SSH 命令强制 `-tt`；有保存密码时注入 AskPass 环境变量
+- `TermStatus`：`Connecting` / `Running` / `Exited`。`Running` 只在屏幕出现可见内容时触发，避免握手阶段的控制序列误判
+- 断开检测同时依赖读取线程的 `Exited` 与主动 `poll_child_exit()`（Windows ConPTY 在 ssh 退出时不一定 EOF）
+- `encode_key()` 负责把按键编码成远端字节（Enter `\r`、Backspace `0x7f`、方向键/功能键序列、Ctrl/Alt 组合等）
 
 ## keymap.rs — 键盘映射
 
-### 按键映射
+- `map_key_to_action()`：按当前 Mode 映射按键
+- `map_terminal_prefix_key()`：处理终端模式下的 `Ctrl+B` 前缀组合
+- `module_key()`：工作台配置弹窗中数字键到组件的映射（`1`–`0`、`a`）
 
-`map_key_to_action()` 函数根据当前模式将按键映射为 Action：
+## dashboard/ — 工作台
 
-| 模式 | 按键 → Action |
-|------|-------------|
-| Normal | `j/↓/Ctrl+N` → MoveDown, `k/↑/Ctrl+P` → MoveUp, `Enter` → Connect, `/` → StartSearch... |
-| Search | `Esc` → CancelSearch, `Enter` → SearchSubmit, `Char` → SearchInput... |
-| Confirm | `y/Y` → ConfirmDelete(true), `n/N/Esc` → ConfirmDelete(false) |
-| Help | `q/Esc` → HideHelp |
+| 文件 | 职责 |
+|------|------|
+| `config.rs` | `DashboardConfig` / `ProfileConfig` / `LayoutNode`，内置 Profile 与 `default_layout_for()` |
+| `layout.rs` | 布局引擎与分隔线拖拽数学（`hit_test_divider`、`apply_split_resize`） |
+| `widgets.rs` | `WidgetModule` trait 与组件渲染（真实快照或占位文本） |
+| `palette.rs` | 命令面板动作表 `PALETTE_ACTIONS` 与筛选 |
+| `ui.rs` | 工作台渲染、终端/Agent 面板、连接动画与待机动画 |
 
-## ui.rs — 渲染逻辑
+## editor.rs — 表单
 
-### 界面布局
-
-```
-┌─ 标题栏 (1行) ──────────────────────────────────┐
-├──────────────┬────────────────────────────────────┤
-│              │                                    │
-│  主机列表     │           详情面板                  │
-│  (50%)       │           (50%)                    │
-│              │                                    │
-├──────────────┴────────────────────────────────────┤
-│  状态栏 (1行)                                     │
-└───────────────────────────────────────────────────┘
-```
+主机表单与 Agent 设置表单共用编辑器框架。主机表单的 `build_submission()` 返回 `HostBlock` 与 `PasswordStorageAction`，用于区分新增留空、编辑保留、设置新密码和 `!clear` 清除四种语义。Agent 表单编辑 `agent.json` 的 provider / base_url / model / permission / timeout。
 
 ## widgets.rs — 自定义组件
 
@@ -199,31 +135,7 @@ while app.running:
 | `centered_rect()` | 居中弹窗区域计算 |
 | `render_help_popup()` | 帮助弹窗 |
 | `render_host_form_popup()` | 主机编辑弹窗表单 |
-| `render_confirm_dialog()` | 确认对话框（预留） |
 
-## editor.rs — 主机编辑表单
+## ui.rs — 渲染逻辑
 
-使用 `tui-textarea` crate 实现多字段编辑表单。
-
-### HostFormState
-
-包含 8 个表单字段：
-
-| 索引 | 字段 | 模式 | 说明 |
-|------|------|------|------|
-| 0 | Host | 单行 | 主机别名（必填） |
-| 1 | HostName | 单行 | 主机地址 |
-| 2 | User | 单行 | 登录用户名 |
-| 3 | Port | 单行 | SSH 端口 |
-| 4 | IdentityFile | 单行 | 密钥路径（自动预填充） |
-| 5 | Password | 单行（遮罩） | 系统凭据库中的登录密码 |
-| 6 | 注释 | 多行 | 保存为 `#` 开头的 Host 块注释 |
-| 7 | 其他 SSH 指令 | 多行 | 额外 SSH 配置 |
-
-`build_submission()` 同时返回 `HostBlock` 和 `PasswordStorageAction`。密码动作分为 `Unchanged`、`Keep`、`Set(String)` 与 `Clear`，从而区分新增时留空、编辑时保留、设置新密码和输入 `!clear` 清除四种语义。`App::commit_host_form()` 负责执行凭据写入，并在别名变化时迁移密码。
-
-### 验证逻辑
-
-- Host 别名不能为空
-- Port 必须是 1-65535 的整数
-- 禁止在"其他指令"字段中填写 `HostName`、`User`、`Port`、`IdentityFile` 等托管指令
+界面为「1 行标题栏 / 内容区 / 1 行状态栏」结构，内容区按 `View` 渲染主机列表或工作台，并叠加各种弹窗（搜索、确认、Docker/服务/文件/日志、Agent、命令面板、Dashboard 配置、远程命令与结果）。

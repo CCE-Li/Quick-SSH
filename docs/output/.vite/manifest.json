@@ -68,7 +68,7 @@
     "src": "_vendor-DtEesxfB.css"
   },
   "index.html": {
-    "file": "assets/index-CUfKVyiQ.js",
+    "file": "assets/index-BoM7w06c.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -77,16 +77,20 @@
       "_react-vendor-6GaKtW3l.js"
     ],
     "dynamicImports": [
+      "virtual:clarify-page/agent-module",
+      "virtual:clarify-page/ai-agent",
       "virtual:clarify-page/api",
       "virtual:clarify-page/architecture",
       "virtual:clarify-page/changelog",
       "virtual:clarify-page/cli-reference",
       "virtual:clarify-page/config-module",
       "virtual:clarify-page/configuration",
+      "virtual:clarify-page/dashboard",
       "virtual:clarify-page/file-upload",
       "virtual:clarify-page/getting-started",
       "virtual:clarify-page/index",
       "virtual:clarify-page/installation",
+      "virtual:clarify-page/monitor-module",
       "virtual:clarify-page/navigation",
       "virtual:clarify-page/network-module",
       "virtual:clarify-page/overview",
@@ -95,14 +99,37 @@
       "virtual:clarify-page/roadmap",
       "virtual:clarify-page/shell-completions",
       "virtual:clarify-page/ssh-module",
+      "virtual:clarify-page/terminal",
       "virtual:clarify-page/tui-guide",
       "virtual:clarify-page/tui-module",
       "virtual:clarify-page/uploader",
+      "virtual:clarify-page/web-module",
+      "virtual:clarify-page/webui",
       "virtual:clarify-page/writing-content"
     ]
   },
+  "virtual:clarify-page/agent-module": {
+    "file": "assets/agent-module-CGefaHEz.js",
+    "name": "agent-module",
+    "src": "virtual:clarify-page/agent-module",
+    "isDynamicEntry": true,
+    "imports": [
+      "_vendor-CQh2k-GV.js",
+      "_react-vendor-6GaKtW3l.js"
+    ]
+  },
+  "virtual:clarify-page/ai-agent": {
+    "file": "assets/ai-agent-C2_Jcx9o.js",
+    "name": "ai-agent",
+    "src": "virtual:clarify-page/ai-agent",
+    "isDynamicEntry": true,
+    "imports": [
+      "_vendor-CQh2k-GV.js",
+      "_react-vendor-6GaKtW3l.js"
+    ]
+  },
   "virtual:clarify-page/api": {
-    "file": "assets/api-fotipX9G.js",
+    "file": "assets/api-B076QMHH.js",
     "name": "api",
     "src": "virtual:clarify-page/api",
     "isDynamicEntry": true,
@@ -112,7 +139,7 @@
     ]
   },
   "virtual:clarify-page/architecture": {
-    "file": "assets/architecture-PIXC0ZvP.js",
+    "file": "assets/architecture-DL6Ezppx.js",
     "name": "architecture",
     "src": "virtual:clarify-page/architecture",
     "isDynamicEntry": true,
@@ -122,7 +149,7 @@
     ]
   },
   "virtual:clarify-page/changelog": {
-    "file": "assets/changelog-B4z6mkIS.js",
+    "file": "assets/changelog-CWfLy2-W.js",
     "name": "changelog",
     "src": "virtual:clarify-page/changelog",
     "isDynamicEntry": true,
@@ -132,7 +159,7 @@
     ]
   },
   "virtual:clarify-page/cli-reference": {
-    "file": "assets/cli-reference-Bns8mAsu.js",
+    "file": "assets/cli-reference-WvhIe0Fq.js",
     "name": "cli-reference",
     "src": "virtual:clarify-page/cli-reference",
     "isDynamicEntry": true,
@@ -142,7 +169,7 @@
     ]
   },
   "virtual:clarify-page/config-module": {
-    "file": "assets/config-module-cvBjUNel.js",
+    "file": "assets/config-module-B1m0d_Wx.js",
     "name": "config-module",
     "src": "virtual:clarify-page/config-module",
     "isDynamicEntry": true,
@@ -152,7 +179,7 @@
     ]
   },
   "virtual:clarify-page/configuration": {
-    "file": "assets/configuration-DDYVII7j.js",
+    "file": "assets/configuration-B2jppz91.js",
     "name": "configuration",
     "src": "virtual:clarify-page/configuration",
     "isDynamicEntry": true,
@@ -161,8 +188,18 @@
       "_react-vendor-6GaKtW3l.js"
     ]
   },
+  "virtual:clarify-page/dashboard": {
+    "file": "assets/dashboard-fTLf9YSS.js",
+    "name": "dashboard",
+    "src": "virtual:clarify-page/dashboard",
+    "isDynamicEntry": true,
+    "imports": [
+      "_vendor-CQh2k-GV.js",
+      "_react-vendor-6GaKtW3l.js"
+    ]
+  },
   "virtual:clarify-page/file-upload": {
-    "file": "assets/file-upload-CF2Fs4CG.js",
+    "file": "assets/file-upload-Yw-vRLX4.js",
     "name": "file-upload",
     "src": "virtual:clarify-page/file-upload",
     "isDynamicEntry": true,
@@ -172,7 +209,7 @@
     ]
   },
   "virtual:clarify-page/getting-started": {
-    "file": "assets/getting-started-6dQ69uOO.js",
+    "file": "assets/getting-started-CRzwrowT.js",
     "name": "getting-started",
     "src": "virtual:clarify-page/getting-started",
     "isDynamicEntry": true,
@@ -182,7 +219,7 @@
     ]
   },
   "virtual:clarify-page/index": {
-    "file": "assets/_virtual_clarify-page-CtHkHzVR.js",
+    "file": "assets/_virtual_clarify-page-DqE6mfAv.js",
     "name": "_virtual_clarify-page",
     "src": "virtual:clarify-page/index",
     "isDynamicEntry": true,
@@ -195,6 +232,16 @@
     "file": "assets/installation-DENqtM8H.js",
     "name": "installation",
     "src": "virtual:clarify-page/installation",
+    "isDynamicEntry": true,
+    "imports": [
+      "_vendor-CQh2k-GV.js",
+      "_react-vendor-6GaKtW3l.js"
+    ]
+  },
+  "virtual:clarify-page/monitor-module": {
+    "file": "assets/monitor-module-30Tv6drQ.js",
+    "name": "monitor-module",
+    "src": "virtual:clarify-page/monitor-module",
     "isDynamicEntry": true,
     "imports": [
       "_vendor-CQh2k-GV.js",
@@ -252,7 +299,7 @@
     ]
   },
   "virtual:clarify-page/roadmap": {
-    "file": "assets/roadmap-CWAqDXHR.js",
+    "file": "assets/roadmap-c4IL4P4V.js",
     "name": "roadmap",
     "src": "virtual:clarify-page/roadmap",
     "isDynamicEntry": true,
@@ -272,7 +319,7 @@
     ]
   },
   "virtual:clarify-page/ssh-module": {
-    "file": "assets/ssh-module-Cyoo-t5e.js",
+    "file": "assets/ssh-module-5L1CJTnZ.js",
     "name": "ssh-module",
     "src": "virtual:clarify-page/ssh-module",
     "isDynamicEntry": true,
@@ -281,8 +328,18 @@
       "_react-vendor-6GaKtW3l.js"
     ]
   },
+  "virtual:clarify-page/terminal": {
+    "file": "assets/terminal-_CxK4pJQ.js",
+    "name": "terminal",
+    "src": "virtual:clarify-page/terminal",
+    "isDynamicEntry": true,
+    "imports": [
+      "_vendor-CQh2k-GV.js",
+      "_react-vendor-6GaKtW3l.js"
+    ]
+  },
   "virtual:clarify-page/tui-guide": {
-    "file": "assets/tui-guide-8qGOdB_s.js",
+    "file": "assets/tui-guide-Drzos-OX.js",
     "name": "tui-guide",
     "src": "virtual:clarify-page/tui-guide",
     "isDynamicEntry": true,
@@ -292,7 +349,7 @@
     ]
   },
   "virtual:clarify-page/tui-module": {
-    "file": "assets/tui-module-Cu3GaoCi.js",
+    "file": "assets/tui-module-B7qaewEf.js",
     "name": "tui-module",
     "src": "virtual:clarify-page/tui-module",
     "isDynamicEntry": true,
@@ -302,9 +359,29 @@
     ]
   },
   "virtual:clarify-page/uploader": {
-    "file": "assets/uploader-zsxSb3HK.js",
+    "file": "assets/uploader-BSvjyF7Y.js",
     "name": "uploader",
     "src": "virtual:clarify-page/uploader",
+    "isDynamicEntry": true,
+    "imports": [
+      "_vendor-CQh2k-GV.js",
+      "_react-vendor-6GaKtW3l.js"
+    ]
+  },
+  "virtual:clarify-page/web-module": {
+    "file": "assets/web-module-CcNxR2E9.js",
+    "name": "web-module",
+    "src": "virtual:clarify-page/web-module",
+    "isDynamicEntry": true,
+    "imports": [
+      "_vendor-CQh2k-GV.js",
+      "_react-vendor-6GaKtW3l.js"
+    ]
+  },
+  "virtual:clarify-page/webui": {
+    "file": "assets/webui-CE-h1g6o.js",
+    "name": "webui",
+    "src": "virtual:clarify-page/webui",
     "isDynamicEntry": true,
     "imports": [
       "_vendor-CQh2k-GV.js",

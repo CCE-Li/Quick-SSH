@@ -1,0 +1,90 @@
+import{n as e}from"./vendor-CQh2k-GV.js";import{n as t}from"./react-vendor-6GaKtW3l.js";var n=t();function r(t){let r={a:`a`,code:`code`,h1:`h1`,h2:`h2`,h3:`h3`,hr:`hr`,li:`li`,ol:`ol`,p:`p`,pre:`pre`,strong:`strong`,table:`table`,tbody:`tbody`,td:`td`,th:`th`,thead:`thead`,tr:`tr`,ul:`ul`,...e(),...t.components},{Callout:i,Note:o,Properties:s,Property:c}=r;return i||a(`Callout`,!0),o||a(`Note`,!0),s||a(`Properties`,!0),c||a(`Property`,!0),(0,n.jsxs)(n.Fragment,{children:[(0,n.jsx)(r.hr,{}),`
+`,(0,n.jsx)(r.p,{children:`title: TUI 界面指南
+description: Quick-SSH 终端用户界面的详细使用说明，包含主机列表、监控工作台、嵌入式终端和所有交互模式与快捷键。
+keywords:`}),`
+`,(0,n.jsxs)(r.ul,{children:[`
+`,(0,n.jsx)(r.li,{children:`tui`}),`
+`,(0,n.jsx)(r.li,{children:`终端界面`}),`
+`,(0,n.jsx)(r.li,{children:`交互`}),`
+`,(0,n.jsx)(r.li,{children:`快捷键`}),`
+`,(0,n.jsx)(r.li,{children:`键盘映射`}),`
+`,(0,n.jsx)(r.li,{children:`dashboard`}),`
+`]}),`
+`,(0,n.jsx)(r.hr,{}),`
+`,(0,n.jsx)(r.h1,{id:`tui-界面指南`,children:`TUI 界面指南`}),`
+`,(0,n.jsx)(r.p,{children:`Quick-SSH 的 TUI 界面基于 ratatui 和 crossterm 构建，采用事件驱动架构，提供高效的键盘操作体验。`}),`
+`,(0,n.jsx)(r.h2,{id:`视图`,children:`视图`}),`
+`,(0,n.jsxs)(r.p,{language:`txt`,children:[`TUI 有两个视图，用 `,(0,n.jsx)(r.code,{language:`txt`,children:`b`}),` 切换：`]}),`
+`,(0,n.jsxs)(r.table,{children:[(0,n.jsx)(r.thead,{children:(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.th,{children:`视图`}),(0,n.jsx)(r.th,{children:`说明`})]})}),(0,n.jsxs)(r.tbody,{children:[(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:(0,n.jsx)(r.strong,{children:`主机列表（HostList）`})}),(0,n.jsx)(r.td,{children:`经典的主机列表 + 详情面板，默认视图`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:(0,n.jsx)(r.strong,{children:`工作台（Dashboard）`})}),(0,n.jsx)(r.td,{children:`可自定义布局的监控工作台、嵌入式终端与运维面板`})]})]})]}),`
+`,(0,n.jsx)(r.h2,{id:`主机列表布局`,children:`主机列表布局`}),`
+`,(0,n.jsx)(r.pre,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`┌─ 标题栏 ──────────────────────────────────────────┐
+│ Quick-SSH v2.0.4  |  共 5 台主机  |  模式: NORMAL  │
+├──────────────┬──────────────────────────────────────┤
+│              │                                      │
+│  主机列表    │           详情面板                    │
+│              │                                      │
+│  ○ mysrv     │   别名: mysrv                        │
+│    生产环境  │   地址: ********                     │
+│  ● devbox    │   认证: 密钥优先                     │
+│  ○ web-prod  │   注释: 生产环境                     │
+│              │                                      │
+├──────────────┴──────────────────────────────────────┤
+│ 状态栏: j↓ k↑ gg↕ G↕ </>调序 /搜索 :命令 ...       │
+└─────────────────────────────────────────────────────┘
+`})}),`
+`,(0,n.jsxs)(r.ul,{children:[`
+`,(0,n.jsxs)(r.li,{children:[(0,n.jsx)(r.strong,{children:`标题栏`}),`：显示版本号、主机数量、当前模式`]}),`
+`,(0,n.jsxs)(r.li,{children:[(0,n.jsx)(r.strong,{children:`主机列表`}),`：显示所有 SSH 主机、在线状态和首行注释摘要（最多 10 个字符）`]}),`
+`,(0,n.jsxs)(r.li,{children:[(0,n.jsx)(r.strong,{children:`详情面板`}),`：显示选中主机的地址、密钥、认证方式、状态和完整多行注释`]}),`
+`,(0,n.jsxs)(r.li,{children:[(0,n.jsx)(r.strong,{children:`状态栏`}),`：显示当前模式的操作提示或闪烁消息`]}),`
+`]}),`
+`,(0,n.jsx)(r.p,{children:`列表与详情之间的分隔线可以用鼠标拖动调整比例。`}),`
+`,(0,n.jsxs)(r.p,{children:[`工作台布局与运维面板的说明见 `,(0,n.jsx)(r.a,{href:`/dashboard`,children:`工作台（Dashboard）`}),`。`]}),`
+`,(0,n.jsx)(r.h3,{id:`主机列表前缀含义`,children:`主机列表前缀含义`}),`
+`,(0,n.jsxs)(r.table,{children:[(0,n.jsx)(r.thead,{children:(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.th,{children:`图标`}),(0,n.jsx)(r.th,{children:`含义`})]})}),(0,n.jsxs)(r.tbody,{children:[(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`○`})}),(0,n.jsx)(r.td,{children:`未检测`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`●`}),` (绿色)`]}),(0,n.jsx)(r.td,{children:`在线`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`●`}),` (红色)`]}),(0,n.jsx)(r.td,{children:`离线`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`◔`})}),(0,n.jsx)(r.td,{children:`检测中`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`> `})}),(0,n.jsx)(r.td,{children:`已标记`})]})]})]}),`
+`,(0,n.jsx)(r.h2,{id:`交互模式`,children:`交互模式`}),`
+`,(0,n.jsx)(r.p,{children:`TUI 支持多种交互模式，通过状态栏可识别当前所处模式：`}),`
+`,(0,n.jsxs)(s,{children:[(0,n.jsx)(c,{name:`NORMAL`,type:`默认模式`,children:(0,n.jsx)(r.p,{children:`浏览主机列表或工作台，可使用所有导航和操作快捷键`})}),(0,n.jsx)(c,{name:`SEARCH`,type:`搜索模式`,children:(0,n.jsx)(r.p,{children:`输入关键词过滤主机列表，实时筛选`})}),(0,n.jsx)(c,{name:`ADD / EDIT`,type:`新增/编辑模式`,children:(0,n.jsx)(r.p,{children:`弹窗表单编辑主机字段，支持 Tab 切换字段，Ctrl+S 保存`})}),(0,n.jsx)(c,{name:`CONFIRM`,type:`确认模式`,children:(0,n.jsx)(r.p,{children:`删除确认对话框，按 y/Y 确认，n/N/Esc 取消`})}),(0,n.jsx)(c,{name:`HELP`,type:`帮助模式`,children:(0,n.jsx)(r.p,{children:`显示键盘快捷键帮助弹窗，按 q/Esc 关闭`})}),(0,n.jsx)(c,{name:`PALETTE`,type:`命令面板`,children:(0,n.jsx)(r.p,{children:`Ctrl+K 打开，搜索并执行动作`})}),(0,n.jsx)(c,{name:`DASHBOARD_CFG`,type:`工作台配置`,children:(0,n.jsx)(r.p,{children:`勾选要显示的监控组件`})}),(0,n.jsx)(c,{name:`DOCKER_OPS / SERVICE_OPS / FILE_OPS / LOG_OPS`,type:`运维面板`,children:(0,n.jsx)(r.p,{children:`Docker、服务、文件、日志面板，详见工作台文档`})}),(0,n.jsx)(c,{name:`AGENT_OPS / AGENT_CFG / AGENT_CONFIRM`,type:`AI Agent`,children:(0,n.jsx)(r.p,{children:`AI 助手对话、设置与审批`})}),(0,n.jsx)(c,{name:`COMMAND / CMD_RESULT`,type:`远程命令`,children:(0,n.jsx)(r.p,{children:`在选中主机上执行命令并查看结果`})}),(0,n.jsx)(c,{name:`TERMINAL`,type:`嵌入式终端`,children:(0,n.jsx)(r.p,{children:`在 TUI 内使用 SSH 会话，键盘默认全部转发给远端`})})]}),`
+`,(0,n.jsx)(r.h2,{id:`完整快捷键`,children:`完整快捷键`}),`
+`,(0,n.jsx)(r.h3,{id:`导航`,children:`导航`}),`
+`,(0,n.jsxs)(r.table,{children:[(0,n.jsx)(r.thead,{children:(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.th,{children:`按键`}),(0,n.jsx)(r.th,{children:`功能`})]})}),(0,n.jsxs)(r.tbody,{children:[(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`j`}),` / `,(0,n.jsx)(r.code,{language:`txt`,children:`↓`})]}),(0,n.jsx)(r.td,{children:`向下移动`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`k`}),` / `,(0,n.jsx)(r.code,{language:`txt`,children:`↑`})]}),(0,n.jsx)(r.td,{children:`向上移动`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+N`})}),(0,n.jsx)(r.td,{children:`向下移动`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+P`})}),(0,n.jsx)(r.td,{children:`向上移动`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`gg`})}),(0,n.jsx)(r.td,{children:`跳到顶部`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`G`})}),(0,n.jsx)(r.td,{children:`跳到底部`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`<`}),` / `,(0,n.jsx)(r.code,{language:`txt`,children:`>`})]}),(0,n.jsx)(r.td,{children:`在配置中上/下调整选中主机的顺序（仅主机列表）`})]})]})]}),`
+`,(0,n.jsx)(r.h3,{id:`主机操作`,children:`主机操作`}),`
+`,(0,n.jsxs)(r.table,{children:[(0,n.jsx)(r.thead,{children:(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.th,{children:`按键`}),(0,n.jsx)(r.th,{children:`功能`})]})}),(0,n.jsxs)(r.tbody,{children:[(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`Enter`})}),(0,n.jsx)(r.td,{children:`连接选中主机；在主机列表中会退出 TUI 使用全屏 SSH，在工作台中打开嵌入式终端`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+Enter`})}),(0,n.jsx)(r.td,{children:`在新的终端窗口中连接选中主机（不占用当前 TUI）`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`Space`})}),(0,n.jsx)(r.td,{children:`标记/取消标记`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`a`})}),(0,n.jsx)(r.td,{children:`新增主机（主机列表）；打开 Agent（工作台）`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`e`})}),(0,n.jsx)(r.td,{children:`编辑当前主机（弹窗表单）`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`d`})}),(0,n.jsx)(r.td,{children:`无标记时删除选中主机；有标记时批量删除所有标记主机`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`.`})}),(0,n.jsx)(r.td,{children:`切换地址显示/隐藏（隐私保护）`})]})]})]}),`
+`,(0,n.jsx)(r.h3,{id:`检测`,children:`检测`}),`
+`,(0,n.jsxs)(r.table,{children:[(0,n.jsx)(r.thead,{children:(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.th,{children:`按键`}),(0,n.jsx)(r.th,{children:`功能`})]})}),(0,n.jsxs)(r.tbody,{children:[(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`p`})}),(0,n.jsx)(r.td,{children:`Ping 检测当前主机`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`P`})}),(0,n.jsx)(r.td,{children:`Ping 检测所有主机`})]})]})]}),`
+`,(0,n.jsx)(r.h3,{id:`视图与面板`,children:`视图与面板`}),`
+`,(0,n.jsxs)(r.table,{children:[(0,n.jsx)(r.thead,{children:(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.th,{children:`按键`}),(0,n.jsx)(r.th,{children:`功能`})]})}),(0,n.jsxs)(r.tbody,{children:[(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`b`})}),(0,n.jsx)(r.td,{children:`在主机列表与工作台之间切换`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`c`})}),(0,n.jsx)(r.td,{children:`打开工作台配置（仅工作台）`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`d`}),` / `,(0,n.jsx)(r.code,{language:`txt`,children:`s`}),` / `,(0,n.jsx)(r.code,{language:`txt`,children:`f`}),` / `,(0,n.jsx)(r.code,{language:`txt`,children:`l`})]}),(0,n.jsx)(r.td,{children:`打开 Docker / 服务 / 文件 / 日志面板（仅工作台）`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+K`})}),(0,n.jsx)(r.td,{children:`打开命令面板`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+A`}),` / `,(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+Space`})]}),(0,n.jsx)(r.td,{children:`打开 AI Agent`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`:`})}),(0,n.jsx)(r.td,{children:`在选中主机上执行远程命令`})]})]})]}),`
+`,(0,n.jsx)(r.h3,{id:`搜索与系统`,children:`搜索与系统`}),`
+`,(0,n.jsxs)(r.table,{children:[(0,n.jsx)(r.thead,{children:(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.th,{children:`按键`}),(0,n.jsx)(r.th,{children:`功能`})]})}),(0,n.jsxs)(r.tbody,{children:[(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`/`})}),(0,n.jsx)(r.td,{children:`进入搜索模式`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`Enter`})}),(0,n.jsx)(r.td,{children:`确认搜索 / 执行面板动作`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`Esc`})}),(0,n.jsx)(r.td,{children:`取消搜索 / 返回上级 / 关闭面板`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`q`})}),(0,n.jsx)(r.td,{children:`退出 TUI（在工作台中为返回主机列表）`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`?`})}),(0,n.jsx)(r.td,{children:`显示帮助`})]})]})]}),`
+`,(0,n.jsx)(r.h2,{id:`新增编辑主机弹窗`,children:`新增/编辑主机弹窗`}),`
+`,(0,n.jsxs)(r.p,{language:`txt`,children:[`按 `,(0,n.jsx)(r.code,{language:`txt`,children:`a`}),` 或 `,(0,n.jsx)(r.code,{language:`txt`,children:`e`}),` 会打开主机编辑弹窗，包含以下字段：`]}),`
+`,(0,n.jsxs)(r.table,{children:[(0,n.jsx)(r.thead,{children:(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.th,{children:`字段`}),(0,n.jsx)(r.th,{children:`说明`})]})}),(0,n.jsxs)(r.tbody,{children:[(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:(0,n.jsx)(r.strong,{children:`Host`})}),(0,n.jsx)(r.td,{children:`主机别名（必填）`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:(0,n.jsx)(r.strong,{children:`HostName`})}),(0,n.jsx)(r.td,{children:`主机地址（IP 或域名）`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:(0,n.jsx)(r.strong,{children:`User`})}),(0,n.jsx)(r.td,{children:`登录用户名`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:(0,n.jsx)(r.strong,{children:`Port`})}),(0,n.jsx)(r.td,{children:`SSH 端口（默认 22）`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:(0,n.jsx)(r.strong,{children:`IdentityFile`})}),(0,n.jsx)(r.td,{children:`密钥文件路径（自动预填充默认路径）`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:(0,n.jsx)(r.strong,{children:`Password`})}),(0,n.jsxs)(r.td,{language:`txt`,children:[`登录密码，仅保存到系统安全凭据库，输入以 `,(0,n.jsx)(r.code,{language:`txt`,children:`*`}),` 遮罩`]})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:(0,n.jsx)(r.strong,{children:`注释（无需输入 #）`})}),(0,n.jsxs)(r.td,{language:`txt`,children:[`多行主机注释，保存时自动添加 `,(0,n.jsx)(r.code,{language:`txt`,children:`#`})]})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:(0,n.jsx)(r.strong,{children:`其他 SSH 指令`})}),(0,n.jsxs)(r.td,{language:`txt`,children:[`多行额外配置，如 `,(0,n.jsx)(r.code,{language:`txt`,children:`ServerAliveInterval 60`})]})]})]})]}),`
+`,(0,n.jsx)(r.h3,{id:`弹窗操作`,children:`弹窗操作`}),`
+`,(0,n.jsxs)(r.table,{children:[(0,n.jsx)(r.thead,{children:(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.th,{children:`按键`}),(0,n.jsx)(r.th,{children:`功能`})]})}),(0,n.jsxs)(r.tbody,{children:[(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`Tab`}),` / `,(0,n.jsx)(r.code,{language:`txt`,children:`↓`})]}),(0,n.jsx)(r.td,{children:`切换到下一字段`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`Shift+Tab`}),` / `,(0,n.jsx)(r.code,{language:`txt`,children:`↑`})]}),(0,n.jsx)(r.td,{children:`切换到上一字段`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`←`}),` / `,(0,n.jsx)(r.code,{language:`txt`,children:`→`})]}),(0,n.jsx)(r.td,{children:`移动光标`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`Enter`})}),(0,n.jsx)(r.td,{children:`跳转到下一字段（仅单行字段）`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+S`})}),(0,n.jsx)(r.td,{children:`保存并关闭弹窗`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`Esc`})}),(0,n.jsx)(r.td,{children:`取消编辑`})]})]})]}),`
+`,(0,n.jsx)(o,{children:(0,n.jsxs)(r.p,{language:`txt`,children:[`“其他 SSH 指令”可填写 `,(0,n.jsx)(r.code,{language:`txt`,children:`ServerAliveInterval`}),`、`,(0,n.jsx)(r.code,{language:`txt`,children:`ProxyJump`}),` 等配置，但禁止重复填写 `,(0,n.jsx)(r.code,{language:`txt`,children:`Host`}),`、`,(0,n.jsx)(r.code,{language:`txt`,children:`HostName`}),`、`,(0,n.jsx)(r.code,{language:`txt`,children:`User`}),`、`,(0,n.jsx)(r.code,{language:`txt`,children:`Port`}),`、`,(0,n.jsx)(r.code,{language:`txt`,children:`IdentityFile`}),` 等托管字段。`]})}),`
+`,(0,n.jsx)(r.h3,{id:`密码字段规则`,children:`密码字段规则`}),`
+`,(0,n.jsxs)(r.ul,{children:[`
+`,(0,n.jsx)(r.li,{children:`新增主机时留空：不保存密码`}),`
+`,(0,n.jsx)(r.li,{children:`编辑已有主机时留空：保留已保存密码`}),`
+`,(0,n.jsxs)(r.li,{language:`txt`,children:[`编辑时输入 `,(0,n.jsx)(r.code,{language:`txt`,children:`!clear`}),`：删除已保存密码`]}),`
+`,(0,n.jsx)(r.li,{children:`修改主机别名：已保存密码会迁移到新别名`}),`
+`]}),`
+`,(0,n.jsx)(r.p,{children:`密码不会写入 SSH 配置。OpenSSH 会先尝试配置的密钥和 ssh-agent，只有请求登录密码时，Quick-SSH 才通过 AskPass 提供已保存密码。`}),`
+`,(0,n.jsx)(r.h2,{id:`连接主机`,children:`连接主机`}),`
+`,(0,n.jsxs)(r.p,{language:`txt`,children:[`在主机列表中选中主机后按 `,(0,n.jsx)(r.code,{language:`txt`,children:`Enter`}),` 键即可连接。连接流程：`]}),`
+`,(0,n.jsxs)(r.ol,{children:[`
+`,(0,n.jsx)(r.li,{children:`TUI 退出备用屏幕，恢复终端（同时关闭鼠标捕获，避免 Windows 下残留的鼠标事件）`}),`
+`,(0,n.jsx)(r.li,{children:`检查当前别名是否有已保存密码；读取失败时回退到普通系统 SSH`}),`
+`,(0,n.jsx)(r.li,{children:`启动 SSH 交互式会话，OpenSSH 按自身认证顺序尝试密钥、agent 和密码`}),`
+`,(0,n.jsx)(r.li,{children:`SSH 退出后自动重新进入 TUI 界面`}),`
+`]}),`
+`,(0,n.jsxs)(r.p,{language:`txt`,children:[`如果希望连接不占用当前 TUI，可以按 `,(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+Enter`}),` 在一个新的终端窗口中打开会话。`]}),`
+`,(0,n.jsxs)(r.p,{language:`txt`,children:[`在 `,(0,n.jsx)(r.strong,{children:`工作台`}),` 中按 `,(0,n.jsx)(r.code,{language:`txt`,children:`Enter`}),` 则不会退出 TUI，而是在面板内打开`,(0,n.jsx)(r.a,{href:`/terminal`,children:`嵌入式终端`}),`。`]}),`
+`,(0,n.jsx)(i,{title:`首次连接`,children:(0,n.jsxs)(r.p,{language:`txt`,children:[`AskPass 只响应登录密码提示，不会自动确认首次连接的主机指纹，也不会填写私钥口令。首次连接请先使用 `,(0,n.jsx)(r.code,{language:`txt`,children:`ssh <主机别名>`}),` 手动确认指纹。`]})}),`
+`,(0,n.jsx)(i,{title:`拖拽上传`,children:(0,n.jsxs)(r.p,{children:[`在 SSH 会话期间，将文件拖入终端窗口即可触发文件上传。详见 `,(0,n.jsx)(r.a,{href:`/file-upload`,children:`文件上传`}),`。`]})}),`
+`,(0,n.jsx)(r.h2,{id:`下一步`,children:`下一步`}),`
+`,(0,n.jsxs)(r.ul,{children:[`
+`,(0,n.jsxs)(r.li,{children:[(0,n.jsx)(r.a,{href:`/dashboard`,children:`工作台（Dashboard）`}),` — 监控组件与运维面板`]}),`
+`,(0,n.jsxs)(r.li,{children:[(0,n.jsx)(r.a,{href:`/terminal`,children:`嵌入式终端`}),` — 在 TUI 内使用 SSH 会话`]}),`
+`,(0,n.jsxs)(r.li,{children:[(0,n.jsx)(r.a,{href:`/ai-agent`,children:`AI Agent`}),` — AI 运维助手`]}),`
+`]})]})}function i(t={}){let{wrapper:i}={...e(),...t.components};return i?(0,n.jsx)(i,{...t,children:(0,n.jsx)(r,{...t})}):r(t)}function a(e,t){throw Error(`Expected `+(t?`component`:`object`)+" `"+e+"` to be defined: you likely forgot to import, pass, or provide it.")}export{i as default};

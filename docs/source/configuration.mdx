@@ -10,7 +10,18 @@ keywords:
 
 # 配置说明
 
-Quick-SSH 将数据分为三类：标准 OpenSSH 格式的主机配置、系统安全凭据库中的密码，以及预留的 JSON 程序设置。
+Quick-SSH 把数据分成几类：标准 OpenSSH 格式的主机配置、系统安全凭据库中的密码，以及若干 JSON 程序设置文件。
+
+| 文件 | 内容 |
+|------|------|
+| `~/.ssh/config` | 主机列表（标准 OpenSSH 格式） |
+| 系统凭据库 | 保存的登录密码，**永不写入** SSH 配置 |
+| `~/.qsshrc` | 程序行为设置 |
+| `agent.json` | AI Agent 配置（服务商 / 模型 / 权限 / 超时） |
+| `dashboard.json` | Dashboard 布局与 Profile |
+| `ui.json` | TUI 界面状态（如主机列表分隔线比例） |
+
+其中 `agent.json`、`dashboard.json`、`ui.json` 位于平台配置目录：Windows 为 `%APPDATA%\quick-ssh\`，Linux / macOS 为 `~/.config/quick-ssh/`。这些文件都可以通过 [Web 界面](/webui) 编辑。
 
 ## SSH 配置 (~/.ssh/config)
 
@@ -109,8 +120,33 @@ Quick-SSH 为程序行为设置预留了 `~/.qsshrc` 文件。该文件使用 JS
 ```
 
 <Note>
-  v2.0.4 中 `~/.qsshrc` API 已预留，但这些设置尚未接入主要命令流程，将在后续版本中逐步启用。
+  `~/.qsshrc` 的三个字段可通过 [Web 界面](/webui) 的「程序设置」分组编辑，其中 `ping_timeout_secs` 已用于 TUI 的 Ping 检测。`ssh_config_path` 当前仍为预留字段。
 </Note>
+
+## AI Agent 配置 (agent.json)
+
+AI Agent 的配置位于 `agent.json`，完整字段说明和 API Key 解析顺序见 [AI Agent](/ai-agent)。
+
+```json title="~/.config/quick-ssh/agent.json"
+{
+  "provider": "openai",
+  "base_url": "https://api.deepseek.com/v1",
+  "model": "deepseek-chat",
+  "permission": "ask_before_execute",
+  "timeout_secs": 60,
+  "api_key": ""
+}
+```
+
+## Dashboard 配置 (dashboard.json)
+
+Dashboard 工作台的 Profile 与布局位于 `dashboard.json`。`enabled` 列出启用的监控组件，`layout` 是由组件与分屏节点组成的布局树；加载时会按 `enabled` 重建，历史残留的旧布局会被覆盖。
+
+<Callout title="不要手改 layout">
+  Dashboard 布局会在加载时按 `enabled` 用内置默认布局重建，直接手改 `dashboard.json` 里的 `layout` 通常会被覆盖。请通过工作台内的 `c` 面板或 Web 界面调整启用的组件。
+</Callout>
+
+界面相关的 UI 状态（如主机列表分隔线比例 `main_split_weight`）保存在同目录下的 `ui.json`，与手写的 `~/.qsshrc` 分开。
 
 ## 配置工作原理
 

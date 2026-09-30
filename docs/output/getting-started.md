@@ -18,7 +18,8 @@ TUI 界面默认读取 `~/.ssh/config` 文件中的主机配置。
 |------|------|
 | `↑` / `k` / `Ctrl+P` | 选择上一台主机 |
 | `↓` / `j` / `Ctrl+N` | 选择下一台主机 |
-| `Enter` | 连接选中主机 |
+| `Enter` | 连接选中主机（退出 TUI 使用全屏 SSH） |
+| `Ctrl+Enter` | 在新的终端窗口中连接（不占用当前 TUI） |
 | `/` | 搜索过滤 |
 | `Space` | 标记/取消标记 |
 | `a` | 添加新主机 |
@@ -26,13 +27,34 @@ TUI 界面默认读取 `~/.ssh/config` 文件中的主机配置。
 | `d` | 删除选中主机；存在标记时批量删除所有标记主机 |
 | `p` | Ping 检测当前主机 |
 | `P` | Ping 检测所有主机 |
+| `<` / `>` | 在配置中上/下调整选中主机的顺序 |
 | `.` | 切换地址显示/隐藏 |
+| `b` | 进入监控工作台（Dashboard） |
+| `Ctrl+K` | 命令面板 |
+| `Ctrl+A` | 打开 AI Agent |
+| `:` | 在选中主机上执行一条远程命令 |
 | `q` / `Esc` | 退出 / 取消搜索 |
 | `?` | 显示帮助 |
 
 <Callout title="地址隐私保护">
   默认情况下，主机地址以 `********` 显示，防止旁人窥屏。按 `.` 键可切换显示/隐藏。
 </Callout>
+
+## 监控工作台与嵌入式终端
+
+按 `b` 进入 **Dashboard 工作台**：左侧是嵌入式终端，其余区域是 CPU / 内存 / 磁盘 / 网络 / Docker / 进程 / 服务等实时监控组件。在选中主机后按 `Enter` 即可在工作台内连接，无需离开 TUI（详见 [嵌入式终端](/terminal)）。
+
+在工作台中按 `d` / `s` / `f` / `l` / `a` 可分别打开 Docker、服务、文件、日志和 AI Agent 面板，按 `Esc` / `q` 返回（详见 [工作台（Dashboard）](/dashboard)）。
+
+## AI 助手与 Web 设置
+
+按 `Ctrl+A` 打开 AI Agent，用自然语言描述目标，它会调用受权限约束的工具在远端执行（详见 [AI Agent](/ai-agent)）。
+
+想让设置可视化编辑，可以启动本地 Web 界面：
+
+```bash
+qssh web            # 默认 http://127.0.0.1:17890
+```
 
 ## 保存登录密码
 
@@ -107,21 +129,25 @@ qssh import backup.json
 
 ## 文件上传
 
-SSH 连接后，将本地文件或目录**拖入终端窗口**，Quick-SSH 会自动在新窗口中启动 SFTP 上传，显示每文件的进度条和总进度。
+SSH 连接后，将本地文件或目录**拖入终端窗口**，Quick-SSH 会自动在新窗口中启动 SCP 上传，显示每文件的进度条和总进度。
 
 也可使用独立上传工具：
 
 ```bash
-qssh-uploader mysrv ./myfile.zip /remote/path/
+qssh-uploader --host 192.168.1.100 --user root ./myfile.zip
 ```
 
 ## 配置查看
 
-主机配置保存在 `~/.ssh/config`（标准 OpenSSH 格式），Quick-SSH 会保留文件中所有非自己管理的内容；保存的密码独立存放在系统安全凭据库中。程序行为设置预留在 `~/.qsshrc`（详见 [配置说明](/configuration)）。
+主机配置保存在 `~/.ssh/config`（标准 OpenSSH 格式），Quick-SSH 会保留文件中所有非自己管理的内容；保存的密码独立存放在系统安全凭据库中。程序设置位于 `~/.qsshrc`，AI Agent 配置位于 `agent.json`，Dashboard 布局位于 `dashboard.json`（详见 [配置说明](/configuration)）。
 
 ## 下一步
 
 - [CLI 命令参考](/cli-reference) — 完整的子命令文档
 - [TUI 界面指南](/tui-guide) — TUI 使用详解
-- [配置说明](/configuration) — SSH 配置与程序设置
+- [工作台（Dashboard）](/dashboard) — 监控工作台与运维面板
+- [嵌入式终端](/terminal) — 在 TUI 内使用 SSH 会话
+- [AI Agent](/ai-agent) — AI 运维助手
+- [Web 界面](/webui) — 浏览器中编辑设置
+- [配置说明](/configuration) — 所有配置文件的位置与字段
 - [文件上传](/file-upload) — 文件上传详细用法

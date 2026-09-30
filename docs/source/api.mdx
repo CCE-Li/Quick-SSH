@@ -127,7 +127,13 @@ pub fn resolve_target(config: &SshConfig, input: &str) -> SshTarget;
 ### spawn
 
 ```rust
-pub fn start_interactive_session(target: &SshTarget, extra_args: &[String]) -> Result<i32>;
+pub fn start_interactive_session(
+    target: &SshTarget,
+    extra_args: &[String],
+    drag_enabled: bool,
+) -> Result<i32>;
+
+pub fn spawn_connection_window(target: &SshTarget) -> Result<()>;
 ```
 
 ### drag_detect
@@ -160,8 +166,9 @@ pub fn check_host(hostname: &str, port: u16, timeout_secs: u64) -> Result<bool>;
 ### action
 
 ```rust
-pub enum Action { /* 20+ 变体 */ }
-pub enum Mode { Normal, Search, Add, Edit, Confirm, Help, /* ... */ }
+pub enum View { HostList, Dashboard }
+pub enum Action { /* 数十个变体 */ }
+pub enum Mode { Normal, Search, Add, Edit, Confirm, Help, Palette, /* ... */ Terminal }
 ```
 
 ### app
@@ -242,4 +249,73 @@ pub mod help;
 
 pub mod completions;
     pub fn run(shell: &str) -> Result<()>;
+```
+
+## monitor 模块
+
+位于 [`qssh/src/monitor/`](/qssh/src/monitor/)。详见 [监控模块](/monitor-module)。
+
+```rust
+pub trait RemoteExecutor {
+    fn exec(&self, command: &str) -> Result<ExecOutput, ExecError>;
+}
+
+pub struct SshProcessExecutor { /* ... */ }
+impl SshProcessExecutor {
+    pub fn new(target: SshTarget) -> Self;
+    pub fn with_timeouts(self, connect_timeout: u64, command_timeout: Duration) -> Self;
+}
+
+pub struct MonitorScheduler { /* ... */ }
+impl MonitorScheduler {
+    pub fn with_channel() -> (Self, Receiver<BackgroundEvent>);
+    pub fn add_target(&self, alias: String, collector: Collector, interval: Duration);
+    pub fn stop_target(&self, alias: &str);
+    pub fn stop_all(&self);
+}
+```
+
+## agent 模块
+
+位于 [`qssh/src/agent/`](/qssh/src/agent/)。详见 [AI Agent 模块](/agent-module)。
+
+```rust
+pub struct AgentConfig {
+    pub provider: String,
+    pub base_url: String,
+    pub model: String,
+    pub permission: String,
+    pub timeout_secs: u64,
+    pub api_key: String,
+}
+
+pub enum AgentEvent { Started, Status, Timeline, ApprovalNeeded, Finished }
+pub enum PermissionLevel { ReadOnly, AskBeforeExecute, AutoSafe, FullAccess }
+pub enum DangerLevel { Read, SafeWrite, Dangerous }
+
+pub struct AgentRunner { /* ... */ }
+impl AgentRunner {
+    pub fn new(config: AgentConfig, tx: Sender<AgentEvent>) -> Self;
+    pub fn run(/* history, input, executor, snapshot, approve */) -> AgentSession;
+}
+
+pub fn load_agent_config() -> Result<AgentConfig>;
+pub fn save_agent_config(config: &AgentConfig) -> Result<()>;
+```
+
+## web 模块
+
+位于 [`qssh/src/web/`](/qssh/src/web/)。详见 [Web 模块](/web-module)。
+
+```rust
+pub const DEFAULT_PORT: u16 = 17890;
+
+pub fn serve(port: u16) -> Result<()>;
+
+pub struct SettingsCatalog;
+impl SettingsCatalog {
+    pub fn groups() -> Vec<GroupSpec>;
+    pub fn load_all() -> serde_json::Value;
+    pub fn apply(group: &str, values: &serde_json::Value) -> Result<()>;
+}
 ```

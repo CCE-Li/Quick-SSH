@@ -11,11 +11,11 @@ keywords:
 
 # 文件上传
 
-Quick-SSH 提供两种文件上传方式：SSH 会话中的拖拽上传和独立的 `qssh-uploader` 工具。
+Quick-SSH 提供两种文件上传方式：SSH 会话中的拖拽上传和独立的 `qssh-uploader` 工具。两者最终都调用系统 `scp`。
 
 ## 拖拽上传
 
-SSH 连接后，将本地文件或目录**拖入终端窗口**，Quick-SSH 会自动在新窗口中启动 SFTP 上传。
+SSH 连接后，将本地文件或目录**拖入终端窗口**，Quick-SSH 会自动在新窗口中启动 SCP 上传。
 
 ### 工作原理
 
@@ -54,7 +54,7 @@ SSH 连接后，将本地文件或目录**拖入终端窗口**，Quick-SSH 会�
 ### 用法
 
 ```bash
-qssh-uploader <host> <local_file> [remote_dir]
+qssh-uploader --host <host> [选项] <本地文件>...
 ```
 
 **参数：**
@@ -62,40 +62,49 @@ qssh-uploader <host> <local_file> [remote_dir]
 | 参数 | 说明 |
 |------|------|
 | `--host` | 服务器地址（必填） |
+| `--alias` | 主机别名（用于读取已保存密码并配置 AskPass） |
 | `--user` | SSH 用户名（可选） |
 | `--port` | SSH 端口（默认 22） |
 | `--key` | 密钥文件路径（可选） |
 | `--remote-dir` | 远程目录（默认当前目录 `.`） |
-| 位置参数 | 要上传的本地文件路径 |
+| 位置参数 | 要上传的本地文件路径（至少一个，必填） |
 
 **示例：**
 
 ```bash
-qssh-uploader mysrv ./myfile.zip /remote/path/
+# 基本用法
+qssh-uploader --host 192.168.1.100 --user root ./myfile.zip
 
-# 完整参数
-qssh-uploader --host 192.168.1.100 --user root --port 22 --key ~/.ssh/id_rsa --remote-dir /tmp ./file.zip
+# 指定别名、端口、密钥和远程目录
+qssh-uploader --alias mysrv --host 192.168.1.100 --user root --port 22 \
+  --key ~/.ssh/id_rsa --remote-dir /tmp ./file.zip
 ```
 
 ### 功能介绍
 
-- **并发上传**：最多 3 个文件同时上传
-- **实时进度**：显示每个文件的进度条（百分比 + 传输量）
+- **顺序上传**：逐个文件通过 `scp` 传输，进度由 `scp` 原生显示（继承控制台，因此能检测到 TTY）
+- **逐文件结果**：每个文件完成后打印成功 / 失败，最后汇总成功数与总耗时
 - **防闪退设计**：启动时延迟 300ms 等待控制台初始化；panic hook 循环等待 Enter，确保窗口不闪退
 - **错误日志**：错误日志写入 `%TEMP%\qssh-uploader.log`
-- **进度渲染**：使用 `#` 和 `-` 字符绘制进度条，兼容所有终端
-- **CJK 支持**：正确处理中文、日文等双宽字符的显示宽度
 
 ### 上传输出示例
 
 ```
 qssh-uploader - 文件上传工具
+目标: root@192.168.1.100:22
 
-文件 1/3: project.zip     [########################] 100%  45.2MB/45.2MB
-文件 2/3: config.tar.gz   [##################------]  72%  12.1MB/16.8MB
-文件 3/3: README.md       [########################] 100%  2.3KB/2.3KB
+[1/2] 上传 project.zip ...
 
-进度: 2/3 个文件完成  |  耗时: 12s
+project.zip    45%   45.2MB  10.1MB/s   00:02 ETA
+project.zip   100%   45.2MB  11.3MB/s   00:04
+
+  -> 上传成功: project.zip
+
+[2/2] 上传 README.md ...
+
+  -> 上传成功: README.md
+
+全部完成! 共 2 个文件。耗时: 5s
 ```
 
 ## 内联上传（预留）

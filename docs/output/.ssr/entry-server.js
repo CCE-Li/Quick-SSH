@@ -170388,8 +170388,2399 @@ function useMDXComponents(components = {}) {
 	};
 }
 //#endregion
+//#region source/agent-module.mdx
+function _createMdxContent$28(props) {
+	const _components = {
+		a: "a",
+		code: "code",
+		h1: "h1",
+		h2: "h2",
+		hr: "hr",
+		li: "li",
+		ol: "ol",
+		p: "p",
+		pre: "pre",
+		span: "span",
+		table: "table",
+		tbody: "tbody",
+		td: "td",
+		th: "th",
+		thead: "thead",
+		tr: "tr",
+		ul: "ul",
+		...useMDXComponents(),
+		...props.components
+	};
+	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+		(0, import_jsx_runtime.jsx)(_components.hr, {}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: AI Agent 模块\ndescription: Quick-SSH agent 模块的详细文档，包含运行循环、服务商适配、工具注册表、权限模型与时间线。\nkeywords:" }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "agent" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "ai" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "provider" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "tools" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "permissions" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "时间线" }),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.hr, {}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h1, {
+			id: "ai-agent-模块",
+			children: "AI Agent 模块"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, { children: [
+			"AI Agent 模块位于 ",
+			(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/qssh/src/agent/",
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "qssh/src/agent/"
+				})
+			}),
+			"，实现「用户 → Agent → 工具注册表 → 远程执行器 → 服务器」的循环。Agent 自身不持有 SSH 连接，只通过工具调用与远端交互。"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "模块结构",
+			children: "模块结构"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.pre, {
+			language: "txt",
+			children: (0, import_jsx_runtime.jsx)(_components.code, {
+				language: "txt",
+				children: "agent/\n├── mod.rs          # AgentRunner 运行循环、AgentEvent\n├── config.rs       # agent.json 加载/保存\n├── provider.rs     # 服务商适配（OpenAI / OpenCode Go / Ollama）\n├── tools.rs        # 工具注册表与解析执行\n├── permissions.rs  # 权限等级与危险等级\n└── timeline.rs     # 时间线与状态枚举\n"
+			})
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "modrs--运行循环",
+			children: "mod.rs — 运行循环"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
+			className: "shiki css-variables",
+			style: {
+				backgroundColor: "var(--shiki-background)",
+				color: "var(--shiki-foreground)"
+			},
+			tabIndex: "0",
+			children: (0, import_jsx_runtime.jsxs)(_components.code, {
+				className: "language-rust",
+				children: [
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " enum"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " AgentEvent"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " { "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Started"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Status"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Timeline"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "ApprovalNeeded"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Finished"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " }"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, { className: "line" }),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " struct"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " AgentRunner"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " { "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-comment)" },
+								children: "/* config, tx */"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " }"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, { className: "line" }),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "impl"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " AgentRunner"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " {"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " new"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "(config"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " AgentConfig"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", tx"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Sender"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "<"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "AgentEvent"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ">) "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " Self;"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " run"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "("
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "&"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "self, history"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " &"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "["
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "ChatMessage"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "], input"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " &"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "str"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "               executor"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " &dyn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " RemoteExecutor"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", snapshot"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Option"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "<"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "&"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "ServerSnapshot"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ">,"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "               approve"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " impl"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "("
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "&"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "ToolCall"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "DangerLevel"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ") "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " bool"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ") "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " AgentSession"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ";"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-foreground)" },
+							children: "}"
+						})
+					})
+				]
+			})
+		}) }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "运行流程：" }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ol, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "注入系统提示（工具清单）与当前监控快照上下文" }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					"调用服务商 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "chat()"
+					}),
+					"，得到文字回复或一个工具调用"
+				]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					"按权限模型决定是否需审批（",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "approve"
+					}),
+					" 回调阻塞等待 UI 确认，超时 300 秒视为拒绝）"
+				]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					"通过 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "execute_tool()"
+					}),
+					" 在远端执行，结果回填为下一条消息"
+				]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					"最多循环 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "MAX_ITERATIONS = 6"
+					}),
+					" 轮"
+				]
+			}),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"单次工具输出截断到 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "MAX_TOOL_OUTPUT = 2000"
+				}),
+				" 字符。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "providerrs--服务商适配",
+			children: "provider.rs — 服务商适配"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
+			className: "shiki css-variables",
+			style: {
+				backgroundColor: "var(--shiki-background)",
+				color: "var(--shiki-foreground)"
+			},
+			tabIndex: "0",
+			children: (0, import_jsx_runtime.jsxs)(_components.code, {
+				className: "language-rust",
+				children: [
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " enum"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " ProviderKind"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " { "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "OpenAI"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "OpenCodeGo"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Ollama"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " }"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " struct"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " ChatReply"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " { "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " text"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Option"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "<"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "String"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ">, "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " tool_call"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Option"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "<"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "String"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "> }"
+							})
+						]
+					})
+				]
+			})
+		}) }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "服务商" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "别名字符串" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "调用方式" })
+		] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "OpenAI 兼容" }),
+				(0, import_jsx_runtime.jsxs)(_components.td, {
+					language: "txt",
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "openai"
+						}),
+						" / ",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "openai-compatible"
+						}),
+						" / ",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "deepseek"
+						}),
+						" / ",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "qwen"
+						})
+					]
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "curl <base_url>/chat/completions"
+					})
+				})
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "OpenCode Go" }),
+				(0, import_jsx_runtime.jsxs)(_components.td, {
+					language: "txt",
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "opencode"
+						}),
+						" / ",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "opencode-go"
+						})
+					]
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "同上，缺省 base_url/model 自动补全" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "Ollama" }),
+				(0, import_jsx_runtime.jsxs)(_components.td, {
+					language: "txt",
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "ollama"
+						}),
+						" / ",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "local"
+						})
+					]
+				}),
+				(0, import_jsx_runtime.jsxs)(_components.td, {
+					language: "txt",
+					children: [
+						"优先 ",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "ollama run"
+						}),
+						"，回退到 ",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "/api/chat"
+						})
+					]
+				})
+			] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"请求参数：",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "temperature 0.2"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "max_tokens 1024"
+				}),
+				"。",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "list_models()"
+				}),
+				" 读取 OpenAI ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "/models"
+				}),
+				" 或 Ollama ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "/api/tags"
+				}),
+				"。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"API Key 解析顺序（",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "resolve_api_key"
+				}),
+				"）：",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "agent.json"
+				}),
+				" → ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "QSSH_OPENAI_API_KEY"
+				}),
+				" → ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "OPENCODE_API_KEY"
+				}),
+				" → OpenCode ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "auth.json"
+				}),
+				"。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "toolsrs--工具注册表",
+			children: "tools.rs — 工具注册表"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [(0, import_jsx_runtime.jsx)(_components.code, {
+				language: "txt",
+				children: "ToolId"
+			}), " 枚举共 17 个工具，分三个危险等级："]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "等级" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "工具" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Read"
+				})
+			}), (0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "server.status"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "server.processes"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "server.disks"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "server.network"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "docker.list"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "files.list"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "logs.tail"
+					})
+				]
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "SafeWrite"
+				})
+			}), (0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "service.start"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "docker.restart"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "files.mkdir"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "files.write"
+					})
+				]
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Dangerous"
+				})
+			}), (0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "docker.stop"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "docker.delete"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "service.stop"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "service.restart"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "shell.run"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "files.remove"
+					})
+				]
+			})] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "parse_tool_call()"
+				}),
+				" 同时接受 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "tool:name arg=value"
+				}),
+				" 与模型风格的 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "name(target=..., ...)"
+				}),
+				" 两种写法，并支持中文参数键（",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "目标"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "目录"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "路径"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "命令"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "内容"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "文本"
+				}),
+				"）。未知工具名返回 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "None"
+				}),
+				"。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "permissionsrs--权限模型",
+			children: "permissions.rs — 权限模型"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
+			className: "shiki css-variables",
+			style: {
+				backgroundColor: "var(--shiki-background)",
+				color: "var(--shiki-foreground)"
+			},
+			tabIndex: "0",
+			children: (0, import_jsx_runtime.jsxs)(_components.code, {
+				className: "language-rust",
+				children: [
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " enum"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " PermissionLevel"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " { "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "ReadOnly"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "AskBeforeExecute"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "AutoSafe"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "FullAccess"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " }"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " enum"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " DangerLevel"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " { "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Read"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "SafeWrite"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Dangerous"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " }"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " enum"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Approval"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " { "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Allowed"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "NeedsApproval"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Denied"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " }"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, { className: "line" }),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "impl"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " PermissionLevel"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " {"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " decide"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "("
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "&"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "self, danger"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " DangerLevel"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ") "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Approval"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ";"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-foreground)" },
+							children: "}"
+						})
+					})
+				]
+			})
+		}) }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"默认 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ask_before_execute"
+				}),
+				"。决策矩阵见 ",
+				(0, import_jsx_runtime.jsx)(_components.a, {
+					href: "/ai-agent",
+					children: "AI Agent"
+				}),
+				" 页面。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "timeliners--时间线",
+			children: "timeline.rs — 时间线"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "TimelineStep"
+				}),
+				" 的状态：",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "○"
+				}),
+				" 待执行 / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "●"
+				}),
+				" 执行中 / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "✓"
+				}),
+				" 完成 / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "⊘"
+				}),
+				" 跳过 / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "✗"
+				}),
+				" 失败。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "AgentStatus"
+				}),
+				"：",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "● Ready"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "◇ Thinking"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "● Executing"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "! Approval"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "▲ Error"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "✓ Done"
+				}),
+				"，用于状态栏指示。"
+			]
+		})
+	] });
+}
+function MDXContent$28(props = {}) {
+	const { wrapper: MDXLayout } = {
+		...useMDXComponents(),
+		...props.components
+	};
+	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
+		...props,
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$28, { ...props })
+	}) : _createMdxContent$28(props);
+}
+//#endregion
+//#region source/ai-agent.mdx
+function _createMdxContent$27(props) {
+	const _components = {
+		a: "a",
+		code: "code",
+		h1: "h1",
+		h2: "h2",
+		h3: "h3",
+		hr: "hr",
+		li: "li",
+		ol: "ol",
+		p: "p",
+		pre: "pre",
+		span: "span",
+		strong: "strong",
+		table: "table",
+		tbody: "tbody",
+		td: "td",
+		th: "th",
+		thead: "thead",
+		tr: "tr",
+		ul: "ul",
+		...useMDXComponents(),
+		...props.components
+	}, { Callout } = _components;
+	if (!Callout) _missingMdxReference$14("Callout", true);
+	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+		(0, import_jsx_runtime.jsx)(_components.hr, {}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: AI Agent\ndescription: Quick-SSH 内置的 AI 运维助手：用自然语言驱动远程命令与巡检，带工具调用、权限分级与审批流。\nkeywords:" }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "ai" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "agent" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "llm" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "运维" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "工具" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "权限" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "deepseek" }),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.hr, {}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h1, {
+			id: "ai-agent",
+			children: "AI Agent"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, { children: [
+			"AI Agent 是内嵌在 TUI 里的运维助手。你用自然语言描述目标，Agent 会选择合适的",
+			(0, import_jsx_runtime.jsx)(_components.strong, { children: "工具" }),
+			"在选中的主机上执行，读取结果后再决定下一步，直到给出结论。"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, { children: [
+			"它是「Agent + 工具 + 远程执行」的循环，本身不直接持有 SSH 连接——每一步都通过工具调用完成，且受",
+			(0, import_jsx_runtime.jsx)(_components.strong, { children: "权限分级" }),
+			"约束。"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "打开与关闭",
+			children: "打开与关闭"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "入口" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "说明" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Ctrl+A"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Ctrl+Space"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "主机列表中直接打开 Agent" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: ["Dashboard 中按 ", (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "a"
+				})]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "打开 Agent（Agent 组件）" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Ctrl+K"
+				}), " → 打开 AI Agent"]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "命令面板" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					"终端中 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Ctrl+B"
+					}),
+					" ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "a"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "嵌入式终端内打开" })] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"关闭：",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Esc"
+				}),
+				"；或当输入框为空时按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "q"
+				}),
+				"。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "对话面板",
+			children: "对话面板"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "面板以「线程」形式展示：" }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "You"
+				}), " — 你的输入"]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "agent"
+				}), " — 模型的文字回复"]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					"工具步骤 — 每一步工具调用及状态（",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "○"
+					}),
+					" 待执行 / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "●"
+					}),
+					" 执行中 / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "✓"
+					}),
+					" 完成 / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "⊘"
+					}),
+					" 跳过 / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "✗"
+					}),
+					" 失败）"
+				]
+			}),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "按键" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "操作" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Enter"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "发送输入" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: ["字符 / ", (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Backspace"
+				})]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "编辑输入" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "C"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "S"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "打开 Agent 设置" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "q"
+				}), "（输入为空时）"]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "关闭面板" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Esc"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "关闭面板" })] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"右侧状态栏有 AI 指示器：",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "● Ready"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "◇ Thinking"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "● Executing"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "! Approval"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "▲ Error"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "✓ Done"
+				}),
+				"。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "工具与权限",
+			children: "工具与权限"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "Agent 可调用 17 个工具，按危险等级分类：" }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "等级" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "工具" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: (0, import_jsx_runtime.jsx)(_components.strong, { children: "只读" }) }), (0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "server.status"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "server.processes"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "server.disks"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "server.network"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "docker.list"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "files.list"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "logs.tail"
+					})
+				]
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: (0, import_jsx_runtime.jsx)(_components.strong, { children: "安全写" }) }), (0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "service.start"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "docker.restart"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "files.mkdir"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "files.write"
+					})
+				]
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: (0, import_jsx_runtime.jsx)(_components.strong, { children: "危险" }) }), (0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "docker.stop"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "docker.delete"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "service.stop"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "service.restart"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "shell.run"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "files.remove"
+					})
+				]
+			})] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"权限等级（",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "agent.json"
+				}),
+				" 的 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "permission"
+				}),
+				" 字段）决定每个等级如何处置："
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "权限" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "只读" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "安全写" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "危险" })
+		] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "read_only"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "允许" }),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "拒绝" }),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "拒绝" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsxs)(_components.td, {
+					language: "txt",
+					children: [(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "ask_before_execute"
+					}), "（默认）"]
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "允许" }),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "需审批" }),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "需审批" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "auto_safe"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "允许" }),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "允许" }),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "需审批" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "full_access"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "允许" }),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "允许" }),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "允许" })
+			] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"需要审批时，TUI 会弹出确认框，显示工具名、说明、危险等级与目标主机，按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "y"
+				}),
+				" 执行、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "n"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Esc"
+				}),
+				" 拒绝（等待超时 300 秒后视为拒绝）。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(Callout, {
+			title: "危险等级配色",
+			children: (0, import_jsx_runtime.jsxs)(_components.p, {
+				language: "txt",
+				children: [
+					"审批框按危险等级着色：只读为安全色、安全写为提示色、危险操作为告警色。执行 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "shell.run"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "files.remove"
+					}),
+					" 前请仔细确认目标。"
+				]
+			})
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "配置-agent",
+			children: "配置 Agent"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"在 Agent 面板中按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "C"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "S"
+				}),
+				" 打开设置弹窗，或通过 ",
+				(0, import_jsx_runtime.jsx)(_components.a, {
+					href: "/webui",
+					children: "Web 界面"
+				}),
+				" 的「Agent」分组编辑。配置文件位于 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "agent.json"
+				}),
+				"（Windows 为 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "%APPDATA%\\quick-ssh\\agent.json"
+				}),
+				"，其余平台为 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "~/.config/quick-ssh/agent.json"
+				}),
+				"）。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
+			className: "shiki css-variables",
+			style: {
+				backgroundColor: "var(--shiki-background)",
+				color: "var(--shiki-foreground)"
+			},
+			tabIndex: "0",
+			title: "~/.config/quick-ssh/agent.json",
+			children: (0, import_jsx_runtime.jsxs)(_components.code, {
+				className: "language-json",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-foreground)" },
+							children: "{"
+						})
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "  \"provider\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-string-expression)" },
+								children: " \"openai\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "  \"base_url\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-string-expression)" },
+								children: " \"https://api.deepseek.com/v1\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "  \"model\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-string-expression)" },
+								children: " \"deepseek-chat\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "  \"permission\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-string-expression)" },
+								children: " \"ask_before_execute\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "  \"timeout_secs\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-constant)" },
+								children: " 60"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "  \"api_key\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-string-expression)" },
+								children: " \"\""
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-foreground)" },
+							children: "}"
+						})
+					})
+				]
+			})
+		}) }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "字段" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "默认值" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "说明" })
+		] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "provider"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "openai"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "服务商类型，见下表" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "base_url"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "https://api.deepseek.com/v1"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "API 地址" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "model"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "deepseek-chat"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "模型名" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "permission"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "ask_before_execute"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "权限等级" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "timeout_secs"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "60"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "单次请求超时（秒）" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "api_key"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "空" }),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "API Key，留空则回退到环境变量" })
+			] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h3, {
+			id: "支持的服务商",
+			children: "支持的服务商"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "provider 取值" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "说明" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "openai"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "deepseek"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "qwen"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "openai-compatible"
+					})
+				]
+			}), (0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					"任意 OpenAI 兼容接口（走 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "/chat/completions"
+					}),
+					"）"
+				]
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "opencode"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "opencode-go"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "OpenCode Go，自动补全 base_url 与模型" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "ollama"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "local"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "本地 Ollama，优先用 CLI，回退到 HTTP API" })] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h3, {
+			id: "api-key-解析顺序",
+			children: "API Key 解析顺序"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ol, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "agent.json"
+					}),
+					" 中的 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "api_key"
+					})
+				]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: ["环境变量 ", (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "QSSH_OPENAI_API_KEY"
+				})]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: ["环境变量 ", (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "OPENCODE_API_KEY"
+				})]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					"OpenCode 登录凭据（",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "~/.local/share/opencode/auth.json"
+					}),
+					" 或 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "~/.config/opencode/auth.json"
+					}),
+					"）"
+				]
+			}),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(Callout, {
+			title: "配置热加载",
+			children: (0, import_jsx_runtime.jsxs)(_components.p, {
+				language: "txt",
+				children: [
+					"每次开始 Agent 会话前都会从磁盘重新读取 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "agent.json"
+					}),
+					"，因此在 Web 界面里改完设置后立即生效，无需重启 qssh。"
+				]
+			})
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "运行机制",
+			children: "运行机制"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "Agent 会拿到可用工具清单与当前主机的监控快照作为上下文。" }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					"每次会话最多循环 ",
+					(0, import_jsx_runtime.jsx)(_components.strong, { children: "6 轮" }),
+					"工具调用（",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "MAX_ITERATIONS"
+					}),
+					"）。"
+				]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					"单个工具输出超过 2000 字符会被截断（",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "MAX_TOOL_OUTPUT"
+					}),
+					"）。"
+				]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "你也可以直接把一段工具调用文本粘贴进输入框，让 Agent 跳过模型直接执行。" }),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "下一步",
+			children: "下一步"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/webui",
+				children: "Web 界面"
+			}), " — 在浏览器里编辑 Agent 与程序设置"] }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/dashboard",
+				children: "工作台（Dashboard）"
+			}), " — 监控组件与运维面板"] }),
+			"\n"
+		] })
+	] });
+}
+function MDXContent$27(props = {}) {
+	const { wrapper: MDXLayout } = {
+		...useMDXComponents(),
+		...props.components
+	};
+	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
+		...props,
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$27, { ...props })
+	}) : _createMdxContent$27(props);
+}
+function _missingMdxReference$14(id, component) {
+	throw new Error("Expected " + (component ? "component" : "object") + " `" + id + "` to be defined: you likely forgot to import, pass, or provide it.");
+}
+//#endregion
 //#region source/api.mdx
-function _createMdxContent$21(props) {
+function _createMdxContent$26(props) {
 	const _components = {
 		a: "a",
 		code: "code",
@@ -172871,85 +175262,191 @@ function _createMdxContent$21(props) {
 				color: "var(--shiki-foreground)"
 			},
 			tabIndex: "0",
-			children: (0, import_jsx_runtime.jsx)(_components.code, {
+			children: (0, import_jsx_runtime.jsxs)(_components.code, {
 				className: "language-rust",
-				children: (0, import_jsx_runtime.jsxs)(_components.span, {
-					className: "line",
-					children: [
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-keyword)" },
-							children: "pub"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-keyword)" },
-							children: " fn"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-function)" },
-							children: " start_interactive_session"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "(target"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-keyword)" },
-							children: ":"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-keyword)" },
-							children: " &"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-function)" },
-							children: "SshTarget"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: ", extra_args"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-keyword)" },
-							children: ":"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-keyword)" },
-							children: " &"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "["
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-function)" },
-							children: "String"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "]) "
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-keyword)" },
-							children: "->"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-function)" },
-							children: " Result"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "<"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-function)" },
-							children: "i32"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: ">;"
-						})
-					]
-				})
+				children: [
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " start_interactive_session"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "("
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "    target"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " &"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "SshTarget"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "    extra_args"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " &"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "["
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "String"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "],"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "    drag_enabled"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " bool"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ") "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Result"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "<"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "i32"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ">;"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, { className: "line" }),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " spawn_connection_window"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "(target"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " &"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "SshTarget"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ") "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Result"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "<()>;"
+							})
+						]
+					})
+				]
 			})
 		}) }),
 		"\n",
@@ -173351,6 +175848,44 @@ function _createMdxContent$21(props) {
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-token-function)" },
+								children: " View"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " { "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "HostList"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Dashboard"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " }"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " enum"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
 								children: " Action"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
@@ -173359,7 +175894,7 @@ function _createMdxContent$21(props) {
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-token-comment)" },
-								children: "/* 20+ 变体 */"
+								children: "/* 数十个变体 */"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-foreground)" },
@@ -173436,8 +175971,20 @@ function _createMdxContent$21(props) {
 								children: ", "
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Palette"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-token-comment)" },
 								children: "/* ... */"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Terminal"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-foreground)" },
@@ -175174,22 +177721,1530 @@ function _createMdxContent$21(props) {
 					})
 				]
 			})
+		}) }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "monitor-模块",
+			children: "monitor 模块"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, { children: [
+			"位于 ",
+			(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/qssh/src/monitor/",
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "qssh/src/monitor/"
+				})
+			}),
+			"。详见 ",
+			(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/monitor-module",
+				children: "监控模块"
+			}),
+			"。"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
+			className: "shiki css-variables",
+			style: {
+				backgroundColor: "var(--shiki-background)",
+				color: "var(--shiki-foreground)"
+			},
+			tabIndex: "0",
+			children: (0, import_jsx_runtime.jsxs)(_components.code, {
+				className: "language-rust",
+				children: [
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " trait"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " RemoteExecutor"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " {"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " exec"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "("
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "&"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "self, command"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " &"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "str"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ") "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Result"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "<"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "ExecOutput"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "ExecError"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ">;"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-foreground)" },
+							children: "}"
+						})
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, { className: "line" }),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " struct"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " SshProcessExecutor"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " { "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-comment)" },
+								children: "/* ... */"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " }"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "impl"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " SshProcessExecutor"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " {"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " new"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "(target"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " SshTarget"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ") "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " Self;"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " with_timeouts"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "(self, connect_timeout"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " u64"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", command_timeout"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Duration"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ") "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " Self;"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-foreground)" },
+							children: "}"
+						})
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, { className: "line" }),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " struct"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " MonitorScheduler"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " { "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-comment)" },
+								children: "/* ... */"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " }"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "impl"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " MonitorScheduler"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " {"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " with_channel"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "() "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " (Self, "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Receiver"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "<"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "BackgroundEvent"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ">);"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " add_target"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "("
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "&"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "self, alias"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " String"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", collector"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Collector"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", interval"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Duration"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ");"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " stop_target"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "("
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "&"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "self, alias"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " &"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "str"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ");"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " stop_all"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "("
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "&"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "self);"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-foreground)" },
+							children: "}"
+						})
+					})
+				]
+			})
+		}) }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "agent-模块",
+			children: "agent 模块"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, { children: [
+			"位于 ",
+			(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/qssh/src/agent/",
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "qssh/src/agent/"
+				})
+			}),
+			"。详见 ",
+			(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/agent-module",
+				children: "AI Agent 模块"
+			}),
+			"。"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
+			className: "shiki css-variables",
+			style: {
+				backgroundColor: "var(--shiki-background)",
+				color: "var(--shiki-foreground)"
+			},
+			tabIndex: "0",
+			children: (0, import_jsx_runtime.jsxs)(_components.code, {
+				className: "language-rust",
+				children: [
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " struct"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " AgentConfig"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " {"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " provider"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " String"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " base_url"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " String"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " model"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " String"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " permission"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " String"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " timeout_secs"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " u64"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " api_key"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " String"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-foreground)" },
+							children: "}"
+						})
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, { className: "line" }),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " enum"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " AgentEvent"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " { "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Started"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Status"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Timeline"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "ApprovalNeeded"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Finished"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " }"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " enum"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " PermissionLevel"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " { "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "ReadOnly"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "AskBeforeExecute"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "AutoSafe"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "FullAccess"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " }"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " enum"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " DangerLevel"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " { "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Read"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "SafeWrite"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Dangerous"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " }"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, { className: "line" }),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " struct"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " AgentRunner"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " { "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-comment)" },
+								children: "/* ... */"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " }"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "impl"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " AgentRunner"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " {"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " new"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "(config"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " AgentConfig"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", tx"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Sender"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "<"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "AgentEvent"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ">) "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " Self;"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " run"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "("
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-comment)" },
+								children: "/* history, input, executor, snapshot, approve */"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ") "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " AgentSession"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ";"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-foreground)" },
+							children: "}"
+						})
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, { className: "line" }),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " load_agent_config"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "() "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Result"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "<"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "AgentConfig"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ">;"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " save_agent_config"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "(config"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " &"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "AgentConfig"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ") "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Result"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "<()>;"
+							})
+						]
+					})
+				]
+			})
+		}) }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "web-模块",
+			children: "web 模块"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, { children: [
+			"位于 ",
+			(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/qssh/src/web/",
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "qssh/src/web/"
+				})
+			}),
+			"。详见 ",
+			(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/web-module",
+				children: "Web 模块"
+			}),
+			"。"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
+			className: "shiki css-variables",
+			style: {
+				backgroundColor: "var(--shiki-background)",
+				color: "var(--shiki-foreground)"
+			},
+			tabIndex: "0",
+			children: (0, import_jsx_runtime.jsxs)(_components.code, {
+				className: "language-rust",
+				children: [
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " const"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " DEFAULT_PORT"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " u16"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " ="
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-constant)" },
+								children: " 17890"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ";"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, { className: "line" }),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " serve"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "(port"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " u16"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ") "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Result"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "<()>;"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, { className: "line" }),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " struct"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " SettingsCatalog"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ";"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "impl"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " SettingsCatalog"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " {"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " groups"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "() "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Vec"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "<"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "GroupSpec"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ">;"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " load_all"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "() "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " serde_json"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "::"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Value"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ";"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " apply"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "(group"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " &"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "str"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", values"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " &"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "serde_json"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "::"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Value"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ") "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Result"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "<()>;"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-foreground)" },
+							children: "}"
+						})
+					})
+				]
+			})
 		}) })
 	] });
 }
-function MDXContent$21(props = {}) {
+function MDXContent$26(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$21, { ...props })
-	}) : _createMdxContent$21(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$26, { ...props })
+	}) : _createMdxContent$26(props);
 }
 //#endregion
 //#region source/architecture.mdx
-function _createMdxContent$20(props) {
+function _createMdxContent$25(props) {
 	const _components = {
 		a: "a",
 		code: "code",
@@ -175206,8 +179261,8 @@ function _createMdxContent$20(props) {
 		...useMDXComponents(),
 		...props.components
 	}, { Properties, Property } = _components;
-	if (!Properties) _missingMdxReference$10("Properties", true);
-	if (!Property) _missingMdxReference$10("Property", true);
+	if (!Properties) _missingMdxReference$13("Properties", true);
+	if (!Property) _missingMdxReference$13("Property", true);
 	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 		(0, import_jsx_runtime.jsx)(_components.hr, {}),
 		"\n",
@@ -175243,7 +179298,7 @@ function _createMdxContent$20(props) {
 			language: "txt",
 			children: (0, import_jsx_runtime.jsx)(_components.code, {
 				language: "txt",
-				children: "quick-ssh/\r\n├── Cargo.toml                   # 工作空间根\r\n├── qssh/                        # 主二进制\r\n│   ├── Cargo.toml\r\n│   ├── build.rs                 # 构建脚本（监视 cli.rs 变更）\r\n│   └── src/\r\n│       ├── main.rs              # 入口：clap 参数解析 → 分发\r\n│       ├── cli.rs               # clap derive CLI 定义\r\n│       ├── config/              # SSH 配置 + 程序设置\r\n│       │   ├── mod.rs           # 模块重导出\r\n│       │   ├── types.rs         # SshDirective, HostBlock, SshConfig 类型定义\r\n│       │   ├── parser.rs        # 渐进式 SSH 解析器\n│       │   ├── writer.rs        # SSH 配置渲染器\n│       │   ├── credentials.rs   # 系统凭据库与 OpenSSH AskPass\n│       │   └── settings.rs      # ~/.qsshrc 加载/保存\n│       ├── ssh/                 # SSH 会话 + SFTP 上传\r\n│       │   ├── mod.rs\r\n│       │   ├── session.rs       # SshTarget 解析与构建\r\n│       │   ├── spawn.rs         # spawn ssh 进程与 AskPass 配置\n│       │   ├── upload.rs        # 内联 SCP 上传（预留）\r\n│       │   └── drag_detect.rs   # 拖拽文件路径检测\r\n│       ├── network/             # TCP 在线检测\r\n│       │   ├── mod.rs\r\n│       │   └── ping.rs          # TcpStream 连接测试\r\n│       ├── tui/                 # 终端 UI（事件驱动）\r\n│       │   ├── mod.rs\r\n│       │   ├── action.rs        # Action + Mode 枚举\r\n│       │   ├── app.rs           # 应用状态与业务逻辑\r\n│       │   ├── event.rs         # 事件循环\r\n│       │   ├── keymap.rs        # 键盘映射 + Mode 标签/提示\r\n│       │   ├── ui.rs            # 渲染逻辑\r\n│       │   ├── widgets.rs       # 自定义组件（弹窗等）\r\n│       │   └── editor.rs        # 主机编辑表单\r\n│       └── cmd/                 # CLI 子命令实现\r\n│           ├── mod.rs\r\n│           ├── ps.rs            # 列出主机\r\n│           ├── add.rs           # 添加主机\r\n│           ├── rm.rs            # 删除主机\r\n│           ├── connect.rs       # 连接主机\r\n│           ├── export.rs        # 导出 JSON\r\n│           ├── import.rs        # 导入 JSON\r\n│           ├── help.rs          # 自定义帮助\r\n│           └── completions.rs   # Shell 补全生成\r\n├── qssh-uploader/               # 独立上传二进制\r\n│   └── src/main.rs              # 并发 SCP 上传 + 进度显示\r\n├── docs/                        # 文档\r\n├── packaging/                   # 包管理器配置\r\n└── .github/workflows/           # CI/CD\r\n    ├── ci.yml                   # 每次推送自动检查\r\n    └── release.yml              # 打标签触发发布\n"
+				children: "quick-ssh/\r\n├── Cargo.toml                   # 工作空间根\r\n├── qssh/                        # 主二进制\r\n│   ├── Cargo.toml\r\n│   ├── build.rs                 # 构建脚本（监视 cli.rs 变更）\r\n│   └── src/\r\n│       ├── main.rs              # 入口：AskPass 短路 → clap 解析 → 分发\r\n│       ├── cli.rs               # clap derive CLI 定义\r\n│       ├── config/              # SSH 配置 + 程序设置\r\n│       │   ├── mod.rs           # 模块重导出\r\n│       │   ├── types.rs         # SshDirective, HostBlock, SshConfig 类型定义\r\n│       │   ├── parser.rs        # 渐进式 SSH 解析器\r\n│       │   ├── writer.rs        # SSH 配置渲染器\r\n│       │   ├── credentials.rs   # 系统凭据库与 OpenSSH AskPass\r\n│       │   └── settings.rs      # ~/.qsshrc 加载/保存\r\n│       ├── ssh/                 # SSH 会话 + 上传\r\n│       │   ├── mod.rs\r\n│       │   ├── session.rs       # SshTarget 解析与构建\r\n│       │   ├── spawn.rs         # spawn ssh、AskPass、新窗口连接、拖拽上传\r\n│       │   ├── upload.rs        # 内联 SCP 上传（预留）\r\n│       │   └── drag_detect.rs   # 拖拽文件路径检测\r\n│       ├── network/             # TCP 在线检测\r\n│       │   ├── mod.rs\r\n│       │   └── ping.rs          # TcpStream 连接测试\r\n│       ├── monitor/             # 远端采集与解析\r\n│       │   ├── executor.rs      # RemoteExecutor trait + SshProcessExecutor\r\n│       │   ├── platform.rs      # 聚合采集脚本与 Collector\r\n│       │   ├── snapshot.rs      # ServerSnapshot 及其子结构\r\n│       │   ├── scheduler.rs     # 周期性采集调度器\r\n│       │   └── docker/services/files/logs/network.rs\r\n│       ├── agent/               # AI 运维助手\r\n│       │   ├── mod.rs           # AgentRunner 运行循环\r\n│       │   ├── config.rs        # agent.json\r\n│       │   ├── provider.rs      # OpenAI / OpenCode Go / Ollama\r\n│       │   ├── tools.rs         # 工具注册表\r\n│       │   ├── permissions.rs   # 权限与危险等级\r\n│       │   └── timeline.rs\r\n│       ├── web/                 # 本地 WebUI\r\n│       │   ├── server.rs        # 零依赖 HTTP 服务\r\n│       │   ├── schema.rs        # schema 驱动设置页\r\n│       │   └── index.html\r\n│       ├── tui/                 # 终端 UI（事件驱动）\r\n│       │   ├── mod.rs\r\n│       │   ├── action.rs        # Action / Mode / View 枚举\r\n│       │   ├── app.rs           # 应用状态与业务逻辑\r\n│       │   ├── event.rs         # 事件循环\r\n│       │   ├── keymap.rs        # 键盘映射 + Mode 标签/提示\r\n│       │   ├── term.rs          # 嵌入式终端（portable-pty + vt100）\r\n│       │   ├── mouse.rs         # 鼠标事件映射\r\n│       │   ├── ui.rs            # 渲染逻辑\r\n│       │   ├── widgets.rs       # 自定义组件（弹窗等）\r\n│       │   ├── editor.rs        # 主机/Agent 编辑表单\r\n│       │   └── dashboard/       # 工作台：布局引擎、组件、命令面板\r\n│       └── cmd/                 # CLI 子命令实现\r\n│           ├── ps.rs, add.rs, rm.rs, connect.rs\r\n│           ├── export.rs, import.rs, help.rs\r\n│           └── completions.rs\r\n├── qssh-uploader/               # 独立上传二进制\r\n│   └── src/main.rs              # SCP 上传 + 进度显示\r\n├── docs/                        # 文档站（Clarify）\r\n├── docx/                        # 设计文档\r\n├── packaging/                   # 包管理器配置\r\n└── .github/workflows/           # CI/CD\r\n    ├── ci.yml                   # 每次推送自动检查\r\n    ├── release.yml              # 打标签触发发布\r\n    └── deploy.yml               # 推送 main 部署文档站\n"
 			})
 		}),
 		"\n",
@@ -175257,11 +179312,11 @@ function _createMdxContent$20(props) {
 		(0, import_jsx_runtime.jsxs)(Properties, { children: [(0, import_jsx_runtime.jsx)(Property, {
 			name: "qssh",
 			type: "主程序",
-			children: (0, import_jsx_runtime.jsx)(_components.p, { children: "核心 SSH 管理工具，包含 CLI、TUI、配置管理、SSH 连接功能" })
+			children: (0, import_jsx_runtime.jsx)(_components.p, { children: "核心工具，包含 CLI、TUI、配置管理、SSH 连接、监控采集、AI Agent 与 WebUI" })
 		}), (0, import_jsx_runtime.jsx)(Property, {
 			name: "qssh-uploader",
 			type: "上传工具",
-			children: (0, import_jsx_runtime.jsx)(_components.p, { children: "独立的文件上传程序，专注于 SCP 并发上传和进度显示" })
+			children: (0, import_jsx_runtime.jsx)(_components.p, { children: "独立的文件上传程序，专注于 SCP 上传和进度显示" })
 		})] }),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.p, {
@@ -175291,6 +179346,21 @@ function _createMdxContent$20(props) {
 				(0, import_jsx_runtime.jsx)(_components.code, {
 					language: "txt",
 					children: "crossterm"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "portable-pty"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "vt100"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "keyring"
 				}),
 				"、",
 				(0, import_jsx_runtime.jsx)(_components.code, {
@@ -175505,7 +179575,7 @@ function _createMdxContent$20(props) {
 			language: "txt",
 			children: (0, import_jsx_runtime.jsx)(_components.code, {
 				language: "txt",
-				children: "拖拽检测 → UploadPayload → spawn qssh-uploader → SFTP 连接 → 进度条 → 完成\n"
+				children: "拖拽检测 → UploadPayload → spawn qssh-uploader → SCP 连接 → 进度条 → 完成\n"
 			})
 		}),
 		"\n",
@@ -175540,13 +179610,82 @@ function _createMdxContent$20(props) {
 						language: "txt",
 						children: "scp"
 					}),
-					" 实现文件传输，最多 3 文件并发"
+					" 逐个传输文件（顺序上传），实时渲染每个文件的进度条"
 				]
 			}),
-			"\n",
-			(0, import_jsx_runtime.jsx)(_components.li, { children: "实时渲染每个文件的进度条" }),
 			"\n"
 		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h3, {
+			id: "工作台监控",
+			children: "工作台监控"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.pre, {
+			language: "txt",
+			children: (0, import_jsx_runtime.jsx)(_components.code, {
+				language: "txt",
+				children: "进入工作台 → MonitorScheduler::add_target(2s) → SshProcessExecutor 单次 SSH 往返\r\n         → ServerSnapshot → BackgroundEvent::MonitorSnapshot → App 分发到各组件\n"
+			})
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ol, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "进入工作台时选中主机，调度器为该主机启动采集线程" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "每 2 秒执行一次聚合采集脚本（连接超时 5 秒、命令超时 10 秒）" }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					"解析成 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "ServerSnapshot"
+					}),
+					" 后经 mpsc 回传给 UI 并分发到各组件"
+				]
+			}),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h3, {
+			id: "ai-agent",
+			children: "AI Agent"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.pre, {
+			language: "txt",
+			children: (0, import_jsx_runtime.jsx)(_components.code, {
+				language: "txt",
+				children: "用户输入 → AgentRunner → provider::chat() → 工具调用\r\n        → permissions::decide() →（需审批则阻塞等待确认）→ execute_tool() → 结果回填 → 循环\n"
+			})
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ol, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "Agent 拿到工具清单与监控快照作为上下文" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "模型返回文字或一个工具调用" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "按权限模型决定是否需审批；审批通过后在远端执行" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "结果回填后继续下一轮，最多 6 轮" }),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h3, {
+			id: "本地-webui",
+			children: "本地 WebUI"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.pre, {
+			language: "txt",
+			children: (0, import_jsx_runtime.jsx)(_components.code, {
+				language: "txt",
+				children: "浏览器 → TcpListener(127.0.0.1:17890) → 路由\r\n      → /api/settings → SettingsCatalog（读/写 agent.json、qsshrc、dashboard.json）\r\n      → /api/test → provider::chat() 探活\n"
+			})
+		}),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h2, {
 			id: "设计决策",
@@ -175774,25 +179913,99 @@ function _createMdxContent$20(props) {
 			"\n",
 			(0, import_jsx_runtime.jsx)(_components.li, { children: "退出时三种方法确保恢复光标可见性" }),
 			"\n"
-		] })
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h3, {
+			id: "7-监控与执行分离",
+			children: "7. 监控与执行分离"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "monitor"
+				}),
+				" 模块通过 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "RemoteExecutor"
+				}),
+				" trait 抽象命令执行，",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "SshProcessExecutor"
+				}),
+				" 只是其中一种实现。Agent 工具与 Dashboard 采集共用同一批命令构造器和解析器，保证两边看到的数据一致，也让执行层可以独立替换。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h3, {
+			id: "8-agent-不持有-ssh-连接",
+			children: "8. Agent 不持有 SSH 连接"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"AI Agent 只产生工具调用，真正的执行交给 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "RemoteExecutor"
+				}),
+				"，并由 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "permissions"
+				}),
+				" 模块在两者之间做权限裁决。这样权限门禁是唯一入口，模型无法绕过它直接操作服务器。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h3, {
+			id: "9-嵌入式终端独立于-tui-事件循环",
+			children: "9. 嵌入式终端独立于 TUI 事件循环"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "term.rs"
+				}),
+				" 用后台线程读取 PTY 输出并送入 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "vt100"
+				}),
+				" 解析器，UI 侧按渲染周期拉取当前屏幕。终端模式下按键默认全部编码后转发给远端，只有 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Ctrl+B"
+				}),
+				" 前缀键会把控制权交回 TUI，从而在不牺牲全屏程序（vim/htop）可用性的前提下保留面板切换能力。"
+			]
+		})
 	] });
 }
-function MDXContent$20(props = {}) {
+function MDXContent$25(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$20, { ...props })
-	}) : _createMdxContent$20(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$25, { ...props })
+	}) : _createMdxContent$25(props);
 }
-function _missingMdxReference$10(id, component) {
+function _missingMdxReference$13(id, component) {
 	throw new Error("Expected " + (component ? "component" : "object") + " `" + id + "` to be defined: you likely forgot to import, pass, or provide it.");
 }
 //#endregion
 //#region source/changelog.mdx
-function _createMdxContent$19(props) {
+function _createMdxContent$24(props) {
 	const _components = {
 		code: "code",
 		h1: "h1",
@@ -175801,6 +180014,7 @@ function _createMdxContent$19(props) {
 		hr: "hr",
 		li: "li",
 		p: "p",
+		strong: "strong",
 		ul: "ul",
 		...useMDXComponents(),
 		...props.components
@@ -175830,12 +180044,126 @@ function _createMdxContent$19(props) {
 		}),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "未发布main-分支",
+			children: "未发布（main 分支）"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h3, {
+			id: "新增",
+			children: "新增"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.strong, { children: "Dashboard 监控工作台" }), "：12 个可自定义组件（CPU / 内存 / 磁盘 / 网络 / Docker / 进程 / 服务 / 文件 / 日志 / 系统信息 / 终端 / AI Agent），内置多套 Profile，支持鼠标拖动布局"] }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.strong, { children: "嵌入式终端" }), "：基于 portable-pty + vt100，在 TUI 内直接使用 SSH 会话，Ctrl+B 前缀键，1000 行滚动回看，连接与待机动画"] }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.strong, { children: "运维面板" }),
+					"：Docker 容器、系统服务、远程文件浏览、journalctl 日志，以及 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: ":"
+					}),
+					" 远程命令执行"
+				]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.strong, { children: "AI Agent" }), "：17 个工具、四级权限与审批流，支持 OpenAI 兼容接口 / OpenCode Go / Ollama"] }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.strong, { children: "本地 Web 界面" }),
+					"：",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "qssh web"
+					}),
+					" 启动，schema 驱动设置页，支持编辑 Agent / 程序 / Dashboard 设置并测试模型连通性"
+				]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.strong, { children: "命令面板" }),
+					"：",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Ctrl+K"
+					}),
+					" 搜索并执行动作"
+				]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Ctrl+Enter"
+					}),
+					" 在新终端窗口连接主机；",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "<"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: ">"
+					}),
+					" 调整主机顺序；",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "."
+					}),
+					" 切换地址显示"
+				]
+			}),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h3, {
+			id: "更改",
+			children: "更改"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					"拖拽上传改用独立 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "qssh-uploader"
+					}),
+					" 进程，逐个文件顺序 SCP 上传并显示原生进度"
+				]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "~/.qsshrc"
+				}), " 设置接入 Web 界面"]
+			}),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
 			id: "v204",
 			children: "v2.0.4"
 		}),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "新增",
+			id: "新增-1",
 			children: "新增"
 		}),
 		"\n",
@@ -175900,7 +180228,7 @@ function _createMdxContent$19(props) {
 		] }),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "更改",
+			id: "更改-1",
 			children: "更改"
 		}),
 		"\n",
@@ -175916,7 +180244,7 @@ function _createMdxContent$19(props) {
 		}),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "新增-1",
+			id: "新增-2",
 			children: "新增"
 		}),
 		"\n",
@@ -176043,7 +180371,7 @@ function _createMdxContent$19(props) {
 			(0, import_jsx_runtime.jsxs)(_components.li, {
 				language: "txt",
 				children: [
-					"独立 SFTP 上传工具（",
+					"独立 SCP 上传工具（",
 					(0, import_jsx_runtime.jsx)(_components.code, {
 						language: "txt",
 						children: "qssh-uploader"
@@ -176052,9 +180380,9 @@ function _createMdxContent$19(props) {
 					"\n",
 					(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
 						"\n",
-						(0, import_jsx_runtime.jsx)(_components.li, { children: "最多 3 文件并发上传" }),
+						(0, import_jsx_runtime.jsx)(_components.li, { children: "逐个文件顺序上传" }),
 						"\n",
-						(0, import_jsx_runtime.jsx)(_components.li, { children: "实时进度条显示" }),
+						(0, import_jsx_runtime.jsx)(_components.li, { children: "实时进度显示" }),
 						"\n",
 						(0, import_jsx_runtime.jsx)(_components.li, { children: "防闪退设计" }),
 						"\n"
@@ -176123,19 +180451,19 @@ function _createMdxContent$19(props) {
 		] })
 	] });
 }
-function MDXContent$19(props = {}) {
+function MDXContent$24(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$19, { ...props })
-	}) : _createMdxContent$19(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$24, { ...props })
+	}) : _createMdxContent$24(props);
 }
 //#endregion
 //#region source/cli-reference.mdx
-function _createMdxContent$18(props) {
+function _createMdxContent$23(props) {
 	const _components = {
 		a: "a",
 		code: "code",
@@ -176157,8 +180485,8 @@ function _createMdxContent$18(props) {
 		...useMDXComponents(),
 		...props.components
 	}, { Properties, Property } = _components;
-	if (!Properties) _missingMdxReference$9("Properties", true);
-	if (!Property) _missingMdxReference$9("Property", true);
+	if (!Properties) _missingMdxReference$12("Properties", true);
+	if (!Property) _missingMdxReference$12("Property", true);
 	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 		(0, import_jsx_runtime.jsx)(_components.hr, {}),
 		"\n",
@@ -176310,6 +180638,11 @@ function _createMdxContent$18(props) {
 				name: "import",
 				type: "导入配置",
 				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "从 JSON 文件导入主机配置" })
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "web",
+				type: "本地 Web 界面",
+				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "启动本地 WebUI（AI Agent 网页设置界面）" })
 			}),
 			(0, import_jsx_runtime.jsx)(Property, {
 				name: "help",
@@ -177500,6 +181833,180 @@ function _createMdxContent$18(props) {
 		(0, import_jsx_runtime.jsx)(_components.hr, {}),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.h2, {
+			id: "qssh-web--本地-web-界面",
+			language: "txt",
+			children: [(0, import_jsx_runtime.jsx)(_components.code, {
+				language: "txt",
+				children: "qssh web"
+			}), " — 本地 Web 界面"]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"启动一个仅监听 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "127.0.0.1"
+				}),
+				" 的本地 WebUI，用表单方式查看状态并编辑 Agent、程序与 Dashboard 设置。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
+			className: "shiki css-variables",
+			style: {
+				backgroundColor: "var(--shiki-background)",
+				color: "var(--shiki-foreground)"
+			},
+			tabIndex: "0",
+			children: (0, import_jsx_runtime.jsx)(_components.code, {
+				className: "language-bash",
+				children: (0, import_jsx_runtime.jsxs)(_components.span, {
+					className: "line",
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-function)" },
+							children: "qssh"
+						}),
+						(0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-string)" },
+							children: " web"
+						}),
+						(0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-foreground)" },
+							children: " [选项]"
+						})
+					]
+				})
+			})
+		}) }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: (0, import_jsx_runtime.jsx)(_components.strong, { children: "选项：" }) }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "选项" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "类型" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "默认值" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "说明" })
+		] }) }), (0, import_jsx_runtime.jsx)(_components.tbody, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "-p"
+					}),
+					", ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "--port"
+					})
+				]
+			}),
+			(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "u16"
+				})
+			}),
+			(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "17890"
+				})
+			}),
+			(0, import_jsx_runtime.jsx)(_components.td, { children: "监听端口" })
+		] }) })] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: (0, import_jsx_runtime.jsx)(_components.strong, { children: "示例：" }) }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
+			className: "shiki css-variables",
+			style: {
+				backgroundColor: "var(--shiki-background)",
+				color: "var(--shiki-foreground)"
+			},
+			tabIndex: "0",
+			children: (0, import_jsx_runtime.jsxs)(_components.code, {
+				className: "language-bash",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-comment)" },
+							children: "# 默认端口 17890"
+						})
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [(0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-function)" },
+							children: "qssh"
+						}), (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-string)" },
+							children: " web"
+						})]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, { className: "line" }),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-comment)" },
+							children: "# 指定端口"
+						})
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "qssh"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-string)" },
+								children: " web"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-string)" },
+								children: " -p"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-constant)" },
+								children: " 8080"
+							})
+						]
+					})
+				]
+			})
+		}) }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"启动后访问 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "http://127.0.0.1:17890"
+				}),
+				"。详见 ",
+				(0, import_jsx_runtime.jsx)(_components.a, {
+					href: "/webui",
+					children: "Web 界面"
+				}),
+				"。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.hr, {}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.h2, {
 			id: "qssh-help--帮助信息",
 			language: "txt",
 			children: [(0, import_jsx_runtime.jsx)(_components.code, {
@@ -177738,22 +182245,22 @@ function _createMdxContent$18(props) {
 		] })
 	] });
 }
-function MDXContent$18(props = {}) {
+function MDXContent$23(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$18, { ...props })
-	}) : _createMdxContent$18(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$23, { ...props })
+	}) : _createMdxContent$23(props);
 }
-function _missingMdxReference$9(id, component) {
+function _missingMdxReference$12(id, component) {
 	throw new Error("Expected " + (component ? "component" : "object") + " `" + id + "` to be defined: you likely forgot to import, pass, or provide it.");
 }
 //#endregion
 //#region source/config-module.mdx
-function _createMdxContent$17(props) {
+function _createMdxContent$22(props) {
 	const _components = {
 		a: "a",
 		code: "code",
@@ -177777,11 +182284,11 @@ function _createMdxContent$17(props) {
 		...useMDXComponents(),
 		...props.components
 	}, { Note } = _components;
-	if (!Note) _missingMdxReference$8("Note", true);
+	if (!Note) _missingMdxReference$11("Note", true);
 	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 		(0, import_jsx_runtime.jsx)(_components.hr, {}),
 		"\n",
-		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: 配置模块\r\ndescription: Quick-SSH 配置模块的详细文档，包含类型系统、解析器、渲染器、系统凭据和程序设置。\nkeywords:" }),
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: 配置模块\r\ndescription: Quick-SSH 配置模块的详细文档，包含类型系统、解析器、渲染器、系统凭据和程序设置。\r\nkeywords:" }),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
 			"\n",
@@ -177828,7 +182335,7 @@ function _createMdxContent$17(props) {
 			language: "txt",
 			children: (0, import_jsx_runtime.jsx)(_components.code, {
 				language: "txt",
-				children: "config/\r\n├── mod.rs          # 模块声明与重导出\r\n├── types.rs        # 数据结构定义\r\n├── parser.rs       # SSH 配置解析\n├── writer.rs       # SSH 配置渲染\n├── credentials.rs  # 系统凭据库与 OpenSSH AskPass\n└── settings.rs     # 程序设置 (~/.qsshrc)\n"
+				children: "config/\r\n├── mod.rs          # 模块声明与重导出\r\n├── types.rs        # 数据结构定义\r\n├── parser.rs       # SSH 配置解析\r\n├── writer.rs       # SSH 配置渲染\r\n├── credentials.rs  # 系统凭据库与 OpenSSH AskPass\r\n└── settings.rs     # 程序设置 (~/.qsshrc)\n"
 			})
 		}),
 		"\n",
@@ -179043,33 +183550,58 @@ function _createMdxContent$17(props) {
 		(0, import_jsx_runtime.jsx)(Note, { children: (0, import_jsx_runtime.jsxs)(_components.p, {
 			language: "txt",
 			children: [
-				"当前版本中 ",
 				(0, import_jsx_runtime.jsx)(_components.code, {
 					language: "txt",
-					children: "QsshSettings"
+					children: "~/.qsshrc"
 				}),
-				" 已预留但部分字段尚未启用，将在后续版本中逐步激活。"
+				" 的字段可通过 ",
+				(0, import_jsx_runtime.jsx)(_components.a, {
+					href: "/webui",
+					children: "Web 界面"
+				}),
+				" 的「程序设置」分组读写；",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ping_timeout_secs"
+				}),
+				" 已用于 TUI 的 Ping 检测，",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ssh_config_path"
+				}),
+				" 仍为预留字段。AI Agent 配置使用独立的 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "agent.json"
+				}),
+				"（见 ",
+				(0, import_jsx_runtime.jsx)(_components.a, {
+					href: "/agent-module",
+					children: "AI Agent 模块"
+				}),
+				"）。"
 			]
 		}) })
 	] });
 }
-function MDXContent$17(props = {}) {
+function MDXContent$22(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$17, { ...props })
-	}) : _createMdxContent$17(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$22, { ...props })
+	}) : _createMdxContent$22(props);
 }
-function _missingMdxReference$8(id, component) {
+function _missingMdxReference$11(id, component) {
 	throw new Error("Expected " + (component ? "component" : "object") + " `" + id + "` to be defined: you likely forgot to import, pass, or provide it.");
 }
 //#endregion
 //#region source/configuration.mdx
-function _createMdxContent$16(props) {
+function _createMdxContent$21(props) {
 	const _components = {
+		a: "a",
 		code: "code",
 		h1: "h1",
 		h2: "h2",
@@ -179090,14 +183622,14 @@ function _createMdxContent$16(props) {
 		...useMDXComponents(),
 		...props.components
 	}, { Callout, Note, Properties, Property } = _components;
-	if (!Callout) _missingMdxReference$7("Callout", true);
-	if (!Note) _missingMdxReference$7("Note", true);
-	if (!Properties) _missingMdxReference$7("Properties", true);
-	if (!Property) _missingMdxReference$7("Property", true);
+	if (!Callout) _missingMdxReference$10("Callout", true);
+	if (!Note) _missingMdxReference$10("Note", true);
+	if (!Properties) _missingMdxReference$10("Properties", true);
+	if (!Property) _missingMdxReference$10("Property", true);
 	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 		(0, import_jsx_runtime.jsx)(_components.hr, {}),
 		"\n",
-		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: 配置说明\r\ndescription: Quick-SSH 的配置系统说明，包括 SSH 配置、系统凭据和程序设置。\nkeywords:" }),
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: 配置说明\r\ndescription: Quick-SSH 的配置系统说明，包括 SSH 配置、系统凭据和程序设置。\r\nkeywords:" }),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
 			"\n",
@@ -179118,7 +183650,87 @@ function _createMdxContent$16(props) {
 			children: "配置说明"
 		}),
 		"\n",
-		(0, import_jsx_runtime.jsx)(_components.p, { children: "Quick-SSH 将数据分为三类：标准 OpenSSH 格式的主机配置、系统安全凭据库中的密码，以及预留的 JSON 程序设置。" }),
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "Quick-SSH 把数据分成几类：标准 OpenSSH 格式的主机配置、系统安全凭据库中的密码，以及若干 JSON 程序设置文件。" }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "文件" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "内容" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "~/.ssh/config"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "主机列表（标准 OpenSSH 格式）" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "系统凭据库" }), (0, import_jsx_runtime.jsxs)(_components.td, { children: [
+				"保存的登录密码，",
+				(0, import_jsx_runtime.jsx)(_components.strong, { children: "永不写入" }),
+				" SSH 配置"
+			] })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "~/.qsshrc"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "程序行为设置" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "agent.json"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "AI Agent 配置（服务商 / 模型 / 权限 / 超时）" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "dashboard.json"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "Dashboard 布局与 Profile" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ui.json"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "TUI 界面状态（如主机列表分隔线比例）" })] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"其中 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "agent.json"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "dashboard.json"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ui.json"
+				}),
+				" 位于平台配置目录：Windows 为 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "%APPDATA%\\quick-ssh\\"
+				}),
+				"，Linux / macOS 为 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "~/.config/quick-ssh/"
+				}),
+				"。这些文件都可以通过 ",
+				(0, import_jsx_runtime.jsx)(_components.a, {
+					href: "/webui",
+					children: "Web 界面"
+				}),
+				" 编辑。"
+			]
+		}),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h2, {
 			id: "ssh-配置-sshconfig",
@@ -179575,14 +184187,292 @@ function _createMdxContent$16(props) {
 		(0, import_jsx_runtime.jsx)(Note, { children: (0, import_jsx_runtime.jsxs)(_components.p, {
 			language: "txt",
 			children: [
-				"v2.0.4 中 ",
 				(0, import_jsx_runtime.jsx)(_components.code, {
 					language: "txt",
 					children: "~/.qsshrc"
 				}),
-				" API 已预留，但这些设置尚未接入主要命令流程，将在后续版本中逐步启用。"
+				" 的三个字段可通过 ",
+				(0, import_jsx_runtime.jsx)(_components.a, {
+					href: "/webui",
+					children: "Web 界面"
+				}),
+				" 的「程序设置」分组编辑，其中 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ping_timeout_secs"
+				}),
+				" 已用于 TUI 的 Ping 检测。",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ssh_config_path"
+				}),
+				" 当前仍为预留字段。"
 			]
 		}) }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "ai-agent-配置-agentjson",
+			children: "AI Agent 配置 (agent.json)"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"AI Agent 的配置位于 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "agent.json"
+				}),
+				"，完整字段说明和 API Key 解析顺序见 ",
+				(0, import_jsx_runtime.jsx)(_components.a, {
+					href: "/ai-agent",
+					children: "AI Agent"
+				}),
+				"。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
+			className: "shiki css-variables",
+			style: {
+				backgroundColor: "var(--shiki-background)",
+				color: "var(--shiki-foreground)"
+			},
+			tabIndex: "0",
+			title: "~/.config/quick-ssh/agent.json",
+			children: (0, import_jsx_runtime.jsxs)(_components.code, {
+				className: "language-json",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-foreground)" },
+							children: "{"
+						})
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "  \"provider\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-string-expression)" },
+								children: " \"openai\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "  \"base_url\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-string-expression)" },
+								children: " \"https://api.deepseek.com/v1\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "  \"model\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-string-expression)" },
+								children: " \"deepseek-chat\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "  \"permission\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-string-expression)" },
+								children: " \"ask_before_execute\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "  \"timeout_secs\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-constant)" },
+								children: " 60"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ","
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "  \"api_key\""
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-punctuation)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-string-expression)" },
+								children: " \"\""
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-foreground)" },
+							children: "}"
+						})
+					})
+				]
+			})
+		}) }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "dashboard-配置-dashboardjson",
+			children: "Dashboard 配置 (dashboard.json)"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"Dashboard 工作台的 Profile 与布局位于 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "dashboard.json"
+				}),
+				"。",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "enabled"
+				}),
+				" 列出启用的监控组件，",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "layout"
+				}),
+				" 是由组件与分屏节点组成的布局树；加载时会按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "enabled"
+				}),
+				" 重建，历史残留的旧布局会被覆盖。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(Callout, {
+			title: "不要手改 layout",
+			children: (0, import_jsx_runtime.jsxs)(_components.p, {
+				language: "txt",
+				children: [
+					"Dashboard 布局会在加载时按 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "enabled"
+					}),
+					" 用内置默认布局重建，直接手改 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "dashboard.json"
+					}),
+					" 里的 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "layout"
+					}),
+					" 通常会被覆盖。请通过工作台内的 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "c"
+					}),
+					" 面板或 Web 界面调整启用的组件。"
+				]
+			})
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"界面相关的 UI 状态（如主机列表分隔线比例 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "main_split_weight"
+				}),
+				"）保存在同目录下的 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ui.json"
+				}),
+				"，与手写的 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "~/.qsshrc"
+				}),
+				" 分开。"
+			]
+		}),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h2, {
 			id: "配置工作原理",
@@ -179716,22 +184606,998 @@ function _createMdxContent$16(props) {
 		})
 	] });
 }
-function MDXContent$16(props = {}) {
+function MDXContent$21(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$16, { ...props })
-	}) : _createMdxContent$16(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$21, { ...props })
+	}) : _createMdxContent$21(props);
 }
-function _missingMdxReference$7(id, component) {
+function _missingMdxReference$10(id, component) {
+	throw new Error("Expected " + (component ? "component" : "object") + " `" + id + "` to be defined: you likely forgot to import, pass, or provide it.");
+}
+//#endregion
+//#region source/dashboard.mdx
+function _createMdxContent$20(props) {
+	const _components = {
+		a: "a",
+		code: "code",
+		h1: "h1",
+		h2: "h2",
+		h3: "h3",
+		hr: "hr",
+		li: "li",
+		p: "p",
+		pre: "pre",
+		strong: "strong",
+		table: "table",
+		tbody: "tbody",
+		td: "td",
+		th: "th",
+		thead: "thead",
+		tr: "tr",
+		ul: "ul",
+		...useMDXComponents(),
+		...props.components
+	}, { Callout, Properties, Property } = _components;
+	if (!Callout) _missingMdxReference$9("Callout", true);
+	if (!Properties) _missingMdxReference$9("Properties", true);
+	if (!Property) _missingMdxReference$9("Property", true);
+	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+		(0, import_jsx_runtime.jsx)(_components.hr, {}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: 工作台（Dashboard）\ndescription: Quick-SSH 的 Dashboard 工作台，把服务器监控、嵌入式终端和运维面板集中在一个可自定义布局的界面里。\nkeywords:" }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "dashboard" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "工作台" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "监控" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "组件" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "布局" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "docker" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "服务" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "日志" }),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.hr, {}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h1, {
+			id: "工作台dashboard",
+			children: "工作台（Dashboard）"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, { children: [
+			"TUI 有两个视图：经典的主机列表（HostList）和 ",
+			(0, import_jsx_runtime.jsx)(_components.strong, { children: "Dashboard 工作台" }),
+			"。工作台把一台主机的监控指标、嵌入式终端和运维面板集中在一个可自定义的布局里。"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"在主界面按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "b"
+				}),
+				" 进入工作台，按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "b"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "q"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Esc"
+				}),
+				" 返回主机列表。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.pre, {
+			language: "txt",
+			children: (0, import_jsx_runtime.jsx)(_components.code, {
+				language: "txt",
+				children: "┌ Quick-SSH ───────────────────────────────────────────────────────┐\n│ 终端 (mysrv)        │ CPU        Memory       │ AI Agent          │\n│                     │ Disk       Network      │                   │\n│  root@mysrv:~#      │ Docker     Processes    │ > 查看磁盘占用     │\n│                     │ Services   Logs         │                   │\n├─────────────────────┴─────────────────────────┴───────────────────┤\n│ NORMAL  d Docker s 服务 f 文件 l 日志 a Agent b 主机列表 Esc/q 返回 │\n└───────────────────────────────────────────────────────────────────┘\n"
+			})
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, { children: [
+			"工作台监控的是",
+			(0, import_jsx_runtime.jsx)(_components.strong, { children: "当前选中的主机" }),
+			"。进入工作台后，后台会以 ",
+			(0, import_jsx_runtime.jsx)(_components.strong, { children: "2 秒" }),
+			"为周期通过一次 SSH 往返拉取该主机的全部指标（连接超时 5 秒、命令超时 10 秒）。"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "内置组件",
+			children: "内置组件"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(Properties, { children: [
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "CPU",
+				type: "Cpu",
+				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "使用率、1/5/15 分钟负载、核心数与频率" })
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "Memory",
+				type: "Memory",
+				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "总量 / 已用 / 空闲（GB）" })
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "Disk",
+				type: "Disk",
+				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "各挂载点的已用 / 总量 / 占用率" })
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "Network",
+				type: "Network",
+				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "RX/TX 速率、IP 与 TCP 连接状态计数" })
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "Docker",
+				type: "Docker",
+				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "运行中 / 总数，最多显示 8 个容器" })
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "Processes",
+				type: "Process",
+				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "按 CPU 排序的进程名 / PID / CPU% / 内存" })
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "Services",
+				type: "Services",
+				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "运行中 / 总数，最多显示 10 个 systemd 服务" })
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "Files",
+				type: "Files",
+				children: (0, import_jsx_runtime.jsxs)(_components.p, {
+					language: "txt",
+					children: [
+						"当前目录的 ",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "ls -l"
+						}),
+						" 列表"
+					]
+				})
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "Logs",
+				type: "Logs",
+				children: (0, import_jsx_runtime.jsxs)(_components.p, {
+					language: "txt",
+					children: [(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "journalctl"
+					}), " 最近若干行"]
+				})
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "System Info",
+				type: "SystemInfo",
+				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "操作系统 / 主机名 / 运行时长" })
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "Terminal",
+				type: "Terminal",
+				children: (0, import_jsx_runtime.jsxs)(_components.p, { children: [
+					"嵌入式 SSH 终端（详见 ",
+					(0, import_jsx_runtime.jsx)(_components.a, {
+						href: "/terminal",
+						children: "嵌入式终端"
+					}),
+					"）"
+				] })
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "AI Agent",
+				type: "Agent",
+				children: (0, import_jsx_runtime.jsxs)(_components.p, { children: [
+					"AI 运维助手对话面板（详见 ",
+					(0, import_jsx_runtime.jsx)(_components.a, {
+						href: "/ai-agent",
+						children: "AI Agent"
+					}),
+					"）"
+				] })
+			})
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "布局与-profile",
+			children: "布局与 Profile"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "c"
+				}),
+				" 打开 ",
+				(0, import_jsx_runtime.jsx)(_components.strong, { children: "Dashboard Configuration" }),
+				" 弹窗，可以勾选启用哪些组件。数字键对应各组件："
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "按键" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "组件" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "按键" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "组件" })
+		] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "1"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "CPU" }),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "6"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "Processes" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "2"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "Memory" }),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "7"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "Services" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "3"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "Disk" }),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "8"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "Files" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "4"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "Network" }),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "9"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "Logs" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "5"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "Docker" }),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "0"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "System Info" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "a"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "AI Agent" }),
+				(0, import_jsx_runtime.jsx)(_components.td, {}),
+				(0, import_jsx_runtime.jsx)(_components.td, {})
+			] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "s"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Enter"
+				}),
+				" 保存。启用 Terminal 时，终端会成为中间主区域，监控组件排在左侧竖列，AI Agent 在右侧。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, { children: [
+			"内置了几套 Profile，可在 ",
+			(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/webui",
+				children: "Web 界面"
+			}),
+			" 中切换："
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "Profile" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "说明" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: (0, import_jsx_runtime.jsx)(_components.strong, { children: "Default" }) }), (0, import_jsx_runtime.jsx)(_components.td, { children: "Terminal + CPU/Memory/Disk/Network/Docker/Process/Agent" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: (0, import_jsx_runtime.jsx)(_components.strong, { children: "Terminal" }) }), (0, import_jsx_runtime.jsx)(_components.td, { children: "以终端为主，少量监控" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: (0, import_jsx_runtime.jsx)(_components.strong, { children: "Server Monitoring" }) }), (0, import_jsx_runtime.jsx)(_components.td, { children: "纯监控：CPU/Memory/Disk/Network/Process/Services/System Info" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: (0, import_jsx_runtime.jsx)(_components.strong, { children: "Docker" }) }), (0, import_jsx_runtime.jsx)(_components.td, { children: "Docker + Logs + CPU/Memory/Network" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: (0, import_jsx_runtime.jsx)(_components.strong, { children: "Minimal" }) }), (0, import_jsx_runtime.jsx)(_components.td, { children: "仅 CPU/Memory/Network" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: (0, import_jsx_runtime.jsx)(_components.strong, { children: "AI" }) }), (0, import_jsx_runtime.jsx)(_components.td, { children: "Agent + CPU/Memory/Logs" })] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"布局和 Profile 保存在 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "dashboard.json"
+				}),
+				"（Windows 为 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "%APPDATA%\\quick-ssh\\dashboard.json"
+				}),
+				"，其余平台为 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "~/.config/quick-ssh/dashboard.json"
+				}),
+				"）。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(Callout, {
+			title: "用鼠标拖动分隔线",
+			children: (0, import_jsx_runtime.jsx)(_components.p, { children: "工作台中可以用鼠标按住组件之间的分隔线拖动来调整比例，调整结果会被保存。主机列表与详情之间的分隔线同样可以拖动。" })
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "运维面板",
+			children: "运维面板"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"工作台支持打开一组「运维面板」，它们都基于当前选中主机的实时数据。快捷键在 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "NORMAL"
+				}),
+				" 提示条中可以看到。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.h3, {
+			id: "docker-容器d",
+			language: "txt",
+			children: [
+				"Docker 容器（",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "d"
+				}),
+				"）"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"列出容器（",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "●"
+				}),
+				" 运行中 / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "○"
+				}),
+				" 已停止 + 名称 + 镜像 + 状态）。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "按键" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "操作" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "j"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "k"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "↓"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "↑"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "上下移动" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "r"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "重启容器" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "s"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "停止容器" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "x"
+				})
+			}), (0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					"删除容器（",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "docker rm -f"
+					}),
+					"）"
+				]
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "q"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Esc"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "关闭面板" })] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"重启 / 停止 / 删除会弹出确认框，按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "y"
+				}),
+				" 执行、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "n"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Esc"
+				}),
+				" 取消。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.h3, {
+			id: "系统服务s",
+			language: "txt",
+			children: [
+				"系统服务（",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "s"
+				}),
+				"）"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"列出 systemd 服务（",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "●"
+				}),
+				" active / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "○"
+				}),
+				" 非 active + 名称 + sub 状态）。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "按键" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "操作" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "j"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "k"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "↓"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "↑"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "上下移动" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "a"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "启动服务" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "s"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "停止服务" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "r"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "重启服务" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "q"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Esc"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "关闭面板" })] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "同样带确认框。" }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.h3, {
+			id: "文件浏览f",
+			language: "txt",
+			children: [
+				"文件浏览（",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "f"
+				}),
+				"）"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"浏览远程目录（",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ls -l"
+				}),
+				"）。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "按键" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "操作" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "j"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "k"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "↓"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "↑"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "上下移动" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Enter"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "l"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "→"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "进入目录" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "h"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "←"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "返回上级目录" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "d"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "下载选中文件 / 目录（SCP 到本地当前目录）" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "q"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Esc"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "关闭面板" })] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.h3, {
+			id: "日志l",
+			language: "txt",
+			children: [
+				"日志（",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "l"
+				}),
+				"）"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"显示 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "journalctl"
+				}),
+				" 日志条目（",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "[unit] 内容"
+				}),
+				"）。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "按键" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "操作" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "j"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "k"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "↓"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "↑"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "上下移动" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "r"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "刷新" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "f"
+				})
+			}), (0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					"按 unit 过滤（输入框内 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Enter"
+					}),
+					" 应用）"
+				]
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "q"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Esc"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "关闭面板" })] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.h3, {
+			id: "远程命令",
+			language: "txt",
+			children: [
+				"远程命令（",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: ":"
+				}),
+				"）"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: ":"
+				}),
+				" 在",
+				(0, import_jsx_runtime.jsx)(_components.strong, { children: "选中主机" }),
+				"上执行一条命令（连接超时 5 秒、执行超时 30 秒），结果以弹窗显示退出码与前若干行 stdout / stderr。按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "q"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Enter"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Esc"
+				}),
+				" 关闭结果。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.h2, {
+			id: "命令面板ctrlk",
+			language: "txt",
+			children: [
+				"命令面板（",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Ctrl+K"
+				}),
+				"）"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Ctrl+K"
+				}),
+				" 打开命令面板，输入关键词即可搜索并执行动作："
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "打开 Dashboard / 返回主机列表" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "编辑 Dashboard 布局" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "打开 AI Agent / Agent 设置" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "全部 Ping 检测" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "添加主机 / 搜索主机" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "退出" }),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"上下键选择，",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Enter"
+				}),
+				" 执行，",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Esc"
+				}),
+				" 关闭。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(Callout, {
+			title: "键盘焦点",
+			children: (0, import_jsx_runtime.jsx)(_components.p, { children: "打开这些面板后，如果 SSH 会话仍然连接，关闭面板会把焦点交还给嵌入式终端；否则回到主机列表。这是刻意的设计，避免打断正在进行的终端会话。" })
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "下一步",
+			children: "下一步"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/terminal",
+				children: "嵌入式终端"
+			}), " — 在没有离开 TUI 的情况下使用 SSH 会话"] }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/ai-agent",
+				children: "AI Agent"
+			}), " — 用自然语言驱动远程运维"] }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/webui",
+				children: "Web 界面"
+			}), " — 在浏览器里编辑设置"] }),
+			"\n"
+		] })
+	] });
+}
+function MDXContent$20(props = {}) {
+	const { wrapper: MDXLayout } = {
+		...useMDXComponents(),
+		...props.components
+	};
+	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
+		...props,
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$20, { ...props })
+	}) : _createMdxContent$20(props);
+}
+function _missingMdxReference$9(id, component) {
 	throw new Error("Expected " + (component ? "component" : "object") + " `" + id + "` to be defined: you likely forgot to import, pass, or provide it.");
 }
 //#endregion
 //#region source/file-upload.mdx
-function _createMdxContent$15(props) {
+function _createMdxContent$19(props) {
 	const _components = {
 		code: "code",
 		h1: "h1",
@@ -179754,8 +185620,8 @@ function _createMdxContent$15(props) {
 		...useMDXComponents(),
 		...props.components
 	}, { Properties, Property } = _components;
-	if (!Properties) _missingMdxReference$6("Properties", true);
-	if (!Property) _missingMdxReference$6("Property", true);
+	if (!Properties) _missingMdxReference$8("Properties", true);
+	if (!Property) _missingMdxReference$8("Property", true);
 	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 		(0, import_jsx_runtime.jsx)(_components.hr, {}),
 		"\n",
@@ -179790,7 +185656,12 @@ function _createMdxContent$15(props) {
 					language: "txt",
 					children: "qssh-uploader"
 				}),
-				" 工具。"
+				" 工具。两者最终都调用系统 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "scp"
+				}),
+				"。"
 			]
 		}),
 		"\n",
@@ -179802,7 +185673,7 @@ function _createMdxContent$15(props) {
 		(0, import_jsx_runtime.jsxs)(_components.p, { children: [
 			"SSH 连接后，将本地文件或目录",
 			(0, import_jsx_runtime.jsx)(_components.strong, { children: "拖入终端窗口" }),
-			"，Quick-SSH 会自动在新窗口中启动 SFTP 上传。"
+			"，Quick-SSH 会自动在新窗口中启动 SCP 上传。"
 		] }),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h3, {
@@ -179953,6 +185824,10 @@ function _createMdxContent$15(props) {
 							children: "qssh-uploader"
 						}),
 						(0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-string)" },
+							children: " --host"
+						}),
+						(0, import_jsx_runtime.jsx)(_components.span, {
 							style: { color: "var(--shiki-token-keyword)" },
 							children: " <"
 						}),
@@ -179969,16 +185844,16 @@ function _createMdxContent$15(props) {
 							children: ">"
 						}),
 						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-keyword)" },
-							children: " <"
+							style: { color: "var(--shiki-foreground)" },
+							children: " [选项] "
 						}),
 						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-string)" },
-							children: "local_fil"
+							style: { color: "var(--shiki-token-keyword)" },
+							children: "<"
 						}),
 						(0, import_jsx_runtime.jsx)(_components.span, {
 							style: { color: "var(--shiki-foreground)" },
-							children: "e"
+							children: "本地文件"
 						}),
 						(0, import_jsx_runtime.jsx)(_components.span, {
 							style: { color: "var(--shiki-token-keyword)" },
@@ -179986,7 +185861,7 @@ function _createMdxContent$15(props) {
 						}),
 						(0, import_jsx_runtime.jsx)(_components.span, {
 							style: { color: "var(--shiki-foreground)" },
-							children: " [remote_dir]"
+							children: "..."
 						})
 					]
 				})
@@ -180003,6 +185878,13 @@ function _createMdxContent$15(props) {
 					children: "--host"
 				})
 			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "服务器地址（必填）" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "--alias"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "主机别名（用于读取已保存密码并配置 AskPass）" })] }),
 			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
 				language: "txt",
 				children: (0, import_jsx_runtime.jsx)(_components.code, {
@@ -180041,7 +185923,7 @@ function _createMdxContent$15(props) {
 					"）"
 				]
 			})] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "位置参数" }), (0, import_jsx_runtime.jsx)(_components.td, { children: "要上传的本地文件路径" })] })
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "位置参数" }), (0, import_jsx_runtime.jsx)(_components.td, { children: "要上传的本地文件路径（至少一个，必填）" })] })
 		] })] }),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.p, { children: (0, import_jsx_runtime.jsx)(_components.strong, { children: "示例：" }) }),
@@ -180056,35 +185938,11 @@ function _createMdxContent$15(props) {
 			children: (0, import_jsx_runtime.jsxs)(_components.code, {
 				className: "language-bash",
 				children: [
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "qssh-uploader"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-string)" },
-								children: " mysrv"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-string)" },
-								children: " ./myfile.zip"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-string)" },
-								children: " /remote/path/"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, { className: "line" }),
-					"\n",
 					(0, import_jsx_runtime.jsx)(_components.span, {
 						className: "line",
 						children: (0, import_jsx_runtime.jsx)(_components.span, {
 							style: { color: "var(--shiki-token-comment)" },
-							children: "# 完整参数"
+							children: "# 基本用法"
 						})
 					}),
 					"\n",
@@ -180113,6 +185971,54 @@ function _createMdxContent$15(props) {
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-token-string)" },
+								children: " ./myfile.zip"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, { className: "line" }),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-comment)" },
+							children: "# 指定别名、端口、密钥和远程目录"
+						})
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "qssh-uploader"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-string)" },
+								children: " --alias"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-string)" },
+								children: " mysrv"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-string)" },
+								children: " --host"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-constant)" },
+								children: " 192.168.1.100"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-string)" },
+								children: " --user"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-string)" },
+								children: " root"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-string)" },
 								children: " --port"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
@@ -180120,8 +186026,18 @@ function _createMdxContent$15(props) {
 								children: " 22"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " \\"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-token-string)" },
-								children: " --key"
+								children: "  --key"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-token-string)" },
@@ -180152,9 +186068,25 @@ function _createMdxContent$15(props) {
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
 			"\n",
-			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.strong, { children: "并发上传" }), "：最多 3 个文件同时上传"] }),
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.strong, { children: "顺序上传" }),
+					"：逐个文件通过 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "scp"
+					}),
+					" 传输，进度由 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "scp"
+					}),
+					" 原生显示（继承控制台，因此能检测到 TTY）"
+				]
+			}),
 			"\n",
-			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.strong, { children: "实时进度" }), "：显示每个文件的进度条（百分比 + 传输量）"] }),
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.strong, { children: "逐文件结果" }), "：每个文件完成后打印成功 / 失败，最后汇总成功数与总耗时"] }),
 			"\n",
 			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.strong, { children: "防闪退设计" }), "：启动时延迟 300ms 等待控制台初始化；panic hook 循环等待 Enter，确保窗口不闪退"] }),
 			"\n",
@@ -180169,26 +186101,6 @@ function _createMdxContent$15(props) {
 					})
 				]
 			}),
-			"\n",
-			(0, import_jsx_runtime.jsxs)(_components.li, {
-				language: "txt",
-				children: [
-					(0, import_jsx_runtime.jsx)(_components.strong, { children: "进度渲染" }),
-					"：使用 ",
-					(0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "#"
-					}),
-					" 和 ",
-					(0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "-"
-					}),
-					" 字符绘制进度条，兼容所有终端"
-				]
-			}),
-			"\n",
-			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.strong, { children: "CJK 支持" }), "：正确处理中文、日文等双宽字符的显示宽度"] }),
 			"\n"
 		] }),
 		"\n",
@@ -180201,7 +186113,7 @@ function _createMdxContent$15(props) {
 			language: "txt",
 			children: (0, import_jsx_runtime.jsx)(_components.code, {
 				language: "txt",
-				children: "qssh-uploader - 文件上传工具\r\n\r\n文件 1/3: project.zip     [########################] 100%  45.2MB/45.2MB\r\n文件 2/3: config.tar.gz   [##################------]  72%  12.1MB/16.8MB\r\n文件 3/3: README.md       [########################] 100%  2.3KB/2.3KB\r\n\r\n进度: 2/3 个文件完成  |  耗时: 12s\n"
+				children: "qssh-uploader - 文件上传工具\r\n目标: root@192.168.1.100:22\r\n\r\n[1/2] 上传 project.zip ...\r\n\r\nproject.zip    45%   45.2MB  10.1MB/s   00:02 ETA\r\nproject.zip   100%   45.2MB  11.3MB/s   00:04\r\n\r\n  -> 上传成功: project.zip\r\n\r\n[2/2] 上传 README.md ...\r\n\r\n  -> 上传成功: README.md\r\n\r\n全部完成! 共 2 个文件。耗时: 5s\n"
 			})
 		}),
 		"\n",
@@ -180276,22 +186188,22 @@ function _createMdxContent$15(props) {
 		})
 	] });
 }
-function MDXContent$15(props = {}) {
+function MDXContent$19(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$15, { ...props })
-	}) : _createMdxContent$15(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$19, { ...props })
+	}) : _createMdxContent$19(props);
 }
-function _missingMdxReference$6(id, component) {
+function _missingMdxReference$8(id, component) {
 	throw new Error("Expected " + (component ? "component" : "object") + " `" + id + "` to be defined: you likely forgot to import, pass, or provide it.");
 }
 //#endregion
 //#region source/getting-started.mdx
-function _createMdxContent$14(props) {
+function _createMdxContent$18(props) {
 	const _components = {
 		a: "a",
 		code: "code",
@@ -180314,7 +186226,7 @@ function _createMdxContent$14(props) {
 		...useMDXComponents(),
 		...props.components
 	}, { Callout } = _components;
-	if (!Callout) _missingMdxReference$5("Callout", true);
+	if (!Callout) _missingMdxReference$7("Callout", true);
 	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 		(0, import_jsx_runtime.jsx)(_components.hr, {}),
 		"\n",
@@ -180441,7 +186353,14 @@ function _createMdxContent$14(props) {
 					language: "txt",
 					children: "Enter"
 				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "连接选中主机" })] }),
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "连接选中主机（退出 TUI 使用全屏 SSH）" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Ctrl+Enter"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "在新的终端窗口中连接（不占用当前 TUI）" })] }),
 			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
 				language: "txt",
 				children: (0, import_jsx_runtime.jsx)(_components.code, {
@@ -180491,6 +186410,20 @@ function _createMdxContent$14(props) {
 					children: "P"
 				})
 			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "Ping 检测所有主机" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "<"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: ">"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "在配置中上/下调整选中主机的顺序" })] }),
 			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
 				language: "txt",
 				children: (0, import_jsx_runtime.jsx)(_components.code, {
@@ -180498,6 +186431,34 @@ function _createMdxContent$14(props) {
 					children: "."
 				})
 			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "切换地址显示/隐藏" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "b"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "进入监控工作台（Dashboard）" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Ctrl+K"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "命令面板" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Ctrl+A"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "打开 AI Agent" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: ":"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "在选中主机上执行一条远程命令" })] }),
 			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
 				language: "txt",
 				children: [
@@ -180540,6 +186501,135 @@ function _createMdxContent$14(props) {
 				]
 			})
 		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "监控工作台与嵌入式终端",
+			children: "监控工作台与嵌入式终端"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "b"
+				}),
+				" 进入 ",
+				(0, import_jsx_runtime.jsx)(_components.strong, { children: "Dashboard 工作台" }),
+				"：左侧是嵌入式终端，其余区域是 CPU / 内存 / 磁盘 / 网络 / Docker / 进程 / 服务等实时监控组件。在选中主机后按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Enter"
+				}),
+				" 即可在工作台内连接，无需离开 TUI（详见 ",
+				(0, import_jsx_runtime.jsx)(_components.a, {
+					href: "/terminal",
+					children: "嵌入式终端"
+				}),
+				"）。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"在工作台中按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "d"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "s"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "f"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "l"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "a"
+				}),
+				" 可分别打开 Docker、服务、文件、日志和 AI Agent 面板，按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Esc"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "q"
+				}),
+				" 返回（详见 ",
+				(0, import_jsx_runtime.jsx)(_components.a, {
+					href: "/dashboard",
+					children: "工作台（Dashboard）"
+				}),
+				"）。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "ai-助手与-web-设置",
+			children: "AI 助手与 Web 设置"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Ctrl+A"
+				}),
+				" 打开 AI Agent，用自然语言描述目标，它会调用受权限约束的工具在远端执行（详见 ",
+				(0, import_jsx_runtime.jsx)(_components.a, {
+					href: "/ai-agent",
+					children: "AI Agent"
+				}),
+				"）。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "想让设置可视化编辑，可以启动本地 Web 界面：" }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
+			className: "shiki css-variables",
+			style: {
+				backgroundColor: "var(--shiki-background)",
+				color: "var(--shiki-foreground)"
+			},
+			tabIndex: "0",
+			children: (0, import_jsx_runtime.jsx)(_components.code, {
+				className: "language-bash",
+				children: (0, import_jsx_runtime.jsxs)(_components.span, {
+					className: "line",
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-function)" },
+							children: "qssh"
+						}),
+						(0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-string)" },
+							children: " web"
+						}),
+						(0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-comment)" },
+							children: "            # 默认 http://127.0.0.1:17890"
+						})
+					]
+				})
+			})
+		}) }),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h2, {
 			id: "保存登录密码",
@@ -181053,7 +187143,7 @@ function _createMdxContent$14(props) {
 		(0, import_jsx_runtime.jsxs)(_components.p, { children: [
 			"SSH 连接后，将本地文件或目录",
 			(0, import_jsx_runtime.jsx)(_components.strong, { children: "拖入终端窗口" }),
-			"，Quick-SSH 会自动在新窗口中启动 SFTP 上传，显示每文件的进度条和总进度。"
+			"，Quick-SSH 会自动在新窗口中启动 SCP 上传，显示每文件的进度条和总进度。"
 		] }),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.p, { children: "也可使用独立上传工具：" }),
@@ -181076,15 +187166,23 @@ function _createMdxContent$14(props) {
 						}),
 						(0, import_jsx_runtime.jsx)(_components.span, {
 							style: { color: "var(--shiki-token-string)" },
-							children: " mysrv"
+							children: " --host"
+						}),
+						(0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-constant)" },
+							children: " 192.168.1.100"
+						}),
+						(0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-string)" },
+							children: " --user"
+						}),
+						(0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-string)" },
+							children: " root"
 						}),
 						(0, import_jsx_runtime.jsx)(_components.span, {
 							style: { color: "var(--shiki-token-string)" },
 							children: " ./myfile.zip"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-string)" },
-							children: " /remote/path/"
 						})
 					]
 				})
@@ -181104,10 +187202,20 @@ function _createMdxContent$14(props) {
 					language: "txt",
 					children: "~/.ssh/config"
 				}),
-				"（标准 OpenSSH 格式），Quick-SSH 会保留文件中所有非自己管理的内容；保存的密码独立存放在系统安全凭据库中。程序行为设置预留在 ",
+				"（标准 OpenSSH 格式），Quick-SSH 会保留文件中所有非自己管理的内容；保存的密码独立存放在系统安全凭据库中。程序设置位于 ",
 				(0, import_jsx_runtime.jsx)(_components.code, {
 					language: "txt",
 					children: "~/.qsshrc"
+				}),
+				"，AI Agent 配置位于 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "agent.json"
+				}),
+				"，Dashboard 布局位于 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "dashboard.json"
 				}),
 				"（详见 ",
 				(0, import_jsx_runtime.jsx)(_components.a, {
@@ -181136,9 +187244,29 @@ function _createMdxContent$14(props) {
 			}), " — TUI 使用详解"] }),
 			"\n",
 			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/dashboard",
+				children: "工作台（Dashboard）"
+			}), " — 监控工作台与运维面板"] }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/terminal",
+				children: "嵌入式终端"
+			}), " — 在 TUI 内使用 SSH 会话"] }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/ai-agent",
+				children: "AI Agent"
+			}), " — AI 运维助手"] }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/webui",
+				children: "Web 界面"
+			}), " — 浏览器中编辑设置"] }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
 				href: "/configuration",
 				children: "配置说明"
-			}), " — SSH 配置与程序设置"] }),
+			}), " — 所有配置文件的位置与字段"] }),
 			"\n",
 			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
 				href: "/file-upload",
@@ -181148,23 +187276,25 @@ function _createMdxContent$14(props) {
 		] })
 	] });
 }
-function MDXContent$14(props = {}) {
+function MDXContent$18(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$14, { ...props })
-	}) : _createMdxContent$14(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$18, { ...props })
+	}) : _createMdxContent$18(props);
 }
-function _missingMdxReference$5(id, component) {
+function _missingMdxReference$7(id, component) {
 	throw new Error("Expected " + (component ? "component" : "object") + " `" + id + "` to be defined: you likely forgot to import, pass, or provide it.");
 }
 //#endregion
 //#region source/index.mdx
-function _createMdxContent$13(props) {
+function _createMdxContent$17(props) {
 	const _components = {
+		code: "code",
+		del: "del",
 		h1: "h1",
 		h2: "h2",
 		hr: "hr",
@@ -181175,11 +187305,11 @@ function _createMdxContent$13(props) {
 		...useMDXComponents(),
 		...props.components
 	}, { Callout, Card, CardGroup, Properties, Property } = _components;
-	if (!Callout) _missingMdxReference$4("Callout", true);
-	if (!Card) _missingMdxReference$4("Card", true);
-	if (!CardGroup) _missingMdxReference$4("CardGroup", true);
-	if (!Properties) _missingMdxReference$4("Properties", true);
-	if (!Property) _missingMdxReference$4("Property", true);
+	if (!Callout) _missingMdxReference$6("Callout", true);
+	if (!Card) _missingMdxReference$6("Card", true);
+	if (!CardGroup) _missingMdxReference$6("CardGroup", true);
+	if (!Properties) _missingMdxReference$6("Properties", true);
+	if (!Property) _missingMdxReference$6("Property", true);
 	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 		(0, import_jsx_runtime.jsx)(_components.hr, {}),
 		"\n",
@@ -181212,7 +187342,13 @@ function _createMdxContent$13(props) {
 			(0, import_jsx_runtime.jsx)(_components.strong, { children: "TUI 界面" }),
 			"与 ",
 			(0, import_jsx_runtime.jsx)(_components.strong, { children: "Docker 风格 CLI" }),
-			" 双模式操作。基于 Rust 实现，无需 Node.js 运行时，即下即用。"
+			" 双模式操作，并内置 ",
+			(0, import_jsx_runtime.jsx)(_components.strong, { children: "服务器监控工作台" }),
+			"、",
+			(0, import_jsx_runtime.jsx)(_components.strong, { children: "嵌入式终端" }),
+			" 与 ",
+			(0, import_jsx_runtime.jsx)(_components.strong, { children: "AI 运维助手" }),
+			"。基于 Rust 实现，无需 Node.js 运行时，即下即用。"
 		] }),
 		"\n",
 		(0, import_jsx_runtime.jsx)(Callout, {
@@ -181236,12 +187372,38 @@ function _createMdxContent$13(props) {
 				(0, import_jsx_runtime.jsx)(Card, {
 					title: "CLI 命令",
 					icon: "Terminal",
-					children: (0, import_jsx_runtime.jsx)(_components.p, { children: "Docker 风格的命令行接口，支持 ps/add/rm/connect/export/import 等子命令，一键连接主机。" })
+					children: (0, import_jsx_runtime.jsx)(_components.p, { children: "Docker 风格的命令行接口，支持 ps/add/rm/connect/export/import/web 等子命令，一键连接主机。" })
+				}),
+				(0, import_jsx_runtime.jsx)(Card, {
+					title: "工作台（Dashboard）",
+					icon: "Gauge",
+					children: (0, import_jsx_runtime.jsx)(_components.p, { children: "可自定义布局的监控工作台，展示 CPU / 内存 / 磁盘 / 网络 / 进程 / Docker / 服务等实时指标。" })
+				}),
+				(0, import_jsx_runtime.jsx)(Card, {
+					title: "嵌入式终端",
+					icon: "SquareTerminal",
+					children: (0, import_jsx_runtime.jsx)(_components.p, { children: "在 TUI 内直接使用 SSH 会话（PTY + vt100），配合 Ctrl+B 前缀键打开运维面板，无需离开工作台。" })
+				}),
+				(0, import_jsx_runtime.jsx)(Card, {
+					title: "AI 运维助手",
+					icon: "Bot",
+					children: (0, import_jsx_runtime.jsx)(_components.p, { children: "用自然语言驱动远程命令与巡检，内置 17 个工具与四级权限，危险操作需确认，支持 OpenAI / OpenCode / Ollama。" })
+				}),
+				(0, import_jsx_runtime.jsx)(Card, {
+					title: "本地 Web 界面",
+					icon: "Globe",
+					children: (0, import_jsx_runtime.jsxs)(_components.p, {
+						language: "txt",
+						children: [(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "qssh web"
+						}), " 启动本地 WebUI，用表单方式编辑 Agent、程序与 Dashboard 设置，并可测试模型连通性。"]
+					})
 				}),
 				(0, import_jsx_runtime.jsx)(Card, {
 					title: "文件拖拽上传",
 					icon: "Upload",
-					children: (0, import_jsx_runtime.jsx)(_components.p, { children: "SSH 连接后，将文件或目录拖入终端窗口即可自动启动 SFTP 上传，显示每文件进度条和总进度。" })
+					children: (0, import_jsx_runtime.jsx)(_components.p, { children: "SSH 连接后，将文件或目录拖入终端窗口即可自动启动 SCP 上传，显示每文件进度条和总进度。" })
 				}),
 				(0, import_jsx_runtime.jsx)(Card, {
 					title: "渐进式配置解析",
@@ -181252,11 +187414,6 @@ function _createMdxContent$13(props) {
 					title: "安全保存密码",
 					icon: "KeyRound",
 					children: (0, import_jsx_runtime.jsx)(_components.p, { children: "密码保存在系统安全凭据库中，不写入 SSH 配置，并通过 OpenSSH AskPass 在需要时自动填写。" })
-				}),
-				(0, import_jsx_runtime.jsx)(Card, {
-					title: "多包管理器支持",
-					icon: "Blocks",
-					children: (0, import_jsx_runtime.jsx)(_components.p, { children: "Scoop 和 AUR 已可安装；仓库同时维护 WinGet、Homebrew 和 APT 配置，供对应渠道发布使用。" })
 				}),
 				(0, import_jsx_runtime.jsx)(Card, {
 					title: "纯 Rust 实现",
@@ -181293,22 +187450,22 @@ function _createMdxContent$13(props) {
 					children: (0, import_jsx_runtime.jsx)(_components.p, { children: "完整的子命令参考文档" })
 				}),
 				(0, import_jsx_runtime.jsx)(Card, {
+					title: "工作台（Dashboard）",
+					icon: "Gauge",
+					href: "/dashboard",
+					children: (0, import_jsx_runtime.jsx)(_components.p, { children: "监控工作台、运维面板与布局配置" })
+				}),
+				(0, import_jsx_runtime.jsx)(Card, {
+					title: "AI Agent",
+					icon: "Bot",
+					href: "/ai-agent",
+					children: (0, import_jsx_runtime.jsx)(_components.p, { children: "AI 运维助手的工具、权限与配置" })
+				}),
+				(0, import_jsx_runtime.jsx)(Card, {
 					title: "架构设计",
 					icon: "Layers",
 					href: "/architecture",
 					children: (0, import_jsx_runtime.jsx)(_components.p, { children: "Rust 模块化架构设计详解" })
-				}),
-				(0, import_jsx_runtime.jsx)(Card, {
-					title: "发布流程",
-					icon: "Rocket",
-					href: "/release-process",
-					children: (0, import_jsx_runtime.jsx)(_components.p, { children: "版本发布与包管理器维护指南" })
-				}),
-				(0, import_jsx_runtime.jsx)(Card, {
-					title: "路线图",
-					icon: "Map",
-					href: "/roadmap",
-					children: (0, import_jsx_runtime.jsx)(_components.p, { children: "当前版本与未来规划" })
 				})
 			]
 		}),
@@ -181330,6 +187487,11 @@ function _createMdxContent$13(props) {
 				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "使用 ratatui 0.29 + crossterm 0.28 构建事件驱动终端界面" })
 			}),
 			(0, import_jsx_runtime.jsx)(Property, {
+				name: "嵌入式终端",
+				type: "portable-pty + vt100",
+				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "portable-pty 分配 PTY，vt100 解析 ANSI 序列，支持全屏程序与滚动回看" })
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
 				name: "SSH 协议",
 				type: "OpenSSH",
 				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "复用系统 OpenSSH 客户端（ssh/scp），不自行实现 SSH 协议" })
@@ -181341,28 +187503,32 @@ function _createMdxContent$13(props) {
 			}),
 			(0, import_jsx_runtime.jsx)(Property, {
 				name: "配置格式",
-				type: "OpenSSH",
-				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "兼容 ~/.ssh/config 标准格式，渐进式解析" })
+				type: "OpenSSH / JSON",
+				children: (0, import_jsx_runtime.jsxs)(_components.p, { children: [
+					"兼容 ",
+					(0, import_jsx_runtime.jsx)(_components.del, { children: "/.ssh/config 标准格式；程序设置使用 JSON（" }),
+					"/.qsshrc、agent.json、dashboard.json）"
+				] })
 			})
 		] })
 	] });
 }
-function MDXContent$13(props = {}) {
+function MDXContent$17(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$13, { ...props })
-	}) : _createMdxContent$13(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$17, { ...props })
+	}) : _createMdxContent$17(props);
 }
-function _missingMdxReference$4(id, component) {
+function _missingMdxReference$6(id, component) {
 	throw new Error("Expected " + (component ? "component" : "object") + " `" + id + "` to be defined: you likely forgot to import, pass, or provide it.");
 }
 //#endregion
 //#region source/installation.mdx
-function _createMdxContent$12(props) {
+function _createMdxContent$16(props) {
 	const _components = {
 		a: "a",
 		code: "code",
@@ -181377,11 +187543,11 @@ function _createMdxContent$12(props) {
 		...useMDXComponents(),
 		...props.components
 	}, { Callout, Card, CardGroup, CodeGroup, Note } = _components;
-	if (!Callout) _missingMdxReference$3("Callout", true);
-	if (!Card) _missingMdxReference$3("Card", true);
-	if (!CardGroup) _missingMdxReference$3("CardGroup", true);
-	if (!CodeGroup) _missingMdxReference$3("CodeGroup", true);
-	if (!Note) _missingMdxReference$3("Note", true);
+	if (!Callout) _missingMdxReference$5("Callout", true);
+	if (!Card) _missingMdxReference$5("Card", true);
+	if (!CardGroup) _missingMdxReference$5("CardGroup", true);
+	if (!CodeGroup) _missingMdxReference$5("CodeGroup", true);
+	if (!Note) _missingMdxReference$5("Note", true);
 	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 		(0, import_jsx_runtime.jsx)(_components.hr, {}),
 		"\n",
@@ -182060,22 +188226,968 @@ function _createMdxContent$12(props) {
 		}) })
 	] });
 }
-function MDXContent$12(props = {}) {
+function MDXContent$16(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$12, { ...props })
-	}) : _createMdxContent$12(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$16, { ...props })
+	}) : _createMdxContent$16(props);
 }
-function _missingMdxReference$3(id, component) {
+function _missingMdxReference$5(id, component) {
 	throw new Error("Expected " + (component ? "component" : "object") + " `" + id + "` to be defined: you likely forgot to import, pass, or provide it.");
 }
 //#endregion
+//#region source/monitor-module.mdx
+function _createMdxContent$15(props) {
+	const _components = {
+		a: "a",
+		code: "code",
+		h1: "h1",
+		h2: "h2",
+		hr: "hr",
+		li: "li",
+		p: "p",
+		pre: "pre",
+		span: "span",
+		strong: "strong",
+		table: "table",
+		tbody: "tbody",
+		td: "td",
+		th: "th",
+		thead: "thead",
+		tr: "tr",
+		ul: "ul",
+		...useMDXComponents(),
+		...props.components
+	};
+	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+		(0, import_jsx_runtime.jsx)(_components.hr, {}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: 监控模块\ndescription: Quick-SSH monitor 模块的详细文档，包含远程执行器、巡检快照、调度器以及 Docker/服务/文件/日志/网络解析。\nkeywords:" }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "monitor" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "监控" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "executor" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "snapshot" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "scheduler" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "docker" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "systemd" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "journalctl" }),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.hr, {}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h1, {
+			id: "监控模块",
+			children: "监控模块"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, { children: [
+			"监控模块位于 ",
+			(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/qssh/src/monitor/",
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "qssh/src/monitor/"
+				})
+			}),
+			"，负责「在远端主机上执行命令并解析成结构化快照」，为 Dashboard 工作台和 AI Agent 工具提供数据。"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "模块结构",
+			children: "模块结构"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.pre, {
+			language: "txt",
+			children: (0, import_jsx_runtime.jsx)(_components.code, {
+				language: "txt",
+				children: "monitor/\n├── mod.rs        # 模块声明\n├── executor.rs   # RemoteExecutor trait + SshProcessExecutor\n├── platform.rs   # 聚合采集脚本与 Collector\n├── snapshot.rs   # ServerSnapshot 及其子结构\n├── scheduler.rs  # 周期性采集调度器\n├── docker.rs     # docker ps 解析与容器操作\n├── services.rs   # systemctl 解析与服务操作\n├── files.rs      # ls -l 解析与目录操作\n├── logs.rs       # journalctl 解析\n└── network.rs    # ss -tan 连接状态解析\n"
+			})
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "executorrs--远程执行器",
+			children: "executor.rs — 远程执行器"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
+			className: "shiki css-variables",
+			style: {
+				backgroundColor: "var(--shiki-background)",
+				color: "var(--shiki-foreground)"
+			},
+			tabIndex: "0",
+			children: (0, import_jsx_runtime.jsxs)(_components.code, {
+				className: "language-rust",
+				children: [
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " trait"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " RemoteExecutor"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " {"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " exec"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "("
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "&"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "self, command"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " &"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "str"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ") "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Result"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "<"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "ExecOutput"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "ExecError"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ">;"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-foreground)" },
+							children: "}"
+						})
+					})
+				]
+			})
+		}) }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "SshProcessExecutor"
+				}),
+				" 复用 ",
+				(0, import_jsx_runtime.jsx)(_components.a, {
+					href: "/ssh-module",
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "SshTarget::build_ssh_args"
+					})
+				}),
+				"，并追加 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "-o ConnectTimeout=<n>"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "-o BatchMode=yes"
+				}),
+				"，在命令前插入 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "--"
+				}),
+				"。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"默认超时：连接 10 秒、命令 15 秒；Dashboard 采集时用 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "with_timeouts(5, 10s)"
+				}),
+				" 覆盖。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ExecError"
+				}),
+				" 分类：",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Timeout"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Disconnect"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Permission"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "NotFound"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "UnsupportedOs"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Other"
+				}),
+				"，由 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "classify()"
+				}),
+				" 依据 stderr 关键词映射。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "platformrs--聚合采集",
+			children: "platform.rs — 聚合采集"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Collector::collect()"
+				}),
+				" 通过",
+				(0, import_jsx_runtime.jsx)(_components.strong, { children: "一次 SSH 往返" }),
+				"执行 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "LINUX_COLLECT_ALL"
+				}),
+				"，用分节标记切分输出："
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "分节" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "采集内容" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "===CPU==="
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "/proc/stat"
+				})
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "===LOAD==="
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "/proc/loadavg"
+				})
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "===MEM==="
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "free -b"
+				})
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "===DISK==="
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "df -B1"
+				})
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "===NET==="
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "/proc/net/dev"
+				})
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "===SYS==="
+				})
+			}), (0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "uname"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "hostname"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "uptime"
+					})
+				]
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "===PROC==="
+				})
+			}), (0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ps"
+				}), " 按 CPU 前 10"]
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "===DOCKER==="
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "docker ps -a"
+				})
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "===SERVICES==="
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "systemctl list-units"
+				})
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "===CONNS==="
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ss -tan"
+				})
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "===FILES==="
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ls -lA"
+				})
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "===LOGS==="
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "journalctl -n 50"
+				})
+			})] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"解析结果写入 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ServerSnapshot"
+				}),
+				"（",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "snapshot.rs"
+				}),
+				"），字段包括 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "cpu"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "memory"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "disks"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "network"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "system"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "processes"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "docker"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "services"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "conn_counts"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "files"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "logs"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "warnings"
+				}),
+				"。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "platform.rs"
+				}),
+				" 还提供 Agent 工具用的单命令构造器：",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "server_status_command()"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "processes_command()"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "disks_command()"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "network_command()"
+				}),
+				"。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "schedulerrs--调度器",
+			children: "scheduler.rs — 调度器"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [(0, import_jsx_runtime.jsx)(_components.code, {
+				language: "txt",
+				children: "MonitorScheduler"
+			}), " 为每个目标主机启动一个采集线程："]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
+			className: "shiki css-variables",
+			style: {
+				backgroundColor: "var(--shiki-background)",
+				color: "var(--shiki-foreground)"
+			},
+			tabIndex: "0",
+			children: (0, import_jsx_runtime.jsxs)(_components.code, {
+				className: "language-rust",
+				children: [
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "let"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " (scheduler, rx) "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "="
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " MonitorScheduler"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "::"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "with_channel"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "();"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "scheduler"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "."
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "add_target"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "(alias, collector, Duration"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "::"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "from_secs"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "("
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-constant)" },
+								children: "2"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "));"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-comment)" },
+							children: "// 线程循环采集并通过 mpsc 发送 BackgroundEvent::MonitorSnapshot"
+						})
+					})
+				]
+			})
+		}) }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "stop_target()"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "stop_all()"
+				}),
+				" 只设置 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "AtomicBool"
+				}),
+				"，不 join 线程，以保证 UI 不被阻塞；",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Drop"
+				}),
+				" 会停止所有目标。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "子解析器",
+			children: "子解析器"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "文件" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "解析对象" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "相关操作" })
+		] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "docker.rs"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "docker ps -a --format ID|Names|Image|Status|Ports"
+					})
+				}),
+				(0, import_jsx_runtime.jsxs)(_components.td, {
+					language: "txt",
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "container_action_command"
+						}),
+						"（restart / stop / ",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "rm -f"
+						}),
+						"）"
+					]
+				})
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "services.rs"
+					})
+				}),
+				(0, import_jsx_runtime.jsxs)(_components.td, {
+					language: "txt",
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "systemctl list-units"
+						}),
+						"（",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "awk"
+						}),
+						" 提取）"
+					]
+				}),
+				(0, import_jsx_runtime.jsxs)(_components.td, {
+					language: "txt",
+					children: [(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "service_action_command"
+					}), "（start / stop / restart）"]
+				})
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "files.rs"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "ls -lA --time-style=long-iso"
+					})
+				}),
+				(0, import_jsx_runtime.jsxs)(_components.td, {
+					language: "txt",
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "dir_entries"
+						}),
+						"、",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "parent_dir"
+						}),
+						"、",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "join_dir"
+						}),
+						"、",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "shell_quote"
+						}),
+						"、",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "ls_l_command"
+						})
+					]
+				})
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "logs.rs"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "journalctl -o short-iso"
+					})
+				}),
+				(0, import_jsx_runtime.jsxs)(_components.td, {
+					language: "txt",
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "journalctl_command"
+						}),
+						"，",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "MAX_LOG_LINES = 200"
+						})
+					]
+				})
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "network.rs"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "ss -tan state all"
+					})
+				}),
+				(0, import_jsx_runtime.jsxs)(_components.td, {
+					language: "txt",
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "ConnCounts"
+						}),
+						"（",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "is_healthy()"
+						}),
+						"：",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "close_wait < 100"
+						}),
+						"）"
+					]
+				})
+			] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "相关页面",
+			children: "相关页面"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/dashboard",
+				children: "工作台（Dashboard）"
+			}), " — 监控数据在界面上的呈现"] }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/ai-agent",
+				children: "AI Agent"
+			}), " — 工具调用如何复用这些命令"] }),
+			"\n"
+		] })
+	] });
+}
+function MDXContent$15(props = {}) {
+	const { wrapper: MDXLayout } = {
+		...useMDXComponents(),
+		...props.components
+	};
+	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
+		...props,
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$15, { ...props })
+	}) : _createMdxContent$15(props);
+}
+//#endregion
 //#region source/navigation.mdx
-function _createMdxContent$11(props) {
+function _createMdxContent$14(props) {
 	const _components = {
 		code: "code",
 		h1: "h1",
@@ -183161,19 +190273,19 @@ function _createMdxContent$11(props) {
 		})
 	] });
 }
-function MDXContent$11(props = {}) {
+function MDXContent$14(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$11, { ...props })
-	}) : _createMdxContent$11(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$14, { ...props })
+	}) : _createMdxContent$14(props);
 }
 //#endregion
 //#region source/network-module.mdx
-function _createMdxContent$10(props) {
+function _createMdxContent$13(props) {
 	const _components = {
 		a: "a",
 		code: "code",
@@ -183775,19 +190887,19 @@ function _createMdxContent$10(props) {
 		] })
 	] });
 }
-function MDXContent$10(props = {}) {
+function MDXContent$13(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$10, { ...props })
-	}) : _createMdxContent$10(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$13, { ...props })
+	}) : _createMdxContent$13(props);
 }
 //#endregion
 //#region source/overview.mdx
-function _createMdxContent$9(props) {
+function _createMdxContent$12(props) {
 	const _components = {
 		a: "a",
 		code: "code",
@@ -184151,19 +191263,19 @@ function _createMdxContent$9(props) {
 		}) })
 	] });
 }
-function MDXContent$9(props = {}) {
+function MDXContent$12(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$9, { ...props })
-	}) : _createMdxContent$9(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$12, { ...props })
+	}) : _createMdxContent$12(props);
 }
 //#endregion
 //#region source/package-managers.mdx
-function _createMdxContent$8(props) {
+function _createMdxContent$11(props) {
 	const _components = {
 		a: "a",
 		code: "code",
@@ -184187,8 +191299,8 @@ function _createMdxContent$8(props) {
 		...useMDXComponents(),
 		...props.components
 	}, { Callout, Note } = _components;
-	if (!Callout) _missingMdxReference$2("Callout", true);
-	if (!Note) _missingMdxReference$2("Note", true);
+	if (!Callout) _missingMdxReference$4("Callout", true);
+	if (!Note) _missingMdxReference$4("Note", true);
 	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 		(0, import_jsx_runtime.jsx)(_components.hr, {}),
 		"\n",
@@ -185354,22 +192466,22 @@ function _createMdxContent$8(props) {
 		] })] })
 	] });
 }
-function MDXContent$8(props = {}) {
+function MDXContent$11(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$8, { ...props })
-	}) : _createMdxContent$8(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$11, { ...props })
+	}) : _createMdxContent$11(props);
 }
-function _missingMdxReference$2(id, component) {
+function _missingMdxReference$4(id, component) {
 	throw new Error("Expected " + (component ? "component" : "object") + " `" + id + "` to be defined: you likely forgot to import, pass, or provide it.");
 }
 //#endregion
 //#region source/release-process.mdx
-function _createMdxContent$7(props) {
+function _createMdxContent$10(props) {
 	const _components = {
 		a: "a",
 		code: "code",
@@ -186252,19 +193364,19 @@ function _createMdxContent$7(props) {
 		})
 	] });
 }
-function MDXContent$7(props = {}) {
+function MDXContent$10(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$7, { ...props })
-	}) : _createMdxContent$7(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$10, { ...props })
+	}) : _createMdxContent$10(props);
 }
 //#endregion
 //#region source/roadmap.mdx
-function _createMdxContent$6(props) {
+function _createMdxContent$9(props) {
 	const _components = {
 		code: "code",
 		h1: "h1",
@@ -186280,7 +193392,7 @@ function _createMdxContent$6(props) {
 	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 		(0, import_jsx_runtime.jsx)(_components.hr, {}),
 		"\n",
-		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: 路线图\r\ndescription: Quick-SSH 的开发路线图，包含当前版本、规划中的功能以及远期规划。\r\nkeywords:" }),
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: 路线图\ndescription: Quick-SSH 的开发路线图，包含当前版本、开发中的功能以及远期规划。\nkeywords:" }),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
 			"\n",
@@ -186302,11 +193414,9 @@ function _createMdxContent$6(props) {
 		}),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h2, {
-			id: "v204当前版本",
-			children: "v2.0.4（当前版本）"
+			id: "v204当前发布版本",
+			children: "v2.0.4（当前发布版本）"
 		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.p, { children: "已完成的功能：" }),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.ul, {
 			className: "contains-task-list",
@@ -186347,7 +193457,7 @@ function _createMdxContent$6(props) {
 							disabled: true
 						}),
 						" ",
-						"完整 CLI 子命令（ps/add/rm/connect/export/import/help）"
+						"完整 CLI 子命令（ps/add/rm/connect/export/import/help/web）"
 					]
 				}),
 				"\n",
@@ -186373,7 +193483,7 @@ function _createMdxContent$6(props) {
 							disabled: true
 						}),
 						" ",
-						"独立 SFTP 上传工具（qssh-uploader）"
+						"独立 SCP 上传工具（qssh-uploader）"
 					]
 				}),
 				"\n",
@@ -186431,47 +193541,6 @@ function _createMdxContent$6(props) {
 				"\n",
 				(0, import_jsx_runtime.jsxs)(_components.li, {
 					className: "task-list-item",
-					language: "txt",
-					children: [
-						(0, import_jsx_runtime.jsx)(_components.input, {
-							type: "checkbox",
-							checked: true,
-							disabled: true
-						}),
-						" ",
-						(0, import_jsx_runtime.jsx)(_components.code, {
-							language: "txt",
-							children: "Ctrl+N"
-						}),
-						" / ",
-						(0, import_jsx_runtime.jsx)(_components.code, {
-							language: "txt",
-							children: "Ctrl+P"
-						}),
-						" 列表导航"
-					]
-				}),
-				"\n",
-				(0, import_jsx_runtime.jsxs)(_components.li, {
-					className: "task-list-item",
-					language: "txt",
-					children: [
-						(0, import_jsx_runtime.jsx)(_components.input, {
-							type: "checkbox",
-							checked: true,
-							disabled: true
-						}),
-						" ",
-						(0, import_jsx_runtime.jsx)(_components.code, {
-							language: "txt",
-							children: "~/.qsshrc"
-						}),
-						" 程序设置 API（功能预留）"
-					]
-				}),
-				"\n",
-				(0, import_jsx_runtime.jsxs)(_components.li, {
-					className: "task-list-item",
 					children: [
 						(0, import_jsx_runtime.jsx)(_components.input, {
 							type: "checkbox",
@@ -186500,11 +193569,151 @@ function _createMdxContent$6(props) {
 		}),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "开发中main-分支未发布",
+			children: "开发中（main 分支，未发布）"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, {
+			className: "contains-task-list",
+			children: [
+				"\n",
+				(0, import_jsx_runtime.jsxs)(_components.li, {
+					className: "task-list-item",
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.input, {
+							type: "checkbox",
+							checked: true,
+							disabled: true
+						}),
+						" ",
+						"Dashboard 监控工作台（12 个组件、可切换 Profile、鼠标拖动布局）"
+					]
+				}),
+				"\n",
+				(0, import_jsx_runtime.jsxs)(_components.li, {
+					className: "task-list-item",
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.input, {
+							type: "checkbox",
+							checked: true,
+							disabled: true
+						}),
+						" ",
+						"运维面板：Docker / 系统服务 / 文件浏览 / 日志 / 远程命令"
+					]
+				}),
+				"\n",
+				(0, import_jsx_runtime.jsxs)(_components.li, {
+					className: "task-list-item",
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.input, {
+							type: "checkbox",
+							checked: true,
+							disabled: true
+						}),
+						" ",
+						"嵌入式终端（portable-pty + vt100，Ctrl+B 前缀键、滚动回看、连接动画）"
+					]
+				}),
+				"\n",
+				(0, import_jsx_runtime.jsxs)(_components.li, {
+					className: "task-list-item",
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.input, {
+							type: "checkbox",
+							checked: true,
+							disabled: true
+						}),
+						" ",
+						"AI Agent（17 个工具、四级权限、审批流、时间线）"
+					]
+				}),
+				"\n",
+				(0, import_jsx_runtime.jsxs)(_components.li, {
+					className: "task-list-item",
+					language: "txt",
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.input, {
+							type: "checkbox",
+							checked: true,
+							disabled: true
+						}),
+						" ",
+						"本地 Web 界面（",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "qssh web"
+						}),
+						"，schema 驱动设置页、模型连接测试）"
+					]
+				}),
+				"\n",
+				(0, import_jsx_runtime.jsxs)(_components.li, {
+					className: "task-list-item",
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.input, {
+							type: "checkbox",
+							checked: true,
+							disabled: true
+						}),
+						" ",
+						"命令面板（Ctrl+K）"
+					]
+				}),
+				"\n",
+				(0, import_jsx_runtime.jsxs)(_components.li, {
+					className: "task-list-item",
+					language: "txt",
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.input, {
+							type: "checkbox",
+							checked: true,
+							disabled: true
+						}),
+						" ",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "Ctrl+Enter"
+						}),
+						" 新窗口连接、",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "<"
+						}),
+						" / ",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: ">"
+						}),
+						" 主机调序"
+					]
+				}),
+				"\n",
+				(0, import_jsx_runtime.jsxs)(_components.li, {
+					className: "task-list-item",
+					language: "txt",
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.input, {
+							type: "checkbox",
+							checked: true,
+							disabled: true
+						}),
+						" ",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "~/.qsshrc"
+						}),
+						" 设置接入 Web 界面"
+					]
+				}),
+				"\n"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
 			id: "v21规划中",
 			children: "v2.1（规划中）"
 		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.p, { children: "计划中的功能：" }),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.ul, {
 			className: "contains-task-list",
@@ -186565,8 +193774,6 @@ function _createMdxContent$6(props) {
 			id: "v22远期规划",
 			children: "v2.2（远期规划）"
 		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.p, { children: "远期考虑的功能：" }),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.ul, {
 			className: "contains-task-list",
@@ -186636,19 +193843,19 @@ function _createMdxContent$6(props) {
 		})
 	] });
 }
-function MDXContent$6(props = {}) {
+function MDXContent$9(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$6, { ...props })
-	}) : _createMdxContent$6(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$9, { ...props })
+	}) : _createMdxContent$9(props);
 }
 //#endregion
 //#region source/shell-completions.mdx
-function _createMdxContent$5(props) {
+function _createMdxContent$8(props) {
 	const _components = {
 		code: "code",
 		h1: "h1",
@@ -187364,19 +194571,19 @@ function _createMdxContent$5(props) {
 		}) })
 	] });
 }
-function MDXContent$5(props = {}) {
+function MDXContent$8(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$5, { ...props })
-	}) : _createMdxContent$5(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$8, { ...props })
+	}) : _createMdxContent$8(props);
 }
 //#endregion
 //#region source/ssh-module.mdx
-function _createMdxContent$4(props) {
+function _createMdxContent$7(props) {
 	const _components = {
 		a: "a",
 		code: "code",
@@ -187450,7 +194657,7 @@ function _createMdxContent$4(props) {
 			language: "txt",
 			children: (0, import_jsx_runtime.jsx)(_components.code, {
 				language: "txt",
-				children: "ssh/\r\n├── mod.rs           # 模块声明\r\n├── session.rs       # SshTarget 解析与 SSH 参数构建\r\n├── spawn.rs         # 交互式 SSH 会话与 AskPass 配置\n├── drag_detect.rs   # 拖拽文件路径检测\r\n└── upload.rs        # 内联 SCP 上传（预留）\n"
+				children: "ssh/\r\n├── mod.rs           # 模块声明\r\n├── session.rs       # SshTarget 解析与 SSH 参数构建\r\n├── spawn.rs         # 交互式 SSH 会话与 AskPass 配置\r\n├── drag_detect.rs   # 拖拽文件路径检测\r\n└── upload.rs        # 内联 SCP 上传（预留）\n"
 			})
 		}),
 		"\n",
@@ -187966,7 +195173,7 @@ function _createMdxContent$4(props) {
 			language: "txt",
 			children: (0, import_jsx_runtime.jsx)(_components.code, {
 				language: "txt",
-				children: "start_interactive_session()\n  → credentials::has_password()  // 查询当前别名的保存状态\n  → Windows: enable_terminal_raw_mode()\n  → start_interactive_session_inner()\n    → build_ssh_args_with_pty()   // 构建带 -tt 的参数\n    → configure_askpass()         // 有密码时设置 AskPass 环境变量\n    → Command::new(\"ssh\").spawn() // 启动 SSH 进程\n    → Unix: 继承 stdout/stderr\n    → Windows: 线程转发 stdout/stderr\n    → child.wait()                // 等待 SSH 退出\n  → Windows: disable_terminal_raw_mode()\n  → 返回退出码\n"
+				children: "start_interactive_session()\r\n  → credentials::has_password()  // 查询当前别名的保存状态\r\n  → Windows: enable_terminal_raw_mode()\r\n  → start_interactive_session_inner()\r\n    → build_ssh_args_with_pty()   // 构建带 -tt 的参数\r\n    → configure_askpass()         // 有密码时设置 AskPass 环境变量\r\n    → Command::new(\"ssh\").spawn() // 启动 SSH 进程\r\n    → Unix: 继承 stdout/stderr\r\n    → Windows: 线程转发 stdout/stderr\r\n    → child.wait()                // 等待 SSH 退出\r\n  → Windows: disable_terminal_raw_mode()\r\n  → 返回退出码\n"
 			})
 		}),
 		"\n",
@@ -188174,6 +195381,32 @@ function _createMdxContent$4(props) {
 			"\n"
 		] }),
 		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h3, {
+			id: "在新窗口连接",
+			children: "在新窗口连接"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "spawn_connection_window(target)"
+				}),
+				" 用于「不占用当前 TUI」的连接：Windows 下以 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "CREATE_NEW_CONSOLE"
+				}),
+				" 启动本程序并传入别名（走 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "qssh <别名>"
+				}),
+				" 直连路径），Unix 下复用「在新终端中启动本程序」的逻辑。新窗口里就是普通的交互式 SSH 会话。"
+			]
+		}),
+		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h2, {
 			id: "drag_detectrs--拖拽文件检测",
 			children: "drag_detect.rs — 拖拽文件检测"
@@ -188354,19 +195587,456 @@ function _createMdxContent$4(props) {
 		] })
 	] });
 }
-function MDXContent$4(props = {}) {
+function MDXContent$7(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$4, { ...props })
-	}) : _createMdxContent$4(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$7, { ...props })
+	}) : _createMdxContent$7(props);
+}
+//#endregion
+//#region source/terminal.mdx
+function _createMdxContent$6(props) {
+	const _components = {
+		a: "a",
+		code: "code",
+		h1: "h1",
+		h2: "h2",
+		hr: "hr",
+		li: "li",
+		p: "p",
+		strong: "strong",
+		table: "table",
+		tbody: "tbody",
+		td: "td",
+		th: "th",
+		thead: "thead",
+		tr: "tr",
+		ul: "ul",
+		...useMDXComponents(),
+		...props.components
+	}, { Callout } = _components;
+	if (!Callout) _missingMdxReference$3("Callout", true);
+	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+		(0, import_jsx_runtime.jsx)(_components.hr, {}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: 嵌入式终端\ndescription: 在 TUI 内直接使用 SSH 会话的嵌入式终端，基于 PTY + vt100 解析，支持前缀键与滚动回看。\nkeywords:" }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "终端" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "terminal" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "pty" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "vt100" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "ssh" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "Ctrl+B" }),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.hr, {}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h1, {
+			id: "嵌入式终端",
+			children: "嵌入式终端"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "Quick-SSH 提供两种连接方式：" }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsxs)(_components.strong, {
+				language: "txt",
+				children: ["在主机列表中按 ", (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Enter"
+				})]
+			}), "：退出 TUI，交给系统 OpenSSH 一个全屏交互会话，返回后重新进入 TUI。"] }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [
+				(0, import_jsx_runtime.jsxs)(_components.strong, {
+					language: "txt",
+					children: ["在 Dashboard 工作台中按 ", (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Enter"
+					})]
+				}),
+				"：在 TUI 内部打开",
+				(0, import_jsx_runtime.jsx)(_components.strong, { children: "嵌入式终端" }),
+				"，不离开工作台，可以一边看监控一边操作。"
+			] }),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"嵌入式终端使用 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "portable-pty"
+				}),
+				" 分配 PTY（Windows 下为 ConPTY），并用 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "vt100"
+				}),
+				" 解析远端输出的 ANSI 序列，因此 vim、htop、less 等全屏程序都能正常使用。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "打开与关闭",
+			children: "打开与关闭"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "操作" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "说明" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: ["Dashboard 中按 ", (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Enter"
+				})]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "连接到选中主机（面板空闲时也可用鼠标点击 Terminal 组件）" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Ctrl+Shift+C"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "断开并结束会话" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Ctrl+B"
+					}),
+					" 然后 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "q"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "x"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "断开并结束会话" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Esc"
+				})
+			}), (0, import_jsx_runtime.jsxs)(_components.td, { children: [(0, import_jsx_runtime.jsx)(_components.strong, { children: "转发给远端" }), "（例如退出 vim），不是断开"] })] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"连接过程会显示 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "${spinner} 正在连接 <别名> …"
+				}),
+				" 的动画；连接建立后显示远程画面。空闲或断开后，面板会显示一个「小电视」待机画面并提示按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Enter"
+				}),
+				" 重新连接。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "面板标题会显示当前状态：" }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "状态" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "标题 / 提示" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "连接中" }), (0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "<别名> — 连接中"
+				})
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "已连接" }), (0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "<别名> — 已连接"
+				})
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "已断开" }), (0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "<别名> — 已断开"
+				})
+			})] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.h2, {
+			id: "前缀键-ctrlb",
+			language: "txt",
+			children: ["前缀键 ", (0, import_jsx_runtime.jsx)(_components.code, {
+				language: "txt",
+				children: "Ctrl+B"
+			})]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"在嵌入式终端中，",
+				(0, import_jsx_runtime.jsx)(_components.strong, { children: "所有按键默认直接转发给远端 PTY" }),
+				"，TUI 快捷键不生效。要使用 TUI 功能，先按前缀键 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Ctrl+B"
+				}),
+				"（tmux 风格），再按一个命令键："
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "前缀组合" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "功能" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Ctrl+B"
+					}),
+					" ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "d"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "打开 Docker 面板" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Ctrl+B"
+					}),
+					" ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "s"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "打开服务面板" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Ctrl+B"
+					}),
+					" ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "f"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "打开文件面板" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Ctrl+B"
+					}),
+					" ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "l"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "打开日志面板" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Ctrl+B"
+					}),
+					" ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "a"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "打开 AI Agent" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Ctrl+B"
+					}),
+					" ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "k"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "打开命令面板" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Ctrl+B"
+					}),
+					" ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "q"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Ctrl+B"
+					}),
+					" ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "x"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "断开连接" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Ctrl+B"
+					}),
+					" ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Esc"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "取消前缀，不执行任何操作" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Ctrl+B"
+				}), " 其他键"]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "放行给远端 PTY" })] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Ctrl+B"
+				}),
+				" 后如果不想执行命令，按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Esc"
+				}),
+				" 取消；鼠标点击也会取消前缀等待状态。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(Callout, {
+			title: "关闭面板后回到终端",
+			children: (0, import_jsx_runtime.jsx)(_components.p, { children: "从嵌入式终端打开 Docker / 服务 / 文件 / 日志 / Agent 面板后，关闭这些面板时如果 SSH 仍然连接，焦点会自动回到终端，键盘继续转发给远端。" })
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "滚动回看",
+			children: "滚动回看"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "终端保留 1000 行回滚历史。" }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "操作" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "说明" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "鼠标滚轮" }), (0, import_jsx_runtime.jsx)(_components.td, { children: "上下回看历史（每次 3 行）" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "回看中" }), (0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: ["右上角显示 ", (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "↑ 回看中"
+				})]
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "滚到底部" }), (0, import_jsx_runtime.jsx)(_components.td, { children: "自动回到实时画面" })] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "密码自动填写",
+			children: "密码自动填写"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "如果该主机在系统凭据库中保存了密码，嵌入式终端也会像普通会话一样，通过 OpenSSH AskPass 自动填写登录密码；OpenSSH 仍会优先尝试密钥和 ssh-agent。" }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(Callout, {
+			title: "首次连接",
+			children: (0, import_jsx_runtime.jsxs)(_components.p, {
+				language: "txt",
+				children: [
+					"首次连接新主机时，请先运行 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "ssh <别名>"
+					}),
+					" 手动核对并确认主机指纹。Quick-SSH 不会自动回答主机指纹或私钥口令提示。"
+				]
+			})
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "下一步",
+			children: "下一步"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/dashboard",
+				children: "工作台（Dashboard）"
+			}), " — 监控组件与运维面板"] }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/ai-agent",
+				children: "AI Agent"
+			}), " — 用自然语言驱动远程运维"] }),
+			"\n"
+		] })
+	] });
+}
+function MDXContent$6(props = {}) {
+	const { wrapper: MDXLayout } = {
+		...useMDXComponents(),
+		...props.components
+	};
+	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
+		...props,
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$6, { ...props })
+	}) : _createMdxContent$6(props);
+}
+function _missingMdxReference$3(id, component) {
+	throw new Error("Expected " + (component ? "component" : "object") + " `" + id + "` to be defined: you likely forgot to import, pass, or provide it.");
 }
 //#endregion
 //#region source/tui-guide.mdx
-function _createMdxContent$3(props) {
+function _createMdxContent$5(props) {
 	const _components = {
 		a: "a",
 		code: "code",
@@ -188389,14 +196059,14 @@ function _createMdxContent$3(props) {
 		...useMDXComponents(),
 		...props.components
 	}, { Callout, Note, Properties, Property } = _components;
-	if (!Callout) _missingMdxReference$1("Callout", true);
-	if (!Note) _missingMdxReference$1("Note", true);
-	if (!Properties) _missingMdxReference$1("Properties", true);
-	if (!Property) _missingMdxReference$1("Property", true);
+	if (!Callout) _missingMdxReference$2("Callout", true);
+	if (!Note) _missingMdxReference$2("Note", true);
+	if (!Properties) _missingMdxReference$2("Properties", true);
+	if (!Property) _missingMdxReference$2("Property", true);
 	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 		(0, import_jsx_runtime.jsx)(_components.hr, {}),
 		"\n",
-		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: TUI 界面指南\r\ndescription: Quick-SSH 终端用户界面的详细使用说明，包含所有交互模式和快捷键。\r\nkeywords:" }),
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: TUI 界面指南\ndescription: Quick-SSH 终端用户界面的详细使用说明，包含主机列表、监控工作台、嵌入式终端和所有交互模式与快捷键。\nkeywords:" }),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
 			"\n",
@@ -188409,6 +196079,8 @@ function _createMdxContent$3(props) {
 			(0, import_jsx_runtime.jsx)(_components.li, { children: "快捷键" }),
 			"\n",
 			(0, import_jsx_runtime.jsx)(_components.li, { children: "键盘映射" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "dashboard" }),
 			"\n"
 		] }),
 		"\n",
@@ -188422,17 +196094,34 @@ function _createMdxContent$3(props) {
 		(0, import_jsx_runtime.jsx)(_components.p, { children: "Quick-SSH 的 TUI 界面基于 ratatui 和 crossterm 构建，采用事件驱动架构，提供高效的键盘操作体验。" }),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h2, {
-			id: "界面布局",
-			children: "界面布局"
+			id: "视图",
+			children: "视图"
 		}),
 		"\n",
-		(0, import_jsx_runtime.jsx)(_components.p, { children: "TUI 界面由四个部分组成：" }),
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"TUI 有两个视图，用 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "b"
+				}),
+				" 切换："
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "视图" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "说明" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: (0, import_jsx_runtime.jsx)(_components.strong, { children: "主机列表（HostList）" }) }), (0, import_jsx_runtime.jsx)(_components.td, { children: "经典的主机列表 + 详情面板，默认视图" })] }), (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: (0, import_jsx_runtime.jsx)(_components.strong, { children: "工作台（Dashboard）" }) }), (0, import_jsx_runtime.jsx)(_components.td, { children: "可自定义布局的监控工作台、嵌入式终端与运维面板" })] })] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "主机列表布局",
+			children: "主机列表布局"
+		}),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.pre, {
 			language: "txt",
 			children: (0, import_jsx_runtime.jsx)(_components.code, {
 				language: "txt",
-				children: "┌─ 标题栏 ──────────────────────────────────────────┐\r\n│ Quick-SSH v2.0.4  |  共 5 台主机  |  模式: NORMAL  │\n├──────────────┬──────────────────────────────────────┤\r\n│              │                                      │\r\n│  主机列表    │           详情面板                    │\r\n│              │                                      │\r\n│  ○ mysrv     │   别名: mysrv                        │\n│    生产环境  │   地址: ********                     │\n│  ● devbox    │   认证: 密钥优先                     │\n│  ○ web-prod  │   注释: 生产环境                     │\n│              │                                      │\r\n├──────────────┴──────────────────────────────────────┤\r\n│ 状态栏: j↓ k↑ gg↕ G↕ /搜索 a添加 e编辑 ...         │\r\n└─────────────────────────────────────────────────────┘\n"
+				children: "┌─ 标题栏 ──────────────────────────────────────────┐\n│ Quick-SSH v2.0.4  |  共 5 台主机  |  模式: NORMAL  │\n├──────────────┬──────────────────────────────────────┤\n│              │                                      │\n│  主机列表    │           详情面板                    │\n│              │                                      │\n│  ○ mysrv     │   别名: mysrv                        │\n│    生产环境  │   地址: ********                     │\n│  ● devbox    │   认证: 密钥优先                     │\n│  ○ web-prod  │   注释: 生产环境                     │\n│              │                                      │\n├──────────────┴──────────────────────────────────────┤\n│ 状态栏: j↓ k↑ gg↕ G↕ </>调序 /搜索 :命令 ...       │\n└─────────────────────────────────────────────────────┘\n"
 			})
 		}),
 		"\n",
@@ -188446,6 +196135,17 @@ function _createMdxContent$3(props) {
 			"\n",
 			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.strong, { children: "状态栏" }), "：显示当前模式的操作提示或闪烁消息"] }),
 			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "列表与详情之间的分隔线可以用鼠标拖动调整比例。" }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, { children: [
+			"工作台布局与运维面板的说明见 ",
+			(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/dashboard",
+				children: "工作台（Dashboard）"
+			}),
+			"。"
 		] }),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h3, {
@@ -188502,7 +196202,7 @@ function _createMdxContent$3(props) {
 			(0, import_jsx_runtime.jsx)(Property, {
 				name: "NORMAL",
 				type: "默认模式",
-				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "浏览主机列表，可使用所有导航和操作快捷键" })
+				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "浏览主机列表或工作台，可使用所有导航和操作快捷键" })
 			}),
 			(0, import_jsx_runtime.jsx)(Property, {
 				name: "SEARCH",
@@ -188523,6 +196223,36 @@ function _createMdxContent$3(props) {
 				name: "HELP",
 				type: "帮助模式",
 				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "显示键盘快捷键帮助弹窗，按 q/Esc 关闭" })
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "PALETTE",
+				type: "命令面板",
+				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "Ctrl+K 打开，搜索并执行动作" })
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "DASHBOARD_CFG",
+				type: "工作台配置",
+				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "勾选要显示的监控组件" })
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "DOCKER_OPS / SERVICE_OPS / FILE_OPS / LOG_OPS",
+				type: "运维面板",
+				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "Docker、服务、文件、日志面板，详见工作台文档" })
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "AGENT_OPS / AGENT_CFG / AGENT_CONFIRM",
+				type: "AI Agent",
+				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "AI 助手对话、设置与审批" })
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "COMMAND / CMD_RESULT",
+				type: "远程命令",
+				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "在选中主机上执行命令并查看结果" })
+			}),
+			(0, import_jsx_runtime.jsx)(Property, {
+				name: "TERMINAL",
+				type: "嵌入式终端",
+				children: (0, import_jsx_runtime.jsx)(_components.p, { children: "在 TUI 内使用 SSH 会话，键盘默认全部转发给远端" })
 			})
 		] }),
 		"\n",
@@ -188592,7 +196322,21 @@ function _createMdxContent$3(props) {
 					language: "txt",
 					children: "G"
 				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "跳到底部" })] })
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "跳到底部" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "<"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: ">"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "在配置中上/下调整选中主机的顺序（仅主机列表）" })] })
 		] })] }),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h3, {
@@ -188607,7 +196351,14 @@ function _createMdxContent$3(props) {
 					language: "txt",
 					children: "Enter"
 				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "连接选中主机" })] }),
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "连接选中主机；在主机列表中会退出 TUI 使用全屏 SSH，在工作台中打开嵌入式终端" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Ctrl+Enter"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "在新的终端窗口中连接选中主机（不占用当前 TUI）" })] }),
 			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
 				language: "txt",
 				children: (0, import_jsx_runtime.jsx)(_components.code, {
@@ -188621,7 +196372,7 @@ function _createMdxContent$3(props) {
 					language: "txt",
 					children: "a"
 				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "新增主机（弹窗表单）" })] }),
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "新增主机（主机列表）；打开 Agent（工作台）" })] }),
 			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
 				language: "txt",
 				children: (0, import_jsx_runtime.jsx)(_components.code, {
@@ -188665,8 +196416,82 @@ function _createMdxContent$3(props) {
 		}), (0, import_jsx_runtime.jsx)(_components.td, { children: "Ping 检测所有主机" })] })] })] }),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "搜索",
-			children: "搜索"
+			id: "视图与面板",
+			children: "视图与面板"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "按键" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "功能" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "b"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "在主机列表与工作台之间切换" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "c"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "打开工作台配置（仅工作台）" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "d"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "s"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "f"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "l"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "打开 Docker / 服务 / 文件 / 日志面板（仅工作台）" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Ctrl+K"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "打开命令面板" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Ctrl+A"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Ctrl+Space"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "打开 AI Agent" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: ":"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "在选中主机上执行远程命令" })] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h3, {
+			id: "搜索与系统",
+			children: "搜索与系统"
 		}),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "按键" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "功能" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
@@ -188683,43 +196508,28 @@ function _createMdxContent$3(props) {
 					language: "txt",
 					children: "Enter"
 				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "确认搜索" })] }),
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "确认搜索 / 执行面板动作" })] }),
 			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
 				language: "txt",
 				children: (0, import_jsx_runtime.jsx)(_components.code, {
 					language: "txt",
 					children: "Esc"
 				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "取消搜索" })] })
-		] })] }),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "系统",
-			children: "系统"
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "按键" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "功能" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "取消搜索 / 返回上级 / 关闭面板" })] }),
 			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
 				language: "txt",
 				children: (0, import_jsx_runtime.jsx)(_components.code, {
 					language: "txt",
 					children: "q"
 				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "退出 TUI" })] }),
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "退出 TUI（在工作台中为返回主机列表）" })] }),
 			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
 				language: "txt",
 				children: (0, import_jsx_runtime.jsx)(_components.code, {
 					language: "txt",
 					children: "?"
 				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "显示帮助" })] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
-				language: "txt",
-				children: (0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "Esc"
-				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "取消/返回" })] })
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "显示帮助" })] })
 		] })] }),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h2, {
@@ -188811,6 +196621,20 @@ function _createMdxContent$3(props) {
 					})
 				]
 			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "切换到上一字段" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "←"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "→"
+					})
+				]
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "移动光标" })] }),
 			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
 				language: "txt",
 				children: (0, import_jsx_runtime.jsx)(_components.code, {
@@ -188913,7 +196737,7 @@ function _createMdxContent$3(props) {
 		(0, import_jsx_runtime.jsxs)(_components.p, {
 			language: "txt",
 			children: [
-				"在 NORMAL 模式下选中主机后按 ",
+				"在主机列表中选中主机后按 ",
 				(0, import_jsx_runtime.jsx)(_components.code, {
 					language: "txt",
 					children: "Enter"
@@ -188924,7 +196748,7 @@ function _createMdxContent$3(props) {
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.ol, { children: [
 			"\n",
-			(0, import_jsx_runtime.jsx)(_components.li, { children: "TUI 退出备用屏幕，恢复终端" }),
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "TUI 退出备用屏幕，恢复终端（同时关闭鼠标捕获，避免 Windows 下残留的鼠标事件）" }),
 			"\n",
 			(0, import_jsx_runtime.jsx)(_components.li, { children: "检查当前别名是否有已保存密码；读取失败时回退到普通系统 SSH" }),
 			"\n",
@@ -188933,6 +196757,37 @@ function _createMdxContent$3(props) {
 			(0, import_jsx_runtime.jsx)(_components.li, { children: "SSH 退出后自动重新进入 TUI 界面" }),
 			"\n"
 		] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"如果希望连接不占用当前 TUI，可以按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Ctrl+Enter"
+				}),
+				" 在一个新的终端窗口中打开会话。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"在 ",
+				(0, import_jsx_runtime.jsx)(_components.strong, { children: "工作台" }),
+				" 中按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Enter"
+				}),
+				" 则不会退出 TUI，而是在面板内打开",
+				(0, import_jsx_runtime.jsx)(_components.a, {
+					href: "/terminal",
+					children: "嵌入式终端"
+				}),
+				"。"
+			]
+		}),
 		"\n",
 		(0, import_jsx_runtime.jsx)(Callout, {
 			title: "首次连接",
@@ -188959,25 +196814,49 @@ function _createMdxContent$3(props) {
 				}),
 				"。"
 			] })
-		})
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "下一步",
+			children: "下一步"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/dashboard",
+				children: "工作台（Dashboard）"
+			}), " — 监控组件与运维面板"] }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/terminal",
+				children: "嵌入式终端"
+			}), " — 在 TUI 内使用 SSH 会话"] }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/ai-agent",
+				children: "AI Agent"
+			}), " — AI 运维助手"] }),
+			"\n"
+		] })
 	] });
 }
-function MDXContent$3(props = {}) {
+function MDXContent$5(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$3, { ...props })
-	}) : _createMdxContent$3(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$5, { ...props })
+	}) : _createMdxContent$5(props);
 }
-function _missingMdxReference$1(id, component) {
+function _missingMdxReference$2(id, component) {
 	throw new Error("Expected " + (component ? "component" : "object") + " `" + id + "` to be defined: you likely forgot to import, pass, or provide it.");
 }
 //#endregion
 //#region source/tui-module.mdx
-function _createMdxContent$2(props) {
+function _createMdxContent$4(props) {
 	const _components = {
 		a: "a",
 		code: "code",
@@ -188986,10 +196865,8 @@ function _createMdxContent$2(props) {
 		h3: "h3",
 		hr: "hr",
 		li: "li",
-		ol: "ol",
 		p: "p",
 		pre: "pre",
-		span: "span",
 		strong: "strong",
 		table: "table",
 		tbody: "tbody",
@@ -189000,11 +196877,12 @@ function _createMdxContent$2(props) {
 		ul: "ul",
 		...useMDXComponents(),
 		...props.components
-	};
+	}, { Note } = _components;
+	if (!Note) _missingMdxReference$1("Note", true);
 	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 		(0, import_jsx_runtime.jsx)(_components.hr, {}),
 		"\n",
-		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: TUI 模块\r\ndescription: Quick-SSH TUI 模块的详细文档，包含事件驱动架构、应用状态、UI 渲染和键盘映射。\r\nkeywords:" }),
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: TUI 模块\ndescription: Quick-SSH TUI 模块的详细文档，包含事件驱动架构、视图与模式、工作台、嵌入式终端、鼠标与键盘映射。\nkeywords:" }),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
 			"\n",
@@ -189019,6 +196897,10 @@ function _createMdxContent$2(props) {
 			(0, import_jsx_runtime.jsx)(_components.li, { children: "状态管理" }),
 			"\n",
 			(0, import_jsx_runtime.jsx)(_components.li, { children: "键盘映射" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "dashboard" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "terminal" }),
 			"\n"
 		] }),
 		"\n",
@@ -189051,7 +196933,7 @@ function _createMdxContent$2(props) {
 			language: "txt",
 			children: (0, import_jsx_runtime.jsx)(_components.code, {
 				language: "txt",
-				children: "tui/\r\n├── mod.rs        # 模块声明\r\n├── action.rs     # Action + Mode 枚举\r\n├── app.rs        # 应用状态与业务逻辑\r\n├── event.rs      # 事件循环\r\n├── keymap.rs     # 键盘映射 + Mode 标签/提示\r\n├── ui.rs         # 渲染逻辑\r\n├── widgets.rs    # 自定义组件（弹窗等）\r\n└── editor.rs     # 主机编辑表单\n"
+				children: "tui/\n├── mod.rs        # 模块声明\n├── action.rs     # Action / Mode / View 枚举\n├── app.rs        # 应用状态与业务逻辑\n├── event.rs      # 事件循环\n├── keymap.rs     # 键盘映射 + Mode 标签/提示\n├── term.rs       # 嵌入式终端（portable-pty + vt100）\n├── mouse.rs      # 鼠标事件映射\n├── ui.rs         # 渲染逻辑\n├── widgets.rs    # 自定义组件（弹窗等）\n├── editor.rs     # 主机 / Agent 编辑表单\n└── dashboard/    # 工作台\n    ├── config.rs # Profile 与布局持久化\n    ├── layout.rs # 布局引擎与分隔线拖拽\n    ├── widgets.rs# WidgetModule trait 与组件渲染\n    ├── palette.rs# 命令面板\n    └── ui.rs     # 工作台渲染、终端/Agent 面板、动画\n"
 			})
 		}),
 		"\n",
@@ -189066,13 +196948,8 @@ function _createMdxContent$2(props) {
 			language: "txt",
 			children: (0, import_jsx_runtime.jsx)(_components.code, {
 				language: "txt",
-				children: "[Crossterm Event]\r\n      ↓\r\n[map_key_to_action()] → Action 枚举\r\n      ↓\r\n[App::apply(action)] → State 更新\r\n      ↓\r\n[ui::render(frame, app)] → ratatui 渲染\r\n      ↓\r\n[tick 等待 100ms] → 下一轮循环\n"
+				children: "[Crossterm Event]\n      ↓\n[map_key_to_action() / mouse] → Action 枚举\n      ↓\n[App::apply(action)] → State 更新\n      ↓\n[ui::render(frame, app)] → ratatui 渲染\n      ↓\n[tick 等待 100ms] → 下一轮循环\n"
 			})
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "各层职责",
-			children: "各层职责"
 		}),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [
@@ -189089,18 +196966,25 @@ function _createMdxContent$2(props) {
 						children: "event.rs"
 					})
 				}),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "事件循环，轮询键盘输入，分发给 keymap" })
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "事件循环，轮询键盘/鼠标，处理终端键位拦截" })
 			] }),
 			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
 				(0, import_jsx_runtime.jsx)(_components.td, { children: (0, import_jsx_runtime.jsx)(_components.strong, { children: "意图" }) }),
-				(0, import_jsx_runtime.jsx)(_components.td, {
+				(0, import_jsx_runtime.jsxs)(_components.td, {
 					language: "txt",
-					children: (0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "keymap.rs"
-					})
+					children: [
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "keymap.rs"
+						}),
+						" / ",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "mouse.rs"
+						})
+					]
 				}),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "将按键映射为 Action，提供 Mode 标签和提示" })
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "将按键/鼠标映射为 Action，提供 Mode 标签和提示" })
 			] }),
 			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
 				(0, import_jsx_runtime.jsx)(_components.td, { children: (0, import_jsx_runtime.jsx)(_components.strong, { children: "逻辑" }) }),
@@ -189111,7 +196995,7 @@ function _createMdxContent$2(props) {
 						children: "app.rs"
 					})
 				}),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "处理 Action 更新状态，管理后台任务" })
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "处理 Action 更新状态，管理后台线程" })
 			] }),
 			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
 				(0, import_jsx_runtime.jsx)(_components.td, { children: (0, import_jsx_runtime.jsx)(_components.strong, { children: "渲染" }) }),
@@ -189126,6 +197010,11 @@ function _createMdxContent$2(props) {
 						(0, import_jsx_runtime.jsx)(_components.code, {
 							language: "txt",
 							children: "widgets.rs"
+						}),
+						" / ",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "dashboard/ui.rs"
 						})
 					]
 				}),
@@ -189140,413 +197029,264 @@ function _createMdxContent$2(props) {
 						children: "editor.rs"
 					})
 				}),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "主机编辑弹窗表单" })
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "主机 / Agent 编辑弹窗表单" })
 			] })
 		] })] }),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h2, {
-			id: "actionrs--action-与-mode",
-			children: "action.rs — Action 与 Mode"
+			id: "actionrs--view--action--mode",
+			children: "action.rs — View / Action / Mode"
 		}),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "action-枚举",
-			children: "Action 枚举"
+			id: "view",
+			children: "View"
 		}),
-		"\n",
-		(0, import_jsx_runtime.jsxs)(_components.p, {
-			language: "txt",
-			children: [(0, import_jsx_runtime.jsx)(_components.code, {
-				language: "txt",
-				children: "Action"
-			}), " 枚举表示用户的所有可能意图，共 20+ 种："]
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
-			className: "shiki css-variables",
-			style: {
-				backgroundColor: "var(--shiki-background)",
-				color: "var(--shiki-foreground)"
-			},
-			tabIndex: "0",
-			children: (0, import_jsx_runtime.jsxs)(_components.code, {
-				className: "language-rust",
-				children: [
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "pub"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: " enum"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " Action"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " {"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-function)" },
-							children: "    None"
-						}), (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: ","
-						})]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "    MoveUp"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ", "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "MoveDown"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ", "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "MoveTop"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ", "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "MoveBottom"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "    Connect"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ", "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "ToggleSelect"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ", "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "ToggleAddress"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "    Delete"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ", "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "ConfirmDelete"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "("
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "bool"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "),"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "    StartSearch"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ", "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "SearchInput"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "("
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "String"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "), "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "SearchSubmit"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ", "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "CancelSearch"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "    StartAdd"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ", "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "StartEdit"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "    Ping"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ", "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "PingAll"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "    ShowHelp"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ", "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "HideHelp"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-function)" },
-							children: "    Quit"
-						}), (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: ","
-						})]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, {
-						className: "line",
-						children: (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-comment)" },
-							children: "    // ... 预留更多"
-						})
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, {
-						className: "line",
-						children: (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "}"
-						})
-					})
-				]
-			})
-		}) }),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "mode-枚举",
-			children: "Mode 枚举"
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsxs)(_components.p, {
-			language: "txt",
-			children: [(0, import_jsx_runtime.jsx)(_components.code, {
-				language: "txt",
-				children: "Mode"
-			}), " 枚举表示 TUI 的交互模式："]
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "模式" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "说明" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
-				language: "txt",
-				children: (0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "Normal"
-				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "默认模式，浏览主机列表" })] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
-				language: "txt",
-				children: (0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "Search"
-				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "搜索模式，输入关键词过滤" })] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
-				language: "txt",
-				children: (0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "Add"
-				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "新增主机模式，弹窗表单" })] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
-				language: "txt",
-				children: (0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "Edit"
-				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "编辑主机模式，弹窗表单" })] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
-				language: "txt",
-				children: (0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "Confirm"
-				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "删除确认模式" })] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
-				language: "txt",
-				children: (0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "Help"
-				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "帮助弹窗模式" })] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsxs)(_components.td, {
-				language: "txt",
-				children: [
-					(0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "Rename"
-					}),
-					" / ",
-					(0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "Export"
-					}),
-					" / ",
-					(0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "Import"
-					})
-				]
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "预留模式" })] })
-		] })] }),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.p, {
 			language: "txt",
 			children: [
-				"每个 Mode 都实现了 ",
+				"两个顶层视图：",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "HostList"
+				}),
+				"（主机列表）与 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Dashboard"
+				}),
+				"（工作台）。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h3, {
+			id: "action",
+			children: "Action"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Action"
+				}),
+				" 枚举覆盖导航、主机操作、视图切换、工作台、运维面板、Agent、远程命令和终端控制等几十种意图，例如 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "MoveUp"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "MoveHost(isize)"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Connect"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ConnectNewWindow"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ShowDashboard"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "OpenDockerOps"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "OpenAgentOps"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "TerminalKey"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "CloseTerminal"
+				}),
+				" 等。Action 是纯数据，便于测试。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h3, {
+			id: "mode",
+			children: "Mode"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Mode"
+				}),
+				" 枚举表示当前交互模式，每个模式实现 ",
 				(0, import_jsx_runtime.jsx)(_components.code, {
 					language: "txt",
 					children: "label()"
 				}),
-				" 和 ",
+				"（状态栏徽标）与 ",
 				(0, import_jsx_runtime.jsx)(_components.code, {
 					language: "txt",
 					children: "hint()"
 				}),
-				" 方法，用于标题栏和状态栏显示。"
+				"（状态栏提示）。可达的模式包括："
 			]
 		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Normal"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Search"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Add"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Edit"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Confirm"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Help"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Palette"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "DashboardConfig"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "DockerOps"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "DockerConfirm"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ServiceOps"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ServiceConfirm"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "FileOps"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "FileConfirm"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "LogOps"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "LogFilter"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "AgentOps"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "AgentConfig"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "AgentConfirm"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Command"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "CommandResult"
+				}),
+				"、",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Terminal"
+				}),
+				"。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(Note, { children: (0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Rename"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Export"
+				}),
+				" / ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Import"
+				}),
+				" 仍有 label/hint 定义，但当前没有键位与 Action 驱动，属于旧版 UI 的遗留模式。"
+			]
+		}) }),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h2, {
 			id: "apprs--应用状态",
 			children: "app.rs — 应用状态"
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "app-结构体",
-			children: "App 结构体"
 		}),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.p, {
@@ -189554,647 +197294,42 @@ function _createMdxContent$2(props) {
 			children: [(0, import_jsx_runtime.jsx)(_components.code, {
 				language: "txt",
 				children: "App"
-			}), " 结构体是 TUI 的唯一数据源："]
+			}), " 是 TUI 的唯一数据源，除主机列表、搜索、标记、Ping 状态外，还持有工作台状态（监控快照、组件、布局）与终端会话。后台任务通过 mpsc channel 与 UI 通信："]
 		}),
 		"\n",
-		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
-			className: "shiki css-variables",
-			style: {
-				backgroundColor: "var(--shiki-background)",
-				color: "var(--shiki-foreground)"
-			},
-			tabIndex: "0",
-			children: (0, import_jsx_runtime.jsxs)(_components.code, {
-				className: "language-rust",
-				children: [
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "pub"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: " struct"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " App"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " {"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "    pub"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " hosts"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " Vec"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "<"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "HostBlock"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ">,"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "    pub"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " preamble"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " String"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "    pub"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " config_path"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " PathBuf"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "    pub"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " list_state"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " ListState"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "    pub"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " mode"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " Mode"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "    pub"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " input_buffer"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " String"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "    pub"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " search_keyword"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " String"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "    pub"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " marked"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " Vec"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "<"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "usize"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ">,"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "    pub"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " host_status"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " HashMap"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "<"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "String"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ", "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "bool"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ">,"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "    pub"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " pending_pings"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " HashSet"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "<"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "String"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ">,"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "    pub"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " flash_message"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " Option"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "<"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "FlashMessage"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ">,"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "    pub"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " host_form"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " Option"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "<"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "HostFormState"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ">,"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "    pub"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " remembered_password_aliases"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " HashSet"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "<"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "String"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ">,"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "    pub"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " running"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " bool"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "    pub"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " show_address"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " bool"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, {
-						className: "line",
-						children: (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-comment)" },
-							children: "    // 内部通道"
-						})
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "    ping_rx"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " Receiver"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "<"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "PingEvent"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ">,"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "    ping_tx"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " Sender"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "<"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "PingEvent"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ">,"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, {
-						className: "line",
-						children: (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "}"
-						})
-					})
-				]
-			})
-		}) }),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "核心方法",
-			children: "核心方法"
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "方法" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "说明" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "后台任务" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "说明" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "Ping" }), (0, import_jsx_runtime.jsx)(_components.td, { children: "单机 / 全量 TCP 检测" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "Monitor" }), (0, import_jsx_runtime.jsx)(_components.td, { children: "工作台周期性采集" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "Agent" }), (0, import_jsx_runtime.jsx)(_components.td, { children: "AI 会话与审批往返" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "Remote command" }), (0, import_jsx_runtime.jsxs)(_components.td, {
 				language: "txt",
-				children: (0, import_jsx_runtime.jsx)(_components.code, {
+				children: [(0, import_jsx_runtime.jsx)(_components.code, {
 					language: "txt",
-					children: "new(config, config_path)"
-				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "初始化应用状态" })] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
-				language: "txt",
-				children: (0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "apply(action)"
-				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "核心状态变更方法，处理所有 Action；删除时按标记集合批量执行" })] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
-				language: "txt",
-				children: (0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "handle_form_key(key)"
-				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "处理编辑表单中的键盘事件" })] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
-				language: "txt",
-				children: (0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "poll_background_tasks()"
-				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "轮询后台 Ping 检测结果" })] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
-				language: "txt",
-				children: (0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "save_config()"
-				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "将内存中的 hosts 写回 SSH 配置文件" })] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
-				language: "txt",
-				children: (0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "commit_host_form()"
-				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "提交编辑表单（新增/编辑）" })] })
+					children: ":"
+				}), " 远程命令执行"]
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "Terminal" }), (0, import_jsx_runtime.jsx)(_components.td, { children: "PTY 读取线程" })] })
 		] })] }),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "ping-后台任务",
-			children: "Ping 后台任务"
-		}),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.p, {
 			language: "txt",
 			children: [
-				"Ping 检测通过 ",
 				(0, import_jsx_runtime.jsx)(_components.code, {
 					language: "txt",
-					children: "mpsc::channel"
+					children: "restore_mode_after_overlay()"
 				}),
-				" 异步通信："
+				" 在关闭面板时决定焦点：若面板打开期间 SSH 终端仍存活则回到 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Mode::Terminal"
+				}),
+				"，否则回到 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Mode::Normal"
+				}),
+				"。"
 			]
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.pre, {
-			language: "txt",
-			children: (0, import_jsx_runtime.jsx)(_components.code, {
-				language: "txt",
-				children: "单机检测：\r\nApp → start_single_ping() → thread::spawn → TCP connect → send PingEvent → App.handle_ping_event()\r\n\r\n全量检测：\r\nApp → start_ping_all() → 多线程并发 → 每个线程检测一台 → send BatchHostFinished → 全部完成后 send BatchCompleted\n"
-			})
 		}),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h2, {
@@ -190204,76 +197339,159 @@ function _createMdxContent$2(props) {
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.p, {
 			language: "txt",
-			children: [(0, import_jsx_runtime.jsx)(_components.code, {
-				language: "txt",
-				children: "start()"
-			}), " 函数是 TUI 的入口点："]
+			children: [
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "start()"
+				}),
+				" 是 TUI 入口，事件循环以 ",
+				(0, import_jsx_runtime.jsx)(_components.strong, { children: "100ms" }),
+				" 为 tick："
+			]
 		}),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.pre, {
 			language: "txt",
 			children: (0, import_jsx_runtime.jsx)(_components.code, {
 				language: "txt",
-				children: "加载 SSH 配置 → ratatui::try_init() → 创建 App → run_event_loop() → ratatui::try_restore()\n"
+				children: "while app.running:\n    poll_background_tasks()\n    expire_flash_message()\n    render()\n    poll(100ms)\n    if event:\n        if Terminal 模式 → 转发给 PTY（Ctrl+B 前缀除外）\n        elif Add/Edit/AgentConfig → handle_form_key()\n        else → map_key_to_action() → apply()\n"
 			})
 		}),
 		"\n",
-		(0, import_jsx_runtime.jsx)(_components.p, { children: "事件循环（100ms tick）：" }),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.pre, {
+		(0, import_jsx_runtime.jsxs)(_components.p, {
 			language: "txt",
-			children: (0, import_jsx_runtime.jsx)(_components.code, {
-				language: "txt",
-				children: "while app.running:\r\n    poll_background_tasks()    // 处理后台检测结果\r\n    expire_flash_message()     // 过期闪烁消息清除\r\n    render()                   // 绘制界面\r\n    poll(tick_rate)            // 等待事件（100ms 超时）\r\n    if event:                  // 有按键事件\r\n        if Add/Edit mode → handle_form_key()\r\n        else → map_key_to_action() → apply() → 处理 Connect\r\n    else:                      // tick 超时\r\n        apply(Action::None)    // 空操作（可用于定时刷新）\n"
-			})
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "connect-特殊处理",
-			children: "Connect 特殊处理"
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.p, { children: "连接操作需要终端控制权，在事件循环中特殊处理：" }),
-		"\n",
-		(0, import_jsx_runtime.jsxs)(_components.ol, { children: [
-			"\n",
-			(0, import_jsx_runtime.jsxs)(_components.li, {
-				language: "txt",
-				children: [(0, import_jsx_runtime.jsx)(_components.code, {
+			children: [
+				"在主机列表中按 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "Enter"
+				}),
+				" 连接时，会先关闭鼠标捕获，",
+				(0, import_jsx_runtime.jsx)(_components.code, {
 					language: "txt",
 					children: "ratatui::try_restore()"
-				}), " — 退出 TUI 备用屏幕"]
-			}),
+				}),
+				" 退出备用屏幕，运行全屏 SSH 会话，返回后再 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "try_init()"
+				}),
+				"。Windows 下键盘轮询用 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "catch_unwind"
+				}),
+				" 包裹，吞掉 crossterm-winapi 在非法 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "INPUT_RECORD"
+				}),
+				" 上的 panic。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "termrs--嵌入式终端",
+			children: "term.rs — 嵌入式终端"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
 			"\n",
 			(0, import_jsx_runtime.jsxs)(_components.li, {
 				language: "txt",
 				children: [
-					"发送 ",
+					"用 ",
 					(0, import_jsx_runtime.jsx)(_components.code, {
 						language: "txt",
-						children: "\\x1b[?25h"
+						children: "portable-pty"
 					}),
-					" — 确保主屏幕光标可见"
+					" 分配 PTY（Windows 为 ConPTY），后台线程读取输出送入 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "vt100::Parser"
+					}),
+					"（回滚 1000 行）"
 				]
 			}),
 			"\n",
 			(0, import_jsx_runtime.jsxs)(_components.li, {
 				language: "txt",
-				children: [(0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "start_interactive_session()"
-				}), " — 启动 SSH 会话"]
+				children: [
+					"SSH 命令强制 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "-tt"
+					}),
+					"；有保存密码时注入 AskPass 环境变量"
+				]
 			}),
 			"\n",
 			(0, import_jsx_runtime.jsxs)(_components.li, {
 				language: "txt",
 				children: [
-					"会话退出后 ",
 					(0, import_jsx_runtime.jsx)(_components.code, {
 						language: "txt",
-						children: "ratatui::try_init()"
+						children: "TermStatus"
 					}),
-					" — 重新进入 TUI"
+					"：",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Connecting"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Running"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Exited"
+					}),
+					"。",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Running"
+					}),
+					" 只在屏幕出现可见内容时触发，避免握手阶段的控制序列误判"
+				]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					"断开检测同时依赖读取线程的 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Exited"
+					}),
+					" 与主动 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "poll_child_exit()"
+					}),
+					"（Windows ConPTY 在 ssh 退出时不一定 EOF）"
+				]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "encode_key()"
+					}),
+					" 负责把按键编码成远端字节（Enter ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "\\r"
+					}),
+					"、Backspace ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "0x7f"
+					}),
+					"、方向键/功能键序列、Ctrl/Alt 组合等）"
 				]
 			}),
 			"\n"
@@ -190284,105 +197502,192 @@ function _createMdxContent$2(props) {
 			children: "keymap.rs — 键盘映射"
 		}),
 		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "按键映射",
-			children: "按键映射"
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "map_key_to_action()"
+				}), "：按当前 Mode 映射按键"]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "map_terminal_prefix_key()"
+					}),
+					"：处理终端模式下的 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "Ctrl+B"
+					}),
+					" 前缀组合"
+				]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "module_key()"
+					}),
+					"：工作台配置弹窗中数字键到组件的映射（",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "1"
+					}),
+					"–",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "0"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "a"
+					}),
+					"）"
+				]
+			}),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "dashboard--工作台",
+			children: "dashboard/ — 工作台"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "文件" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "职责" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "config.rs"
+				})
+			}), (0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "DashboardConfig"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "ProfileConfig"
+					}),
+					" / ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "LayoutNode"
+					}),
+					"，内置 Profile 与 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "default_layout_for()"
+					})
+				]
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "layout.rs"
+				})
+			}), (0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					"布局引擎与分隔线拖拽数学（",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "hit_test_divider"
+					}),
+					"、",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "apply_split_resize"
+					}),
+					"）"
+				]
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "widgets.rs"
+				})
+			}), (0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "WidgetModule"
+				}), " trait 与组件渲染（真实快照或占位文本）"]
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "palette.rs"
+				})
+			}), (0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					"命令面板动作表 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "PALETTE_ACTIONS"
+					}),
+					" 与筛选"
+				]
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ui.rs"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "工作台渲染、终端/Agent 面板、连接动画与待机动画" })] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "editorrs--表单",
+			children: "editor.rs — 表单"
 		}),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.p, {
 			language: "txt",
-			children: [(0, import_jsx_runtime.jsx)(_components.code, {
-				language: "txt",
-				children: "map_key_to_action()"
-			}), " 函数根据当前模式将按键映射为 Action："]
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "模式" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "按键 → Action" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "Normal" }), (0, import_jsx_runtime.jsxs)(_components.td, {
-				language: "txt",
-				children: [
-					(0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "j/↓/Ctrl+N"
-					}),
-					" → MoveDown, ",
-					(0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "k/↑/Ctrl+P"
-					}),
-					" → MoveUp, ",
-					(0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "Enter"
-					}),
-					" → Connect, ",
-					(0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "/"
-					}),
-					" → StartSearch..."
-				]
-			})] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "Search" }), (0, import_jsx_runtime.jsxs)(_components.td, {
-				language: "txt",
-				children: [
-					(0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "Esc"
-					}),
-					" → CancelSearch, ",
-					(0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "Enter"
-					}),
-					" → SearchSubmit, ",
-					(0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "Char"
-					}),
-					" → SearchInput..."
-				]
-			})] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "Confirm" }), (0, import_jsx_runtime.jsxs)(_components.td, {
-				language: "txt",
-				children: [
-					(0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "y/Y"
-					}),
-					" → ConfirmDelete(true), ",
-					(0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "n/N/Esc"
-					}),
-					" → ConfirmDelete(false)"
-				]
-			})] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "Help" }), (0, import_jsx_runtime.jsxs)(_components.td, {
-				language: "txt",
-				children: [(0, import_jsx_runtime.jsx)(_components.code, {
+			children: [
+				"主机表单与 Agent 设置表单共用编辑器框架。主机表单的 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
 					language: "txt",
-					children: "q/Esc"
-				}), " → HideHelp"]
-			})] })
-		] })] }),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h2, {
-			id: "uirs--渲染逻辑",
-			children: "ui.rs — 渲染逻辑"
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "界面布局",
-			children: "界面布局"
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.pre, {
-			language: "txt",
-			children: (0, import_jsx_runtime.jsx)(_components.code, {
-				language: "txt",
-				children: "┌─ 标题栏 (1行) ──────────────────────────────────┐\r\n├──────────────┬────────────────────────────────────┤\r\n│              │                                    │\r\n│  主机列表     │           详情面板                  │\r\n│  (50%)       │           (50%)                    │\r\n│              │                                    │\r\n├──────────────┴────────────────────────────────────┤\r\n│  状态栏 (1行)                                     │\r\n└───────────────────────────────────────────────────┘\n"
-			})
+					children: "build_submission()"
+				}),
+				" 返回 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "HostBlock"
+				}),
+				" 与 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "PasswordStorageAction"
+				}),
+				"，用于区分新增留空、编辑保留、设置新密码和 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "!clear"
+				}),
+				" 清除四种语义。Agent 表单编辑 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "agent.json"
+				}),
+				" 的 provider / base_url / model / permission / timeout。"
+			]
 		}),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h2, {
@@ -190411,211 +197716,43 @@ function _createMdxContent$2(props) {
 					language: "txt",
 					children: "render_host_form_popup()"
 				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "主机编辑弹窗表单" })] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
-				language: "txt",
-				children: (0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "render_confirm_dialog()"
-				})
-			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "确认对话框（预留）" })] })
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "主机编辑弹窗表单" })] })
 		] })] }),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h2, {
-			id: "editorrs--主机编辑表单",
-			children: "editor.rs — 主机编辑表单"
+			id: "uirs--渲染逻辑",
+			children: "ui.rs — 渲染逻辑"
 		}),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.p, {
 			language: "txt",
 			children: [
-				"使用 ",
+				"界面为「1 行标题栏 / 内容区 / 1 行状态栏」结构，内容区按 ",
 				(0, import_jsx_runtime.jsx)(_components.code, {
 					language: "txt",
-					children: "tui-textarea"
+					children: "View"
 				}),
-				" crate 实现多字段编辑表单。"
+				" 渲染主机列表或工作台，并叠加各种弹窗（搜索、确认、Docker/服务/文件/日志、Agent、命令面板、Dashboard 配置、远程命令与结果）。"
 			]
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "hostformstate",
-			children: "HostFormState"
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.p, { children: "包含 8 个表单字段：" }),
-		"\n",
-		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [
-			(0, import_jsx_runtime.jsx)(_components.th, { children: "索引" }),
-			(0, import_jsx_runtime.jsx)(_components.th, { children: "字段" }),
-			(0, import_jsx_runtime.jsx)(_components.th, { children: "模式" }),
-			(0, import_jsx_runtime.jsx)(_components.th, { children: "说明" })
-		] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "0" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "Host" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "单行" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "主机别名（必填）" })
-			] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "1" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "HostName" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "单行" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "主机地址" })
-			] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "2" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "User" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "单行" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "登录用户名" })
-			] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "3" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "Port" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "单行" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "SSH 端口" })
-			] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "4" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "IdentityFile" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "单行" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "密钥路径（自动预填充）" })
-			] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "5" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "Password" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "单行（遮罩）" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "系统凭据库中的登录密码" })
-			] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "6" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "注释" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "多行" }),
-				(0, import_jsx_runtime.jsxs)(_components.td, {
-					language: "txt",
-					children: [
-						"保存为 ",
-						(0, import_jsx_runtime.jsx)(_components.code, {
-							language: "txt",
-							children: "#"
-						}),
-						" 开头的 Host 块注释"
-					]
-				})
-			] }),
-			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "7" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "其他 SSH 指令" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "多行" }),
-				(0, import_jsx_runtime.jsx)(_components.td, { children: "额外 SSH 配置" })
-			] })
-		] })] }),
-		"\n",
-		(0, import_jsx_runtime.jsxs)(_components.p, {
-			language: "txt",
-			children: [
-				(0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "build_submission()"
-				}),
-				" 同时返回 ",
-				(0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "HostBlock"
-				}),
-				" 和 ",
-				(0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "PasswordStorageAction"
-				}),
-				"。密码动作分为 ",
-				(0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "Unchanged"
-				}),
-				"、",
-				(0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "Keep"
-				}),
-				"、",
-				(0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "Set(String)"
-				}),
-				" 与 ",
-				(0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "Clear"
-				}),
-				"，从而区分新增时留空、编辑时保留、设置新密码和输入 ",
-				(0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "!clear"
-				}),
-				" 清除四种语义。",
-				(0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "App::commit_host_form()"
-				}),
-				" 负责执行凭据写入，并在别名变化时迁移密码。"
-			]
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "验证逻辑",
-			children: "验证逻辑"
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
-			"\n",
-			(0, import_jsx_runtime.jsx)(_components.li, { children: "Host 别名不能为空" }),
-			"\n",
-			(0, import_jsx_runtime.jsx)(_components.li, { children: "Port 必须是 1-65535 的整数" }),
-			"\n",
-			(0, import_jsx_runtime.jsxs)(_components.li, {
-				language: "txt",
-				children: [
-					"禁止在\"其他指令\"字段中填写 ",
-					(0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "HostName"
-					}),
-					"、",
-					(0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "User"
-					}),
-					"、",
-					(0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "Port"
-					}),
-					"、",
-					(0, import_jsx_runtime.jsx)(_components.code, {
-						language: "txt",
-						children: "IdentityFile"
-					}),
-					" 等托管指令"
-				]
-			}),
-			"\n"
-		] })
+		})
 	] });
 }
-function MDXContent$2(props = {}) {
+function MDXContent$4(props = {}) {
 	const { wrapper: MDXLayout } = {
 		...useMDXComponents(),
 		...props.components
 	};
 	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
 		...props,
-		children: (0, import_jsx_runtime.jsx)(_createMdxContent$2, { ...props })
-	}) : _createMdxContent$2(props);
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$4, { ...props })
+	}) : _createMdxContent$4(props);
+}
+function _missingMdxReference$1(id, component) {
+	throw new Error("Expected " + (component ? "component" : "object") + " `" + id + "` to be defined: you likely forgot to import, pass, or provide it.");
 }
 //#endregion
 //#region source/uploader.mdx
-function _createMdxContent$1(props) {
+function _createMdxContent$3(props) {
 	const _components = {
 		a: "a",
 		code: "code",
@@ -190628,6 +197765,12 @@ function _createMdxContent$1(props) {
 		pre: "pre",
 		span: "span",
 		strong: "strong",
+		table: "table",
+		tbody: "tbody",
+		td: "td",
+		th: "th",
+		thead: "thead",
+		tr: "tr",
 		ul: "ul",
 		...useMDXComponents(),
 		...props.components
@@ -190635,7 +197778,7 @@ function _createMdxContent$1(props) {
 	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 		(0, import_jsx_runtime.jsx)(_components.hr, {}),
 		"\n",
-		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: 上传器\r\ndescription: qssh-uploader 独立文件上传工具的详细文档，包含并发上传、进度显示和防闪退设计。\r\nkeywords:" }),
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: 上传器\ndescription: qssh-uploader 独立文件上传工具的详细文档，包含参数、顺序 SCP 上传、AskPass 复用与防闪退设计。\nkeywords:" }),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
 			"\n",
@@ -190643,11 +197786,9 @@ function _createMdxContent$1(props) {
 			"\n",
 			(0, import_jsx_runtime.jsx)(_components.li, { children: "scp" }),
 			"\n",
-			(0, import_jsx_runtime.jsx)(_components.li, { children: "并发" }),
-			"\n",
-			(0, import_jsx_runtime.jsx)(_components.li, { children: "进度条" }),
-			"\n",
 			(0, import_jsx_runtime.jsx)(_components.li, { children: "上传" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "askpass" }),
 			"\n"
 		] }),
 		"\n",
@@ -190687,9 +197828,33 @@ function _createMdxContent$1(props) {
 			"\n",
 			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.strong, { children: "独立可执行" }), "：与主程序分开构建，可独立使用"] }),
 			"\n",
-			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.strong, { children: "并发上传" }), "：最多 3 个文件同时通过 SCP 传输"] }),
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.strong, { children: "顺序上传" }),
+					"：逐个文件通过 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "scp"
+					}),
+					" 传输"
+				]
+			}),
 			"\n",
-			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.strong, { children: "实时进度" }), "：显示每个文件的进度条和总进度"] }),
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.strong, { children: "原生进度" }),
+					"：",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "scp"
+					}),
+					" 继承控制台，检测到 TTY 后显示原生传输进度"
+				]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.strong, { children: "复用密码" }), "：通过 AskPass 复用系统凭据库中保存的密码"] }),
 			"\n",
 			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.strong, { children: "防闪退" }), "：多种机制确保窗口在出错时不会立即关闭"] }),
 			"\n"
@@ -190704,7 +197869,7 @@ function _createMdxContent$1(props) {
 			language: "txt",
 			children: (0, import_jsx_runtime.jsx)(_components.code, {
 				language: "txt",
-				children: "main()\r\n  → 延迟 300ms（等待控制台初始化）\r\n  → 安装 panic hook（防闪退）\r\n  → run()\r\n    → parse_args()            // 解析命令行参数\r\n    → 初始化文件进度跟踪\r\n    → render_all()            // 首次渲染\r\n    → 并发上传控制循环\r\n      → 启动新上传（≤3 并发）\r\n      → 等待完成通知\r\n      → 重新渲染进度\r\n    → 完成\n"
+				children: "main()\n  → 延迟 300ms（等待控制台初始化）\n  → 安装 panic hook（防闪退）\n  → run()\n    → parse_args()            // 解析命令行参数\n    → 打印目标信息\n    → for 每个文件:\n        → upload_via_scp()    // scp 继承控制台，显示原生进度\n        → 打印成功 / 失败\n    → 打印汇总（成功数 / 耗时）\n"
 			})
 		}),
 		"\n",
@@ -190717,34 +197882,104 @@ function _createMdxContent$1(props) {
 			language: "txt",
 			children: (0, import_jsx_runtime.jsx)(_components.code, {
 				language: "txt",
-				children: "qssh-uploader [选项] <文件路径>...\r\n\r\n选项：\r\n  --host <host>          服务器地址（必填）\r\n  --user <user>          SSH 用户名\r\n  --port <port>          SSH 端口（默认 22）\r\n  --key <path>           密钥文件路径\r\n  --remote-dir <path>    远程目录（默认当前目录）\n"
+				children: "qssh-uploader --host <host> [选项] <文件路径>...\n"
 			})
 		}),
 		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h2, {
-			id: "并发上传",
-			children: "并发上传"
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "参数" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "说明" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "--alias <alias>"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "主机别名，用于 AskPass 读取已保存密码" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "--host <host>"
+				})
+			}), (0, import_jsx_runtime.jsxs)(_components.td, { children: [
+				"服务器地址（",
+				(0, import_jsx_runtime.jsx)(_components.strong, { children: "必填" }),
+				"）"
+			] })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "--user <user>"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "SSH 用户名" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "--port <port>"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "SSH 端口（默认 22）" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "--key <path>"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "密钥文件路径" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "--remote-dir <dir>"
+				})
+			}), (0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: [
+					"远程目录（默认 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "."
+					}),
+					"）"
+				]
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "位置参数" }), (0, import_jsx_runtime.jsxs)(_components.td, { children: [
+				"要上传的本地文件（",
+				(0, import_jsx_runtime.jsx)(_components.strong, { children: "至少一个" }),
+				"）"
+			] })] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"未指定 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "--host"
+				}),
+				" 或没有文件时会直接报错退出。"
+			]
 		}),
 		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "控制机制",
-			children: "控制机制"
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "顺序上传",
+			children: "顺序上传"
 		}),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.p, {
 			language: "txt",
 			children: [
-				"使用 ",
 				(0, import_jsx_runtime.jsx)(_components.code, {
 					language: "txt",
-					children: "AtomicUsize"
+					children: "run()"
 				}),
-				" 和 ",
+				" 逐个文件调用一次 ",
 				(0, import_jsx_runtime.jsx)(_components.code, {
 					language: "txt",
-					children: "mpsc::channel"
+					children: "upload_via_scp()"
 				}),
-				" 实现并发控制："
+				"："
 			]
 		}),
 		"\n",
@@ -190763,181 +197998,77 @@ function _createMdxContent$1(props) {
 						children: [
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-token-keyword)" },
-								children: "let"
+								children: "for"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-foreground)" },
-								children: " active "
+								children: " (i, file) "
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-token-keyword)" },
-								children: "="
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " Arc"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "::"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "new"
+								children: "in"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-foreground)" },
-								children: "(AtomicUsize"
+								children: " args"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-token-keyword)" },
-								children: "::"
+								children: "."
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "files"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "."
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-token-function)" },
-								children: "new"
+								children: "iter"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "()"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "."
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "enumerate"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "() {"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "    println!"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-foreground)" },
 								children: "("
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-constant)" },
-								children: "0"
+								style: { color: "var(--shiki-token-string-expression)" },
+								children: "\"[{}/{}] 上传 {} ...\""
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-foreground)" },
-								children: "));"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "let"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " (tx, rx) "
+								children: ", i "
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-token-keyword)" },
-								children: "="
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " mpsc"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "::"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "channel"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "::"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "<"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "usize"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ">();"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, { className: "line" }),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "while"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " completed_count "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "<"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " total_files {"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, {
-						className: "line",
-						children: (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-comment)" },
-							children: "    // 启动新任务（不超过 MAX_CONCURRENT=3）"
-						})
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "    while"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " active "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "<"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " MAX_CONCURRENT "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "&&"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " next_index "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "<"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " total {"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "        active "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "+="
+								children: "+"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-token-constant)" },
@@ -190945,7 +198076,7 @@ function _createMdxContent$1(props) {
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-foreground)" },
-								children: ";"
+								children: ", total, name);"
 							})
 						]
 					}),
@@ -190954,42 +198085,12 @@ function _createMdxContent$1(props) {
 						className: "line",
 						children: [
 							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "        thread"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-token-keyword)" },
-								children: "::"
+								children: "    match"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-token-function)" },
-								children: "spawn"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "("
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "move"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: " ||"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " {"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "            upload_via_scp"
+								children: " upload_via_scp"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-foreground)" },
@@ -191001,110 +198102,17 @@ function _createMdxContent$1(props) {
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
 								style: { color: "var(--shiki-foreground)" },
-								children: "file_args);"
+								children: "file_args) { "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-comment)" },
+								children: "/* 成功 / 失败计数 */"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " }"
 							})
 						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "            active "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "-="
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-constant)" },
-								children: " 1"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ";"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "            tx"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "."
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "send"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "(idx);"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, {
-						className: "line",
-						children: (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "        });"
-						})
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, {
-						className: "line",
-						children: (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "    }"
-						})
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, {
-						className: "line",
-						children: (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-comment)" },
-							children: "    // 等待任意一个完成"
-						})
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "    rx"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "."
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "recv"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "();"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-function)" },
-							children: "    render_all"
-						}), (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "();"
-						})]
 					}),
 					"\n",
 					(0, import_jsx_runtime.jsx)(_components.span, {
@@ -191135,7 +198143,12 @@ function _createMdxContent$1(props) {
 					language: "txt",
 					children: "scp"
 				}),
-				" 命令："
+				"，目标为 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "[user@]host:remote_dir/filename"
+				}),
+				"："
 			]
 		}),
 		"\n",
@@ -191204,10 +198217,6 @@ function _createMdxContent$1(props) {
 							children: " ControlMaster=no"
 						}),
 						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-string)" },
-							children: " -q"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
 							style: { color: "var(--shiki-token-keyword)" },
 							children: " <"
 						}),
@@ -191232,698 +198241,180 @@ function _createMdxContent$1(props) {
 			})
 		}) }),
 		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h2, {
-			id: "进度显示",
-			children: "进度显示"
-		}),
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: ["端口为 22 时省略 ", (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "-P"
+				})]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "-o ControlMaster=no"
+				}), " 避免与现有 SSH 会话冲突"]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					"不管道化 stdout/stderr，让 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "scp"
+					}),
+					" 检测到 TTY 并显示原生进度；需要密码时也能直接在窗口内输入"
+				]
+			}),
+			"\n"
+		] }),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "进度跟踪",
-			children: "进度跟踪"
+			id: "askpass-复用",
+			children: "AskPass 复用"
 		}),
 		"\n",
 		(0, import_jsx_runtime.jsxs)(_components.p, {
 			language: "txt",
 			children: [
-				"每个文件使用 ",
+				"指定了 ",
 				(0, import_jsx_runtime.jsx)(_components.code, {
 					language: "txt",
-					children: "FileProgress"
+					children: "--alias"
 				}),
-				" 结构体跟踪："
+				" 时，",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "configure_scp_askpass()"
+				}),
+				" 把同目录下的 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "qssh(.exe)"
+				}),
+				" 设为 AskPass 程序："
 			]
 		}),
 		"\n",
-		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
-			className: "shiki css-variables",
-			style: {
-				backgroundColor: "var(--shiki-background)",
-				color: "var(--shiki-foreground)"
-			},
-			tabIndex: "0",
-			children: (0, import_jsx_runtime.jsxs)(_components.code, {
-				className: "language-rust",
-				children: [
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "struct"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " FileProgress"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " {"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "    index"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " usize"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "    name"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " String"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "    size"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " u64"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "    done"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " u64"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "    finished"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " bool"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "    success"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " bool"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ","
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "    error"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ":"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " Option"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "<"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "String"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: ">,"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, {
-						className: "line",
-						children: (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "}"
-						})
-					})
-				]
-			})
-		}) }),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "进度渲染",
-			children: "进度渲染"
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsxs)(_components.p, {
-			language: "txt",
-			children: [(0, import_jsx_runtime.jsx)(_components.code, {
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "环境变量" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "值" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
 				language: "txt",
-				children: "render_all()"
-			}), " 函数在每次进度更新时刷新整个终端："]
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.pre, {
-			language: "txt",
-			children: (0, import_jsx_runtime.jsx)(_components.code, {
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "SSH_ASKPASS"
+				})
+			}), (0, import_jsx_runtime.jsxs)(_components.td, {
 				language: "txt",
-				children: "# 上传中\r\n文件 1/3: project.zip     [##################------]  72%  12.1MB/16.8MB\r\n\r\n# 上传完成\r\n文件 1/3: project.zip     [########################] 100%  16.8MB/16.8MB\r\n\r\n# 底部状态\r\n进度: 2/3 个文件完成  |  耗时: 12s\n"
-			})
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "cjk-字符处理",
-			children: "CJK 字符处理"
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsxs)(_components.p, {
-			language: "txt",
-			children: [(0, import_jsx_runtime.jsx)(_components.code, {
+				children: ["同目录的 ", (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "qssh.exe"
+				})]
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
 				language: "txt",
-				children: "display_width()"
-			}), " 函数正确处理中文、日文等双宽字符，确保进度条在同一列对齐："]
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
-			"\n",
-			(0, import_jsx_runtime.jsx)(_components.li, { children: "ASCII 字符 → 1 列宽度" }),
-			"\n",
-			(0, import_jsx_runtime.jsx)(_components.li, { children: "CJK 字符（中日韩统一表意文字、假名、谚文等）→ 2 列宽度" }),
-			"\n"
-		] }),
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "SSH_ASKPASS_REQUIRE"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "force"
+				})
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "QSSH_ASKPASS_ACTIVE"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "1"
+				})
+			})] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "QSSH_ASKPASS_ALIAS"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "主机别名" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "DISPLAY"
+				})
+			}), (0, import_jsx_runtime.jsxs)(_components.td, {
+				language: "txt",
+				children: ["缺失时设置为 ", (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "qssh-askpass"
+				})]
+			})] })
+		] })] }),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h2, {
 			id: "防闪退机制",
 			children: "防闪退机制"
 		}),
 		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "启动延迟",
-			children: "启动延迟"
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
-			className: "shiki css-variables",
-			style: {
-				backgroundColor: "var(--shiki-background)",
-				color: "var(--shiki-foreground)"
-			},
-			tabIndex: "0",
-			children: (0, import_jsx_runtime.jsx)(_components.code, {
-				className: "language-rust",
-				children: (0, import_jsx_runtime.jsxs)(_components.span, {
-					className: "line",
-					children: [
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "std"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-keyword)" },
-							children: "::"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "thread"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-keyword)" },
-							children: "::"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-function)" },
-							children: "sleep"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "(Duration"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-keyword)" },
-							children: "::"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-function)" },
-							children: "from_millis"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "("
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-constant)" },
-							children: "300"
-						}),
-						(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "));"
-						})
-					]
-				})
-			})
-		}) }),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.p, { children: "等待控制台窗口初始化完成，防止在窗口完全创建前输出内容。" }),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "panic-hook",
-			children: "Panic Hook"
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
-			className: "shiki css-variables",
-			style: {
-				backgroundColor: "var(--shiki-background)",
-				color: "var(--shiki-foreground)"
-			},
-			tabIndex: "0",
-			children: (0, import_jsx_runtime.jsxs)(_components.code, {
-				className: "language-rust",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
 				children: [
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "std"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "::"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "panic"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "::"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "set_hook"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "(Box"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "::"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "new"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "("
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "|"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "info"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "|"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " {"
-							})
-						]
+					(0, import_jsx_runtime.jsx)(_components.strong, { children: "启动延迟" }),
+					"：",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "sleep(300ms)"
 					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, {
-						className: "line",
-						children: (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-comment)" },
-							children: "    // 记录错误到日志"
-						})
+					" 等待控制台窗口初始化完成"
+				]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.strong, { children: "Panic hook" }), "：捕获 panic 后写入日志并循环等待 Enter"] }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.strong, { children: "错误处理" }),
+					"：",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "run()"
 					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, {
-						className: "line",
-						children: (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-comment)" },
-							children: "    // 显示错误信息"
-						})
+					" 出错时打印错误链，窗口由调用方的 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "cmd /c ... & pause"
 					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, {
-						className: "line",
-						children: (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-comment)" },
-							children: "    // 循环等待 Enter 键"
-						})
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-keyword)" },
-							children: "    loop"
-						}), (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: " {"
-						})]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "        if"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " std"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "::"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "io"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "::"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "stdin"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "()"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "."
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "read_line"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "("
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "&mut"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " line)"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "."
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "is_ok"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "() {"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [(0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-keyword)" },
-							children: "            break"
-						}), (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: ";"
-						})]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, {
-						className: "line",
-						children: (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "        }"
-						})
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "        std"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "::"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "thread"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "::"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "sleep"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "(Duration"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "::"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: "from_millis"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "("
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-constant)" },
-								children: "500"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "));"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, {
-						className: "line",
-						children: (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "    }"
-						})
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, {
-						className: "line",
-						children: (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "}));"
-						})
+					" 保持打开"
+				]
+			}),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, {
+				language: "txt",
+				children: [
+					(0, import_jsx_runtime.jsx)(_components.strong, { children: "日志记录" }),
+					"：所有错误信息同时写入 ",
+					(0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "%TEMP%\\qssh-uploader.log"
 					})
 				]
-			})
-		}) }),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "错误处理",
-			children: "错误处理"
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
-			className: "shiki css-variables",
-			style: {
-				backgroundColor: "var(--shiki-background)",
-				color: "var(--shiki-foreground)"
-			},
-			tabIndex: "0",
-			children: (0, import_jsx_runtime.jsxs)(_components.code, {
-				className: "language-rust",
-				children: [
-					(0, import_jsx_runtime.jsxs)(_components.span, {
-						className: "line",
-						children: [
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "if"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: " let"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " Err"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "(e) "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "="
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-function)" },
-								children: " run"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "() {"
-							})
-						]
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, {
-						className: "line",
-						children: (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-comment)" },
-							children: "    // 显示错误信息"
-						})
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, {
-						className: "line",
-						children: (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-token-comment)" },
-							children: "    // & pause 保持窗口打开（由启动脚本的 cmd /c 参数保证）"
-						})
-					}),
-					"\n",
-					(0, import_jsx_runtime.jsx)(_components.span, {
-						className: "line",
-						children: (0, import_jsx_runtime.jsx)(_components.span, {
-							style: { color: "var(--shiki-foreground)" },
-							children: "}"
-						})
-					})
-				]
-			})
-		}) }),
-		"\n",
-		(0, import_jsx_runtime.jsx)(_components.h3, {
-			id: "日志记录",
-			children: "日志记录"
-		}),
-		"\n",
-		(0, import_jsx_runtime.jsxs)(_components.p, {
-			language: "txt",
-			children: [
-				"所有错误信息同时写入 ",
-				(0, import_jsx_runtime.jsx)(_components.code, {
-					language: "txt",
-					children: "%TEMP%\\qssh-uploader.log"
-				}),
-				"，便于远程排查问题。"
-			]
-		}),
+			}),
+			"\n"
+		] }),
 		"\n",
 		(0, import_jsx_runtime.jsx)(_components.h2, {
 			id: "与主程序的集成",
@@ -191935,7 +198426,274 @@ function _createMdxContent$1(props) {
 			children: [(0, import_jsx_runtime.jsx)(_components.code, {
 				language: "txt",
 				children: "qssh"
-			}), " 主程序在检测到拖拽文件操作时，通过以下方式启动上传器："]
+			}), " 主程序在检测到拖拽文件操作时，在新控制台窗口中启动上传器，并传入别名与目标参数："]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.pre, {
+			language: "txt",
+			children: (0, import_jsx_runtime.jsx)(_components.code, {
+				language: "txt",
+				children: "qssh-uploader --alias <alias> --host <host> [--user <u>] [--port <p>] [--key <k>] --remote-dir <dir> <files...>\n"
+			})
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"上传结束后由 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "cmd.exe ... & pause"
+				}),
+				" 保持窗口打开，方便查看结果。"
+			]
+		})
+	] });
+}
+function MDXContent$3(props = {}) {
+	const { wrapper: MDXLayout } = {
+		...useMDXComponents(),
+		...props.components
+	};
+	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
+		...props,
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$3, { ...props })
+	}) : _createMdxContent$3(props);
+}
+//#endregion
+//#region source/web-module.mdx
+function _createMdxContent$2(props) {
+	const _components = {
+		a: "a",
+		code: "code",
+		h1: "h1",
+		h2: "h2",
+		hr: "hr",
+		li: "li",
+		p: "p",
+		pre: "pre",
+		span: "span",
+		table: "table",
+		tbody: "tbody",
+		td: "td",
+		th: "th",
+		thead: "thead",
+		tr: "tr",
+		ul: "ul",
+		...useMDXComponents(),
+		...props.components
+	};
+	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+		(0, import_jsx_runtime.jsx)(_components.hr, {}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: Web 模块\ndescription: Quick-SSH web 模块的详细文档，包含零依赖 HTTP 服务、接口路由与 schema 驱动的设置页。\nkeywords:" }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "web" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "http" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "schema" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "settings" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "webui" }),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.hr, {}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h1, {
+			id: "web-模块",
+			children: "Web 模块"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"Web 模块位于 ",
+				(0, import_jsx_runtime.jsx)(_components.a, {
+					href: "/qssh/src/web/",
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "qssh/src/web/"
+					})
+				}),
+				"，实现 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "qssh web"
+				}),
+				" 命令背后的本地 WebUI。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "模块结构",
+			children: "模块结构"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.pre, {
+			language: "txt",
+			children: (0, import_jsx_runtime.jsx)(_components.code, {
+				language: "txt",
+				children: "web/\n├── mod.rs        # DEFAULT_PORT = 17890\n├── server.rs     # 零依赖 HTTP 服务与路由\n├── schema.rs     # 设置目录（SettingsCatalog），schema 驱动表单\n└── index.html    # 内嵌的深色响应式前端\n"
+			})
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "serverrs--http-服务",
+			children: "server.rs — HTTP 服务"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"服务基于标准库 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "std::net::TcpListener"
+				}),
+				"，手写极简 HTTP 解析，每连接一个线程，仅绑定 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "127.0.0.1"
+				}),
+				"。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "方法" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "路径" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "处理函数" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "说明" })
+		] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "GET" }),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "/"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "—" }),
+				(0, import_jsx_runtime.jsxs)(_components.td, {
+					language: "txt",
+					children: ["返回内嵌的 ", (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "index.html"
+					})]
+				})
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "GET" }),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "/api/status"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "handle_status"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "版本、服务商、模型、权限、超时等" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "GET" }),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "/api/settings"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "handle_settings_get"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "读取全部设置（元数据 + 当前值）" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "POST" }),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "/api/settings"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "handle_settings_post"
+					})
+				}),
+				(0, import_jsx_runtime.jsxs)(_components.td, {
+					language: "txt",
+					children: [
+						"请求体 ",
+						(0, import_jsx_runtime.jsx)(_components.code, {
+							language: "txt",
+							children: "{ group, values }"
+						}),
+						"，写回对应文件"
+					]
+				})
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "GET" }),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "/api/tools"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "handle_tools"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "工具注册表及当前权限下的处理方式" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "POST" }),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "/api/test"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "handle_test"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "向服务商发最小请求，返回耗时、回复与模型列表" })
+			] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "schemars--设置目录",
+			children: "schema.rs — 设置目录"
 		}),
 		"\n",
 		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
@@ -191946,13 +198704,392 @@ function _createMdxContent$1(props) {
 			},
 			tabIndex: "0",
 			children: (0, import_jsx_runtime.jsxs)(_components.code, {
-				className: "language-powershell",
+				className: "language-rust",
+				children: [
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " struct"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " SettingsCatalog"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ";"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "impl"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " SettingsCatalog"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: " {"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " groups"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "() "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Vec"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "<"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "GroupSpec"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ">;"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " load_all"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "() "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Value"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ";"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "    pub"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " fn"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " apply"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "(group"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " &"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "str"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ", values"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: ":"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: " &"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "Value"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: ") "
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-keyword)" },
+								children: "->"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: " Result"
+							}),
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-foreground)" },
+								children: "<()>;"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-foreground)" },
+							children: "}"
+						})
+					})
+				]
+			})
+		}) }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "注册三个分组：" }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "分组" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "目标文件" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "字段" })
+		] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "agent"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "agent.json"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "provider / api_key / base_url / model / permission / timeout_secs" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "program"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "~/.qsshrc"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "default_port / ping_timeout_secs / upload_concurrency" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "dashboard"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "dashboard.json"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "active_profile / enabled" })
+			] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"新增一个设置项只需添加 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "FieldSpec"
+				}),
+				" 并在对应的 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "apply_*_to"
+				}),
+				" 中加一个分支，前端 HTML/JS 无需改动——表单完全由 schema 生成。所有数值字段在写入前做范围 clamp。"
+			]
+		})
+	] });
+}
+function MDXContent$2(props = {}) {
+	const { wrapper: MDXLayout } = {
+		...useMDXComponents(),
+		...props.components
+	};
+	return MDXLayout ? (0, import_jsx_runtime.jsx)(MDXLayout, {
+		...props,
+		children: (0, import_jsx_runtime.jsx)(_createMdxContent$2, { ...props })
+	}) : _createMdxContent$2(props);
+}
+//#endregion
+//#region source/webui.mdx
+function _createMdxContent$1(props) {
+	const _components = {
+		a: "a",
+		code: "code",
+		h1: "h1",
+		h2: "h2",
+		h3: "h3",
+		hr: "hr",
+		li: "li",
+		p: "p",
+		pre: "pre",
+		span: "span",
+		strong: "strong",
+		table: "table",
+		tbody: "tbody",
+		td: "td",
+		th: "th",
+		thead: "thead",
+		tr: "tr",
+		ul: "ul",
+		...useMDXComponents(),
+		...props.components
+	};
+	return (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+		(0, import_jsx_runtime.jsx)(_components.hr, {}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.p, { children: "title: Web 界面\ndescription: 通过 qssh web 启动本地 WebUI，在浏览器中以表单方式查看状态并编辑 Agent、程序与 Dashboard 设置。\nkeywords:" }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "web" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "webui" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "设置" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "配置" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "17890" }),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.hr, {}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h1, {
+			id: "web-界面",
+			children: "Web 界面"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "qssh web"
+				}),
+				" 会启动一个本地 Web 界面（WebUI），用于查看运行状态并用表单方式编辑配置。它只监听 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "127.0.0.1"
+				}),
+				"，不对外网开放。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: (0, import_jsx_runtime.jsx)(_components.pre, {
+			className: "shiki css-variables",
+			style: {
+				backgroundColor: "var(--shiki-background)",
+				color: "var(--shiki-foreground)"
+			},
+			tabIndex: "0",
+			children: (0, import_jsx_runtime.jsxs)(_components.code, {
+				className: "language-bash",
 				children: [
 					(0, import_jsx_runtime.jsx)(_components.span, {
 						className: "line",
 						children: (0, import_jsx_runtime.jsx)(_components.span, {
 							style: { color: "var(--shiki-token-comment)" },
-							children: "# 在新控制台窗口中启动"
+							children: "# 使用默认端口 17890"
+						})
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [(0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-function)" },
+							children: "qssh"
+						}), (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-string)" },
+							children: " web"
+						})]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, { className: "line" }),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-comment)" },
+							children: "# 指定端口"
 						})
 					}),
 					"\n",
@@ -191960,86 +199097,313 @@ function _createMdxContent$1(props) {
 						className: "line",
 						children: [
 							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "cmd "
+								style: { color: "var(--shiki-token-function)" },
+								children: "qssh"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "/"
+								style: { color: "var(--shiki-token-string)" },
+								children: " web"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "c start "
+								style: { color: "var(--shiki-token-string)" },
+								children: " --port"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-string-expression)" },
-								children: "\"qssh-uploader\""
+								style: { color: "var(--shiki-token-constant)" },
+								children: " 8080"
+							})
+						]
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsx)(_components.span, {
+						className: "line",
+						children: (0, import_jsx_runtime.jsx)(_components.span, {
+							style: { color: "var(--shiki-token-comment)" },
+							children: "# 或"
+						})
+					}),
+					"\n",
+					(0, import_jsx_runtime.jsxs)(_components.span, {
+						className: "line",
+						children: [
+							(0, import_jsx_runtime.jsx)(_components.span, {
+								style: { color: "var(--shiki-token-function)" },
+								children: "qssh"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-string-expression)" },
-								children: " \"qssh-uploader\""
+								style: { color: "var(--shiki-token-string)" },
+								children: " web"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: " --"
+								style: { color: "var(--shiki-token-string)" },
+								children: " -p"
 							}),
 							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "host "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "<"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "host"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ">"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: " --"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "user "
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "<"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: "user"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: ">"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " .."
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: "."
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-token-keyword)" },
-								children: " &"
-							}),
-							(0, import_jsx_runtime.jsx)(_components.span, {
-								style: { color: "var(--shiki-foreground)" },
-								children: " pause"
+								style: { color: "var(--shiki-token-constant)" },
+								children: " 8080"
 							})
 						]
 					})
 				]
 			})
-		}) })
+		}) }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"启动后打开 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "http://127.0.0.1:17890"
+				}),
+				" 即可。服务端是一个零依赖的极简 HTTP 服务（基于标准库 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "TcpListener"
+				}),
+				"），无需任何额外运行时。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "功能",
+			children: "功能"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "页面 / 接口" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "说明" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "设置表单" }), (0, import_jsx_runtime.jsx)(_components.td, { children: "按分组编辑配置，保存即写回对应文件" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "状态" }), (0, import_jsx_runtime.jsx)(_components.td, { children: "版本号、当前 Agent 服务商 / 模型 / 权限 / 超时" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "工具列表" }), (0, import_jsx_runtime.jsx)(_components.td, { children: "列出 Agent 的全部工具及其危险等级与当前权限下的处理方式" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, { children: "测试连接" }), (0, import_jsx_runtime.jsx)(_components.td, { children: "向当前 Agent 服务商发一次最小请求，返回耗时、回复与可用模型列表" })] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "设置分组",
+			children: "设置分组"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, { children: [
+			"WebUI 的设置页由",
+			(0, import_jsx_runtime.jsx)(_components.strong, { children: "配置 schema 驱动" }),
+			"，分三组："
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h3, {
+			id: "agent",
+			children: "Agent"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"对应 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "agent.json"
+				}),
+				"。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "字段" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "控件" }),
+			(0, import_jsx_runtime.jsx)(_components.th, { children: "说明" })
+		] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "provider"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "下拉" }),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "opencode-go（推荐）/ openai / ollama" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "api_key"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "密码框" }),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "API Key" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "base_url"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "文本框" }),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "API 地址" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "model"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "文本框" }),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "模型名" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "permission"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "下拉" }),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "ask_before_execute / read_only / auto_safe / full_access" })
+			] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [
+				(0, import_jsx_runtime.jsx)(_components.td, {
+					language: "txt",
+					children: (0, import_jsx_runtime.jsx)(_components.code, {
+						language: "txt",
+						children: "timeout_secs"
+					})
+				}),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "数字" }),
+				(0, import_jsx_runtime.jsx)(_components.td, { children: "请求超时（5–600 秒）" })
+			] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"这一组带有 ",
+				(0, import_jsx_runtime.jsx)(_components.strong, { children: "「测试连接」" }),
+				" 按钮，会调用 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "/api/test"
+				}),
+				" 验证配置是否可用。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h3, {
+			id: "程序设置",
+			children: "程序设置"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"对应 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "~/.qsshrc"
+				}),
+				"。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "字段" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "范围" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "default_port"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "1–65535" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "ping_timeout_secs"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "1–60" })] }),
+			(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+				language: "txt",
+				children: (0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "upload_concurrency"
+				})
+			}), (0, import_jsx_runtime.jsx)(_components.td, { children: "1–16" })] })
+		] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h3, {
+			id: "dashboard",
+			children: "Dashboard"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.p, {
+			language: "txt",
+			children: [
+				"对应 ",
+				(0, import_jsx_runtime.jsx)(_components.code, {
+					language: "txt",
+					children: "dashboard.json"
+				}),
+				"。"
+			]
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.table, { children: [(0, import_jsx_runtime.jsx)(_components.thead, { children: (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.th, { children: "字段" }), (0, import_jsx_runtime.jsx)(_components.th, { children: "说明" })] }) }), (0, import_jsx_runtime.jsxs)(_components.tbody, { children: [(0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+			language: "txt",
+			children: (0, import_jsx_runtime.jsx)(_components.code, {
+				language: "txt",
+				children: "active_profile"
+			})
+		}), (0, import_jsx_runtime.jsx)(_components.td, { children: "当前启用的 Dashboard Profile" })] }), (0, import_jsx_runtime.jsxs)(_components.tr, { children: [(0, import_jsx_runtime.jsx)(_components.td, {
+			language: "txt",
+			children: (0, import_jsx_runtime.jsx)(_components.code, {
+				language: "txt",
+				children: "enabled"
+			})
+		}), (0, import_jsx_runtime.jsx)(_components.td, { children: "启用的组件（多选，共 12 个组件）" })] })] })] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "与-tui-的配合",
+			children: "与 TUI 的配合"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "Agent 配置在每次会话前热加载，WebUI 中改完立即对新的 Agent 会话生效。" }),
+			"\n",
+			(0, import_jsx_runtime.jsx)(_components.li, { children: "Dashboard 布局/Profile 在 WebUI 中修改后，下次进入工作台时按启用的组件重建。" }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [
+				"详细的字段含义见 ",
+				(0, import_jsx_runtime.jsx)(_components.a, {
+					href: "/configuration",
+					children: "配置说明"
+				}),
+				"。"
+			] }),
+			"\n"
+		] }),
+		"\n",
+		(0, import_jsx_runtime.jsx)(_components.h2, {
+			id: "下一步",
+			children: "下一步"
+		}),
+		"\n",
+		(0, import_jsx_runtime.jsxs)(_components.ul, { children: [
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/ai-agent",
+				children: "AI Agent"
+			}), " — Agent 的权限与工具说明"] }),
+			"\n",
+			(0, import_jsx_runtime.jsxs)(_components.li, { children: [(0, import_jsx_runtime.jsx)(_components.a, {
+				href: "/configuration",
+				children: "配置说明"
+			}), " — 所有配置文件的位置与字段"] }),
+			"\n"
+		] })
 	] });
 }
 function MDXContent$1(props = {}) {
@@ -192468,9 +199832,118 @@ function _missingMdxReference(id, component) {
 //#region \0virtual:clarify/routes/server
 var routes = [
 	{
+		path: "/agent-module",
+		title: "AI Agent 模块",
+		component: MDXContent$28,
+		kind: "mdx",
+		basePath: "/agent-module",
+		description: "Quick-SSH agent 模块的详细文档，包含运行循环、服务商适配、工具注册表、权限模型与时间线。",
+		keywords: [
+			"agent",
+			"ai",
+			"provider",
+			"tools",
+			"permissions",
+			"时间线"
+		],
+		contentArtifactUrl: "/agent-module.md",
+		sections: [
+			{
+				id: "模块结构",
+				title: "模块结构",
+				level: 2
+			},
+			{
+				id: "modrs--运行循环",
+				title: "mod.rs — 运行循环",
+				level: 2
+			},
+			{
+				id: "providerrs--服务商适配",
+				title: "provider.rs — 服务商适配",
+				level: 2
+			},
+			{
+				id: "toolsrs--工具注册表",
+				title: "tools.rs — 工具注册表",
+				level: 2
+			},
+			{
+				id: "permissionsrs--权限模型",
+				title: "permissions.rs — 权限模型",
+				level: 2
+			},
+			{
+				id: "timeliners--时间线",
+				title: "timeline.rs — 时间线",
+				level: 2
+			}
+		]
+	},
+	{
+		path: "/ai-agent",
+		title: "AI Agent",
+		component: MDXContent$27,
+		kind: "mdx",
+		basePath: "/ai-agent",
+		description: "Quick-SSH 内置的 AI 运维助手：用自然语言驱动远程命令与巡检，带工具调用、权限分级与审批流。",
+		keywords: [
+			"ai",
+			"agent",
+			"llm",
+			"运维",
+			"工具",
+			"权限",
+			"deepseek"
+		],
+		contentArtifactUrl: "/ai-agent.md",
+		sections: [
+			{
+				id: "打开与关闭",
+				title: "打开与关闭",
+				level: 2
+			},
+			{
+				id: "对话面板",
+				title: "对话面板",
+				level: 2
+			},
+			{
+				id: "工具与权限",
+				title: "工具与权限",
+				level: 2
+			},
+			{
+				id: "配置-agent",
+				title: "配置 Agent",
+				level: 2
+			},
+			{
+				id: "支持的服务商",
+				title: "支持的服务商",
+				level: 3
+			},
+			{
+				id: "api-key-解析顺序",
+				title: "API Key 解析顺序",
+				level: 3
+			},
+			{
+				id: "运行机制",
+				title: "运行机制",
+				level: 2
+			},
+			{
+				id: "下一步",
+				title: "下一步",
+				level: 2
+			}
+		]
+	},
+	{
 		path: "/api",
 		title: "API 参考",
-		component: MDXContent$21,
+		component: MDXContent$26,
 		kind: "mdx",
 		basePath: "/api",
 		description: "Quick-SSH 的 Rust API 参考文档，包含主要模块的公开接口。",
@@ -192582,13 +200055,28 @@ var routes = [
 				id: "cmd-模块",
 				title: "cmd 模块",
 				level: 2
+			},
+			{
+				id: "monitor-模块",
+				title: "monitor 模块",
+				level: 2
+			},
+			{
+				id: "agent-模块",
+				title: "agent 模块",
+				level: 2
+			},
+			{
+				id: "web-模块",
+				title: "web 模块",
+				level: 2
 			}
 		]
 	},
 	{
 		path: "/architecture",
 		title: "架构设计",
-		component: MDXContent$20,
+		component: MDXContent$25,
 		kind: "mdx",
 		basePath: "/architecture",
 		description: "Quick-SSH 的 Rust 模块化架构设计详解，包括项目结构、数据流和设计决策。",
@@ -192637,6 +200125,21 @@ var routes = [
 				level: 3
 			},
 			{
+				id: "工作台监控",
+				title: "工作台监控",
+				level: 3
+			},
+			{
+				id: "ai-agent",
+				title: "AI Agent",
+				level: 3
+			},
+			{
+				id: "本地-webui",
+				title: "本地 WebUI",
+				level: 3
+			},
+			{
 				id: "设计决策",
 				title: "设计决策",
 				level: 2
@@ -192670,13 +200173,28 @@ var routes = [
 				id: "6-跨平台终端策略",
 				title: "6. 跨平台终端策略",
 				level: 3
+			},
+			{
+				id: "7-监控与执行分离",
+				title: "7. 监控与执行分离",
+				level: 3
+			},
+			{
+				id: "8-agent-不持有-ssh-连接",
+				title: "8. Agent 不持有 SSH 连接",
+				level: 3
+			},
+			{
+				id: "9-嵌入式终端独立于-tui-事件循环",
+				title: "9. 嵌入式终端独立于 TUI 事件循环",
+				level: 3
 			}
 		]
 	},
 	{
 		path: "/changelog",
 		title: "变更日志",
-		component: MDXContent$19,
+		component: MDXContent$24,
 		kind: "mdx",
 		basePath: "/changelog",
 		description: "Quick-SSH 的版本发布历史记录。",
@@ -192689,12 +200207,27 @@ var routes = [
 		contentArtifactUrl: "/changelog.md",
 		sections: [
 			{
+				id: "未发布main-分支",
+				title: "未发布（main 分支）",
+				level: 2
+			},
+			{
+				id: "新增",
+				title: "新增",
+				level: 3
+			},
+			{
+				id: "更改",
+				title: "更改",
+				level: 3
+			},
+			{
 				id: "v204",
 				title: "v2.0.4",
 				level: 2
 			},
 			{
-				id: "新增",
+				id: "新增-1",
 				title: "新增",
 				level: 3
 			},
@@ -192714,7 +200247,7 @@ var routes = [
 				level: 3
 			},
 			{
-				id: "更改",
+				id: "更改-1",
 				title: "更改",
 				level: 3
 			},
@@ -192724,7 +200257,7 @@ var routes = [
 				level: 2
 			},
 			{
-				id: "新增-1",
+				id: "新增-2",
 				title: "新增",
 				level: 3
 			},
@@ -192738,7 +200271,7 @@ var routes = [
 	{
 		path: "/cli-reference",
 		title: "CLI 命令参考",
-		component: MDXContent$18,
+		component: MDXContent$23,
 		kind: "mdx",
 		basePath: "/cli-reference",
 		description: "Quick-SSH 命令行工具的子命令完整参考文档。",
@@ -192797,6 +200330,11 @@ var routes = [
 				level: 2
 			},
 			{
+				id: "qssh-web--本地-web-界面",
+				title: "qssh web — 本地 Web 界面",
+				level: 2
+			},
+			{
 				id: "qssh-help--帮助信息",
 				title: "qssh help — 帮助信息",
 				level: 2
@@ -192811,7 +200349,7 @@ var routes = [
 	{
 		path: "/config-module",
 		title: "配置模块",
-		component: MDXContent$17,
+		component: MDXContent$22,
 		kind: "mdx",
 		basePath: "/config-module",
 		description: "Quick-SSH 配置模块的详细文档，包含类型系统、解析器、渲染器、系统凭据和程序设置。",
@@ -192910,7 +200448,7 @@ var routes = [
 	{
 		path: "/configuration",
 		title: "配置说明",
-		component: MDXContent$16,
+		component: MDXContent$21,
 		kind: "mdx",
 		basePath: "/configuration",
 		description: "Quick-SSH 的配置系统说明，包括 SSH 配置、系统凭据和程序设置。",
@@ -192968,6 +200506,16 @@ var routes = [
 				level: 3
 			},
 			{
+				id: "ai-agent-配置-agentjson",
+				title: "AI Agent 配置 (agent.json)",
+				level: 2
+			},
+			{
+				id: "dashboard-配置-dashboardjson",
+				title: "Dashboard 配置 (dashboard.json)",
+				level: 2
+			},
+			{
 				id: "配置工作原理",
 				title: "配置工作原理",
 				level: 2
@@ -192990,9 +200538,80 @@ var routes = [
 		]
 	},
 	{
+		path: "/dashboard",
+		title: "工作台（Dashboard）",
+		component: MDXContent$20,
+		kind: "mdx",
+		basePath: "/dashboard",
+		description: "Quick-SSH 的 Dashboard 工作台，把服务器监控、嵌入式终端和运维面板集中在一个可自定义布局的界面里。",
+		keywords: [
+			"dashboard",
+			"工作台",
+			"监控",
+			"组件",
+			"布局",
+			"docker",
+			"服务",
+			"日志"
+		],
+		contentArtifactUrl: "/dashboard.md",
+		sections: [
+			{
+				id: "内置组件",
+				title: "内置组件",
+				level: 2
+			},
+			{
+				id: "布局与-profile",
+				title: "布局与 Profile",
+				level: 2
+			},
+			{
+				id: "运维面板",
+				title: "运维面板",
+				level: 2
+			},
+			{
+				id: "docker-容器d",
+				title: "Docker 容器（d）",
+				level: 3
+			},
+			{
+				id: "系统服务s",
+				title: "系统服务（s）",
+				level: 3
+			},
+			{
+				id: "文件浏览f",
+				title: "文件浏览（f）",
+				level: 3
+			},
+			{
+				id: "日志l",
+				title: "日志（l）",
+				level: 3
+			},
+			{
+				id: "远程命令",
+				title: "远程命令（:）",
+				level: 3
+			},
+			{
+				id: "命令面板ctrlk",
+				title: "命令面板（Ctrl+K）",
+				level: 2
+			},
+			{
+				id: "下一步",
+				title: "下一步",
+				level: 2
+			}
+		]
+	},
+	{
 		path: "/file-upload",
 		title: "文件上传",
-		component: MDXContent$15,
+		component: MDXContent$19,
 		kind: "mdx",
 		basePath: "/file-upload",
 		description: "Quick-SSH 的文件上传功能说明，支持拖拽上传和独立上传工具。",
@@ -193055,7 +200674,7 @@ var routes = [
 	{
 		path: "/getting-started",
 		title: "快速入门",
-		component: MDXContent$14,
+		component: MDXContent$18,
 		kind: "mdx",
 		basePath: "/getting-started",
 		description: "5 分钟上手 Quick-SSH 的基本操作，包括 TUI 界面使用和 CLI 命令操作。",
@@ -193077,6 +200696,16 @@ var routes = [
 				id: "常用键位",
 				title: "常用键位",
 				level: 3
+			},
+			{
+				id: "监控工作台与嵌入式终端",
+				title: "监控工作台与嵌入式终端",
+				level: 2
+			},
+			{
+				id: "ai-助手与-web-设置",
+				title: "AI 助手与 Web 设置",
+				level: 2
 			},
 			{
 				id: "保存登录密码",
@@ -193133,7 +200762,7 @@ var routes = [
 	{
 		path: "/",
 		title: "概述",
-		component: MDXContent$13,
+		component: MDXContent$17,
 		kind: "mdx",
 		basePath: "/",
 		description: "Quick-SSH — 跨平台 SSH 连接管理工具，提供 TUI 界面与 Docker 风格 CLI，基于 Rust 实现。",
@@ -193166,7 +200795,7 @@ var routes = [
 	{
 		path: "/installation",
 		title: "安装指南",
-		component: MDXContent$12,
+		component: MDXContent$16,
 		kind: "mdx",
 		basePath: "/installation",
 		description: "通过包管理器或直接下载安装 Quick-SSH，支持 Windows / Linux / macOS。",
@@ -193204,9 +200833,60 @@ var routes = [
 		]
 	},
 	{
+		path: "/monitor-module",
+		title: "监控模块",
+		component: MDXContent$15,
+		kind: "mdx",
+		basePath: "/monitor-module",
+		description: "Quick-SSH monitor 模块的详细文档，包含远程执行器、巡检快照、调度器以及 Docker/服务/文件/日志/网络解析。",
+		keywords: [
+			"monitor",
+			"监控",
+			"executor",
+			"snapshot",
+			"scheduler",
+			"docker",
+			"systemd",
+			"journalctl"
+		],
+		contentArtifactUrl: "/monitor-module.md",
+		sections: [
+			{
+				id: "模块结构",
+				title: "模块结构",
+				level: 2
+			},
+			{
+				id: "executorrs--远程执行器",
+				title: "executor.rs — 远程执行器",
+				level: 2
+			},
+			{
+				id: "platformrs--聚合采集",
+				title: "platform.rs — 聚合采集",
+				level: 2
+			},
+			{
+				id: "schedulerrs--调度器",
+				title: "scheduler.rs — 调度器",
+				level: 2
+			},
+			{
+				id: "子解析器",
+				title: "子解析器",
+				level: 2
+			},
+			{
+				id: "相关页面",
+				title: "相关页面",
+				level: 2
+			}
+		]
+	},
+	{
 		path: "/navigation",
 		title: "Navigation",
-		component: MDXContent$11,
+		component: MDXContent$14,
 		kind: "mdx",
 		basePath: "/navigation",
 		description: "Configure tabs, sidebar groups, page links, navbar links, and footer links.",
@@ -193237,7 +200917,7 @@ var routes = [
 	{
 		path: "/network-module",
 		title: "网络工具模块",
-		component: MDXContent$10,
+		component: MDXContent$13,
 		kind: "mdx",
 		basePath: "/network-module",
 		description: "Quick-SSH 网络工具模块的文档，包含 TCP Ping 检测功能。",
@@ -193279,7 +200959,7 @@ var routes = [
 	{
 		path: "/overview",
 		title: "打包总览",
-		component: MDXContent$9,
+		component: MDXContent$12,
 		kind: "mdx",
 		basePath: "/overview",
 		description: "Quick-SSH 的包管理器配置总览，覆盖 Windows、macOS 和 Linux 平台。",
@@ -193325,7 +201005,7 @@ var routes = [
 	{
 		path: "/package-managers",
 		title: "包管理器参考",
-		component: MDXContent$8,
+		component: MDXContent$11,
 		kind: "mdx",
 		basePath: "/package-managers",
 		description: "各包管理器的详细提交流程和使用说明。",
@@ -193449,7 +201129,7 @@ var routes = [
 	{
 		path: "/release-process",
 		title: "发布流程",
-		component: MDXContent$7,
+		component: MDXContent$10,
 		kind: "mdx",
 		basePath: "/release-process",
 		description: "Quick-SSH 的版本发布流程，包含 GitHub Actions 自动构建和包管理器配置更新。",
@@ -193527,10 +201207,10 @@ var routes = [
 	{
 		path: "/roadmap",
 		title: "路线图",
-		component: MDXContent$6,
+		component: MDXContent$9,
 		kind: "mdx",
 		basePath: "/roadmap",
-		description: "Quick-SSH 的开发路线图，包含当前版本、规划中的功能以及远期规划。",
+		description: "Quick-SSH 的开发路线图，包含当前版本、开发中的功能以及远期规划。",
 		keywords: [
 			"路线图",
 			"roadmap",
@@ -193540,8 +201220,13 @@ var routes = [
 		contentArtifactUrl: "/roadmap.md",
 		sections: [
 			{
-				id: "v204当前版本",
-				title: "v2.0.4（当前版本）",
+				id: "v204当前发布版本",
+				title: "v2.0.4（当前发布版本）",
+				level: 2
+			},
+			{
+				id: "开发中main-分支未发布",
+				title: "开发中（main 分支，未发布）",
 				level: 2
 			},
 			{
@@ -193559,7 +201244,7 @@ var routes = [
 	{
 		path: "/shell-completions",
 		title: "Shell 补全",
-		component: MDXContent$5,
+		component: MDXContent$8,
 		kind: "mdx",
 		basePath: "/shell-completions",
 		description: "Quick-SSH 的 Shell 补全脚本生成功能，支持多种 Shell。",
@@ -193624,7 +201309,7 @@ var routes = [
 	{
 		path: "/ssh-module",
 		title: "SSH 连接模块",
-		component: MDXContent$4,
+		component: MDXContent$7,
 		kind: "mdx",
 		basePath: "/ssh-module",
 		description: "Quick-SSH SSH 模块的详细文档，包含会话管理、进程生成、拖拽检测和内联上传。",
@@ -193694,6 +201379,11 @@ var routes = [
 				level: 3
 			},
 			{
+				id: "在新窗口连接",
+				title: "在新窗口连接",
+				level: 3
+			},
+			{
 				id: "drag_detectrs--拖拽文件检测",
 				title: "drag_detect.rs — 拖拽文件检测",
 				level: 2
@@ -193726,24 +201416,74 @@ var routes = [
 		]
 	},
 	{
+		path: "/terminal",
+		title: "嵌入式终端",
+		component: MDXContent$6,
+		kind: "mdx",
+		basePath: "/terminal",
+		description: "在 TUI 内直接使用 SSH 会话的嵌入式终端，基于 PTY + vt100 解析，支持前缀键与滚动回看。",
+		keywords: [
+			"终端",
+			"terminal",
+			"pty",
+			"vt100",
+			"ssh",
+			"Ctrl+B"
+		],
+		contentArtifactUrl: "/terminal.md",
+		sections: [
+			{
+				id: "打开与关闭",
+				title: "打开与关闭",
+				level: 2
+			},
+			{
+				id: "前缀键-ctrlb",
+				title: "前缀键 Ctrl+B",
+				level: 2
+			},
+			{
+				id: "滚动回看",
+				title: "滚动回看",
+				level: 2
+			},
+			{
+				id: "密码自动填写",
+				title: "密码自动填写",
+				level: 2
+			},
+			{
+				id: "下一步",
+				title: "下一步",
+				level: 2
+			}
+		]
+	},
+	{
 		path: "/tui-guide",
 		title: "TUI 界面指南",
-		component: MDXContent$3,
+		component: MDXContent$5,
 		kind: "mdx",
 		basePath: "/tui-guide",
-		description: "Quick-SSH 终端用户界面的详细使用说明，包含所有交互模式和快捷键。",
+		description: "Quick-SSH 终端用户界面的详细使用说明，包含主机列表、监控工作台、嵌入式终端和所有交互模式与快捷键。",
 		keywords: [
 			"tui",
 			"终端界面",
 			"交互",
 			"快捷键",
-			"键盘映射"
+			"键盘映射",
+			"dashboard"
 		],
 		contentArtifactUrl: "/tui-guide.md",
 		sections: [
 			{
-				id: "界面布局",
-				title: "界面布局",
+				id: "视图",
+				title: "视图",
+				level: 2
+			},
+			{
+				id: "主机列表布局",
+				title: "主机列表布局",
 				level: 2
 			},
 			{
@@ -193777,13 +201517,13 @@ var routes = [
 				level: 3
 			},
 			{
-				id: "搜索",
-				title: "搜索",
+				id: "视图与面板",
+				title: "视图与面板",
 				level: 3
 			},
 			{
-				id: "系统",
-				title: "系统",
+				id: "搜索与系统",
+				title: "搜索与系统",
 				level: 3
 			},
 			{
@@ -193805,23 +201545,30 @@ var routes = [
 				id: "连接主机",
 				title: "连接主机",
 				level: 2
+			},
+			{
+				id: "下一步",
+				title: "下一步",
+				level: 2
 			}
 		]
 	},
 	{
 		path: "/tui-module",
 		title: "TUI 模块",
-		component: MDXContent$2,
+		component: MDXContent$4,
 		kind: "mdx",
 		basePath: "/tui-module",
-		description: "Quick-SSH TUI 模块的详细文档，包含事件驱动架构、应用状态、UI 渲染和键盘映射。",
+		description: "Quick-SSH TUI 模块的详细文档，包含事件驱动架构、视图与模式、工作台、嵌入式终端、鼠标与键盘映射。",
 		keywords: [
 			"tui",
 			"ratatui",
 			"crossterm",
 			"事件驱动",
 			"状态管理",
-			"键盘映射"
+			"键盘映射",
+			"dashboard",
+			"terminal"
 		],
 		contentArtifactUrl: "/tui-module.md",
 		sections: [
@@ -193836,23 +201583,23 @@ var routes = [
 				level: 2
 			},
 			{
-				id: "各层职责",
-				title: "各层职责",
-				level: 3
-			},
-			{
-				id: "actionrs--action-与-mode",
-				title: "action.rs — Action 与 Mode",
+				id: "actionrs--view--action--mode",
+				title: "action.rs — View / Action / Mode",
 				level: 2
 			},
 			{
-				id: "action-枚举",
-				title: "Action 枚举",
+				id: "view",
+				title: "View",
 				level: 3
 			},
 			{
-				id: "mode-枚举",
-				title: "Mode 枚举",
+				id: "action",
+				title: "Action",
+				level: 3
+			},
+			{
+				id: "mode",
+				title: "Mode",
 				level: 3
 			},
 			{
@@ -193861,29 +201608,14 @@ var routes = [
 				level: 2
 			},
 			{
-				id: "app-结构体",
-				title: "App 结构体",
-				level: 3
-			},
-			{
-				id: "核心方法",
-				title: "核心方法",
-				level: 3
-			},
-			{
-				id: "ping-后台任务",
-				title: "Ping 后台任务",
-				level: 3
-			},
-			{
 				id: "eventrs--事件循环",
 				title: "event.rs — 事件循环",
 				level: 2
 			},
 			{
-				id: "connect-特殊处理",
-				title: "Connect 特殊处理",
-				level: 3
+				id: "termrs--嵌入式终端",
+				title: "term.rs — 嵌入式终端",
+				level: 2
 			},
 			{
 				id: "keymaprs--键盘映射",
@@ -193891,19 +201623,14 @@ var routes = [
 				level: 2
 			},
 			{
-				id: "按键映射",
-				title: "按键映射",
-				level: 3
-			},
-			{
-				id: "uirs--渲染逻辑",
-				title: "ui.rs — 渲染逻辑",
+				id: "dashboard--工作台",
+				title: "dashboard/ — 工作台",
 				level: 2
 			},
 			{
-				id: "界面布局",
-				title: "界面布局",
-				level: 3
+				id: "editorrs--表单",
+				title: "editor.rs — 表单",
+				level: 2
 			},
 			{
 				id: "widgetsrs--自定义组件",
@@ -193911,35 +201638,24 @@ var routes = [
 				level: 2
 			},
 			{
-				id: "editorrs--主机编辑表单",
-				title: "editor.rs — 主机编辑表单",
+				id: "uirs--渲染逻辑",
+				title: "ui.rs — 渲染逻辑",
 				level: 2
-			},
-			{
-				id: "hostformstate",
-				title: "HostFormState",
-				level: 3
-			},
-			{
-				id: "验证逻辑",
-				title: "验证逻辑",
-				level: 3
 			}
 		]
 	},
 	{
 		path: "/uploader",
 		title: "上传器",
-		component: MDXContent$1,
+		component: MDXContent$3,
 		kind: "mdx",
 		basePath: "/uploader",
-		description: "qssh-uploader 独立文件上传工具的详细文档，包含并发上传、进度显示和防闪退设计。",
+		description: "qssh-uploader 独立文件上传工具的详细文档，包含参数、顺序 SCP 上传、AskPass 复用与防闪退设计。",
 		keywords: [
 			"uploader",
 			"scp",
-			"并发",
-			"进度条",
-			"上传"
+			"上传",
+			"askpass"
 		],
 		contentArtifactUrl: "/uploader.md",
 		sections: [
@@ -193959,14 +201675,9 @@ var routes = [
 				level: 2
 			},
 			{
-				id: "并发上传",
-				title: "并发上传",
+				id: "顺序上传",
+				title: "顺序上传",
 				level: 2
-			},
-			{
-				id: "控制机制",
-				title: "控制机制",
-				level: 3
 			},
 			{
 				id: "上传实现",
@@ -193974,23 +201685,8 @@ var routes = [
 				level: 3
 			},
 			{
-				id: "进度显示",
-				title: "进度显示",
-				level: 2
-			},
-			{
-				id: "进度跟踪",
-				title: "进度跟踪",
-				level: 3
-			},
-			{
-				id: "进度渲染",
-				title: "进度渲染",
-				level: 3
-			},
-			{
-				id: "cjk-字符处理",
-				title: "CJK 字符处理",
+				id: "askpass-复用",
+				title: "AskPass 复用",
 				level: 3
 			},
 			{
@@ -193999,28 +201695,93 @@ var routes = [
 				level: 2
 			},
 			{
-				id: "启动延迟",
-				title: "启动延迟",
-				level: 3
-			},
-			{
-				id: "panic-hook",
-				title: "Panic Hook",
-				level: 3
-			},
-			{
-				id: "错误处理",
-				title: "错误处理",
-				level: 3
-			},
-			{
-				id: "日志记录",
-				title: "日志记录",
-				level: 3
-			},
-			{
 				id: "与主程序的集成",
 				title: "与主程序的集成",
+				level: 2
+			}
+		]
+	},
+	{
+		path: "/web-module",
+		title: "Web 模块",
+		component: MDXContent$2,
+		kind: "mdx",
+		basePath: "/web-module",
+		description: "Quick-SSH web 模块的详细文档，包含零依赖 HTTP 服务、接口路由与 schema 驱动的设置页。",
+		keywords: [
+			"web",
+			"http",
+			"schema",
+			"settings",
+			"webui"
+		],
+		contentArtifactUrl: "/web-module.md",
+		sections: [
+			{
+				id: "模块结构",
+				title: "模块结构",
+				level: 2
+			},
+			{
+				id: "serverrs--http-服务",
+				title: "server.rs — HTTP 服务",
+				level: 2
+			},
+			{
+				id: "schemars--设置目录",
+				title: "schema.rs — 设置目录",
+				level: 2
+			}
+		]
+	},
+	{
+		path: "/webui",
+		title: "Web 界面",
+		component: MDXContent$1,
+		kind: "mdx",
+		basePath: "/webui",
+		description: "通过 qssh web 启动本地 WebUI，在浏览器中以表单方式查看状态并编辑 Agent、程序与 Dashboard 设置。",
+		keywords: [
+			"web",
+			"webui",
+			"设置",
+			"配置"
+		],
+		contentArtifactUrl: "/webui.md",
+		sections: [
+			{
+				id: "功能",
+				title: "功能",
+				level: 2
+			},
+			{
+				id: "设置分组",
+				title: "设置分组",
+				level: 2
+			},
+			{
+				id: "agent",
+				title: "Agent",
+				level: 3
+			},
+			{
+				id: "程序设置",
+				title: "程序设置",
+				level: 3
+			},
+			{
+				id: "dashboard",
+				title: "Dashboard",
+				level: 3
+			},
+			{
+				id: "与-tui-的配合",
+				title: "与 TUI 的配合",
+				level: 2
+			},
+			{
+				id: "下一步",
+				title: "下一步",
 				level: 2
 			}
 		]
@@ -194145,6 +201906,16 @@ var navigation$1 = {
 								"level": 3
 							},
 							{
+								"id": "监控工作台与嵌入式终端",
+								"title": "监控工作台与嵌入式终端",
+								"level": 2
+							},
+							{
+								"id": "ai-助手与-web-设置",
+								"title": "AI 助手与 Web 设置",
+								"level": 2
+							},
+							{
 								"id": "保存登录密码",
 								"title": "保存登录密码",
 								"level": 2
@@ -194249,6 +202020,11 @@ var navigation$1 = {
 								"level": 2
 							},
 							{
+								"id": "qssh-web--本地-web-界面",
+								"title": "qssh web — 本地 Web 界面",
+								"level": 2
+							},
+							{
 								"id": "qssh-help--帮助信息",
 								"title": "qssh help — 帮助信息",
 								"level": 2
@@ -194266,8 +202042,13 @@ var navigation$1 = {
 						"icon": "LayoutPanelLeft",
 						"sections": [
 							{
-								"id": "界面布局",
-								"title": "界面布局",
+								"id": "视图",
+								"title": "视图",
+								"level": 2
+							},
+							{
+								"id": "主机列表布局",
+								"title": "主机列表布局",
 								"level": 2
 							},
 							{
@@ -194301,13 +202082,13 @@ var navigation$1 = {
 								"level": 3
 							},
 							{
-								"id": "搜索",
-								"title": "搜索",
+								"id": "视图与面板",
+								"title": "视图与面板",
 								"level": 3
 							},
 							{
-								"id": "系统",
-								"title": "系统",
+								"id": "搜索与系统",
+								"title": "搜索与系统",
 								"level": 3
 							},
 							{
@@ -194328,6 +202109,189 @@ var navigation$1 = {
 							{
 								"id": "连接主机",
 								"title": "连接主机",
+								"level": 2
+							},
+							{
+								"id": "下一步",
+								"title": "下一步",
+								"level": 2
+							}
+						]
+					},
+					{
+						"path": "/dashboard",
+						"title": "工作台（Dashboard）",
+						"icon": "Gauge",
+						"sections": [
+							{
+								"id": "内置组件",
+								"title": "内置组件",
+								"level": 2
+							},
+							{
+								"id": "布局与-profile",
+								"title": "布局与 Profile",
+								"level": 2
+							},
+							{
+								"id": "运维面板",
+								"title": "运维面板",
+								"level": 2
+							},
+							{
+								"id": "docker-容器d",
+								"title": "Docker 容器（d）",
+								"level": 3
+							},
+							{
+								"id": "系统服务s",
+								"title": "系统服务（s）",
+								"level": 3
+							},
+							{
+								"id": "文件浏览f",
+								"title": "文件浏览（f）",
+								"level": 3
+							},
+							{
+								"id": "日志l",
+								"title": "日志（l）",
+								"level": 3
+							},
+							{
+								"id": "远程命令",
+								"title": "远程命令（:）",
+								"level": 3
+							},
+							{
+								"id": "命令面板ctrlk",
+								"title": "命令面板（Ctrl+K）",
+								"level": 2
+							},
+							{
+								"id": "下一步",
+								"title": "下一步",
+								"level": 2
+							}
+						]
+					},
+					{
+						"path": "/terminal",
+						"title": "嵌入式终端",
+						"icon": "SquareTerminal",
+						"sections": [
+							{
+								"id": "打开与关闭",
+								"title": "打开与关闭",
+								"level": 2
+							},
+							{
+								"id": "前缀键-ctrlb",
+								"title": "前缀键 Ctrl+B",
+								"level": 2
+							},
+							{
+								"id": "滚动回看",
+								"title": "滚动回看",
+								"level": 2
+							},
+							{
+								"id": "密码自动填写",
+								"title": "密码自动填写",
+								"level": 2
+							},
+							{
+								"id": "下一步",
+								"title": "下一步",
+								"level": 2
+							}
+						]
+					},
+					{
+						"path": "/ai-agent",
+						"title": "AI Agent",
+						"icon": "Bot",
+						"sections": [
+							{
+								"id": "打开与关闭",
+								"title": "打开与关闭",
+								"level": 2
+							},
+							{
+								"id": "对话面板",
+								"title": "对话面板",
+								"level": 2
+							},
+							{
+								"id": "工具与权限",
+								"title": "工具与权限",
+								"level": 2
+							},
+							{
+								"id": "配置-agent",
+								"title": "配置 Agent",
+								"level": 2
+							},
+							{
+								"id": "支持的服务商",
+								"title": "支持的服务商",
+								"level": 3
+							},
+							{
+								"id": "api-key-解析顺序",
+								"title": "API Key 解析顺序",
+								"level": 3
+							},
+							{
+								"id": "运行机制",
+								"title": "运行机制",
+								"level": 2
+							},
+							{
+								"id": "下一步",
+								"title": "下一步",
+								"level": 2
+							}
+						]
+					},
+					{
+						"path": "/webui",
+						"title": "Web 界面",
+						"icon": "Globe",
+						"sections": [
+							{
+								"id": "功能",
+								"title": "功能",
+								"level": 2
+							},
+							{
+								"id": "设置分组",
+								"title": "设置分组",
+								"level": 2
+							},
+							{
+								"id": "agent",
+								"title": "Agent",
+								"level": 3
+							},
+							{
+								"id": "程序设置",
+								"title": "程序设置",
+								"level": 3
+							},
+							{
+								"id": "dashboard",
+								"title": "Dashboard",
+								"level": 3
+							},
+							{
+								"id": "与-tui-的配合",
+								"title": "与 TUI 的配合",
+								"level": 2
+							},
+							{
+								"id": "下一步",
+								"title": "下一步",
 								"level": 2
 							}
 						]
@@ -194381,6 +202345,16 @@ var navigation$1 = {
 								"id": "示例",
 								"title": "示例",
 								"level": 3
+							},
+							{
+								"id": "ai-agent-配置-agentjson",
+								"title": "AI Agent 配置 (agent.json)",
+								"level": 2
+							},
+							{
+								"id": "dashboard-配置-dashboardjson",
+								"title": "Dashboard 配置 (dashboard.json)",
+								"level": 2
 							},
 							{
 								"id": "配置工作原理",
@@ -194556,6 +202530,21 @@ var navigation$1 = {
 								"level": 3
 							},
 							{
+								"id": "工作台监控",
+								"title": "工作台监控",
+								"level": 3
+							},
+							{
+								"id": "ai-agent",
+								"title": "AI Agent",
+								"level": 3
+							},
+							{
+								"id": "本地-webui",
+								"title": "本地 WebUI",
+								"level": 3
+							},
+							{
 								"id": "设计决策",
 								"title": "设计决策",
 								"level": 2
@@ -194588,6 +202577,21 @@ var navigation$1 = {
 							{
 								"id": "6-跨平台终端策略",
 								"title": "6. 跨平台终端策略",
+								"level": 3
+							},
+							{
+								"id": "7-监控与执行分离",
+								"title": "7. 监控与执行分离",
+								"level": 3
+							},
+							{
+								"id": "8-agent-不持有-ssh-连接",
+								"title": "8. Agent 不持有 SSH 连接",
+								"level": 3
+							},
+							{
+								"id": "9-嵌入式终端独立于-tui-事件循环",
+								"title": "9. 嵌入式终端独立于 TUI 事件循环",
 								"level": 3
 							}
 						]
@@ -194740,6 +202744,11 @@ var navigation$1 = {
 								"level": 3
 							},
 							{
+								"id": "在新窗口连接",
+								"title": "在新窗口连接",
+								"level": 3
+							},
+							{
 								"id": "drag_detectrs--拖拽文件检测",
 								"title": "drag_detect.rs — 拖拽文件检测",
 								"level": 2
@@ -194787,23 +202796,23 @@ var navigation$1 = {
 								"level": 2
 							},
 							{
-								"id": "各层职责",
-								"title": "各层职责",
-								"level": 3
-							},
-							{
-								"id": "actionrs--action-与-mode",
-								"title": "action.rs — Action 与 Mode",
+								"id": "actionrs--view--action--mode",
+								"title": "action.rs — View / Action / Mode",
 								"level": 2
 							},
 							{
-								"id": "action-枚举",
-								"title": "Action 枚举",
+								"id": "view",
+								"title": "View",
 								"level": 3
 							},
 							{
-								"id": "mode-枚举",
-								"title": "Mode 枚举",
+								"id": "action",
+								"title": "Action",
+								"level": 3
+							},
+							{
+								"id": "mode",
+								"title": "Mode",
 								"level": 3
 							},
 							{
@@ -194812,29 +202821,14 @@ var navigation$1 = {
 								"level": 2
 							},
 							{
-								"id": "app-结构体",
-								"title": "App 结构体",
-								"level": 3
-							},
-							{
-								"id": "核心方法",
-								"title": "核心方法",
-								"level": 3
-							},
-							{
-								"id": "ping-后台任务",
-								"title": "Ping 后台任务",
-								"level": 3
-							},
-							{
 								"id": "eventrs--事件循环",
 								"title": "event.rs — 事件循环",
 								"level": 2
 							},
 							{
-								"id": "connect-特殊处理",
-								"title": "Connect 特殊处理",
-								"level": 3
+								"id": "termrs--嵌入式终端",
+								"title": "term.rs — 嵌入式终端",
+								"level": 2
 							},
 							{
 								"id": "keymaprs--键盘映射",
@@ -194842,19 +202836,14 @@ var navigation$1 = {
 								"level": 2
 							},
 							{
-								"id": "按键映射",
-								"title": "按键映射",
-								"level": 3
-							},
-							{
-								"id": "uirs--渲染逻辑",
-								"title": "ui.rs — 渲染逻辑",
+								"id": "dashboard--工作台",
+								"title": "dashboard/ — 工作台",
 								"level": 2
 							},
 							{
-								"id": "界面布局",
-								"title": "界面布局",
-								"level": 3
+								"id": "editorrs--表单",
+								"title": "editor.rs — 表单",
+								"level": 2
 							},
 							{
 								"id": "widgetsrs--自定义组件",
@@ -194862,19 +202851,105 @@ var navigation$1 = {
 								"level": 2
 							},
 							{
-								"id": "editorrs--主机编辑表单",
-								"title": "editor.rs — 主机编辑表单",
+								"id": "uirs--渲染逻辑",
+								"title": "ui.rs — 渲染逻辑",
+								"level": 2
+							}
+						]
+					},
+					{
+						"path": "/monitor-module",
+						"title": "监控模块",
+						"icon": "Activity",
+						"sections": [
+							{
+								"id": "模块结构",
+								"title": "模块结构",
 								"level": 2
 							},
 							{
-								"id": "hostformstate",
-								"title": "HostFormState",
-								"level": 3
+								"id": "executorrs--远程执行器",
+								"title": "executor.rs — 远程执行器",
+								"level": 2
 							},
 							{
-								"id": "验证逻辑",
-								"title": "验证逻辑",
-								"level": 3
+								"id": "platformrs--聚合采集",
+								"title": "platform.rs — 聚合采集",
+								"level": 2
+							},
+							{
+								"id": "schedulerrs--调度器",
+								"title": "scheduler.rs — 调度器",
+								"level": 2
+							},
+							{
+								"id": "子解析器",
+								"title": "子解析器",
+								"level": 2
+							},
+							{
+								"id": "相关页面",
+								"title": "相关页面",
+								"level": 2
+							}
+						]
+					},
+					{
+						"path": "/agent-module",
+						"title": "AI Agent 模块",
+						"icon": "Bot",
+						"sections": [
+							{
+								"id": "模块结构",
+								"title": "模块结构",
+								"level": 2
+							},
+							{
+								"id": "modrs--运行循环",
+								"title": "mod.rs — 运行循环",
+								"level": 2
+							},
+							{
+								"id": "providerrs--服务商适配",
+								"title": "provider.rs — 服务商适配",
+								"level": 2
+							},
+							{
+								"id": "toolsrs--工具注册表",
+								"title": "tools.rs — 工具注册表",
+								"level": 2
+							},
+							{
+								"id": "permissionsrs--权限模型",
+								"title": "permissions.rs — 权限模型",
+								"level": 2
+							},
+							{
+								"id": "timeliners--时间线",
+								"title": "timeline.rs — 时间线",
+								"level": 2
+							}
+						]
+					},
+					{
+						"path": "/web-module",
+						"title": "Web 模块",
+						"icon": "Server",
+						"sections": [
+							{
+								"id": "模块结构",
+								"title": "模块结构",
+								"level": 2
+							},
+							{
+								"id": "serverrs--http-服务",
+								"title": "server.rs — HTTP 服务",
+								"level": 2
+							},
+							{
+								"id": "schemars--设置目录",
+								"title": "schema.rs — 设置目录",
+								"level": 2
 							}
 						]
 					},
@@ -194931,14 +203006,9 @@ var navigation$1 = {
 								"level": 2
 							},
 							{
-								"id": "并发上传",
-								"title": "并发上传",
+								"id": "顺序上传",
+								"title": "顺序上传",
 								"level": 2
-							},
-							{
-								"id": "控制机制",
-								"title": "控制机制",
-								"level": 3
 							},
 							{
 								"id": "上传实现",
@@ -194946,49 +203016,14 @@ var navigation$1 = {
 								"level": 3
 							},
 							{
-								"id": "进度显示",
-								"title": "进度显示",
-								"level": 2
-							},
-							{
-								"id": "进度跟踪",
-								"title": "进度跟踪",
-								"level": 3
-							},
-							{
-								"id": "进度渲染",
-								"title": "进度渲染",
-								"level": 3
-							},
-							{
-								"id": "cjk-字符处理",
-								"title": "CJK 字符处理",
+								"id": "askpass-复用",
+								"title": "AskPass 复用",
 								"level": 3
 							},
 							{
 								"id": "防闪退机制",
 								"title": "防闪退机制",
 								"level": 2
-							},
-							{
-								"id": "启动延迟",
-								"title": "启动延迟",
-								"level": 3
-							},
-							{
-								"id": "panic-hook",
-								"title": "Panic Hook",
-								"level": 3
-							},
-							{
-								"id": "错误处理",
-								"title": "错误处理",
-								"level": 3
-							},
-							{
-								"id": "日志记录",
-								"title": "日志记录",
-								"level": 3
 							},
 							{
 								"id": "与主程序的集成",
@@ -195326,6 +203361,21 @@ var navigation$1 = {
 								"id": "cmd-模块",
 								"title": "cmd 模块",
 								"level": 2
+							},
+							{
+								"id": "monitor-模块",
+								"title": "monitor 模块",
+								"level": 2
+							},
+							{
+								"id": "agent-模块",
+								"title": "agent 模块",
+								"level": 2
+							},
+							{
+								"id": "web-模块",
+								"title": "web 模块",
+								"level": 2
 							}
 						]
 					},
@@ -195335,8 +203385,13 @@ var navigation$1 = {
 						"icon": "Map",
 						"sections": [
 							{
-								"id": "v204当前版本",
-								"title": "v2.0.4（当前版本）",
+								"id": "v204当前发布版本",
+								"title": "v2.0.4（当前发布版本）",
+								"level": 2
+							},
+							{
+								"id": "开发中main-分支未发布",
+								"title": "开发中（main 分支，未发布）",
 								"level": 2
 							},
 							{
@@ -195357,12 +203412,27 @@ var navigation$1 = {
 						"icon": "History",
 						"sections": [
 							{
+								"id": "未发布main-分支",
+								"title": "未发布（main 分支）",
+								"level": 2
+							},
+							{
+								"id": "新增",
+								"title": "新增",
+								"level": 3
+							},
+							{
+								"id": "更改",
+								"title": "更改",
+								"level": 3
+							},
+							{
 								"id": "v204",
 								"title": "v2.0.4",
 								"level": 2
 							},
 							{
-								"id": "新增",
+								"id": "新增-1",
 								"title": "新增",
 								"level": 3
 							},
@@ -195382,7 +203452,7 @@ var navigation$1 = {
 								"level": 3
 							},
 							{
-								"id": "更改",
+								"id": "更改-1",
 								"title": "更改",
 								"level": 3
 							},
@@ -195392,7 +203462,7 @@ var navigation$1 = {
 								"level": 2
 							},
 							{
-								"id": "新增-1",
+								"id": "新增-2",
 								"title": "新增",
 								"level": 3
 							},
@@ -195513,6 +203583,26 @@ var config = {
 							"icon": "LayoutPanelLeft"
 						},
 						{
+							"page": "dashboard",
+							"title": "工作台（Dashboard）",
+							"icon": "Gauge"
+						},
+						{
+							"page": "terminal",
+							"title": "嵌入式终端",
+							"icon": "SquareTerminal"
+						},
+						{
+							"page": "ai-agent",
+							"title": "AI Agent",
+							"icon": "Bot"
+						},
+						{
+							"page": "webui",
+							"title": "Web 界面",
+							"icon": "Globe"
+						},
+						{
 							"page": "configuration",
 							"title": "配置说明",
 							"icon": "Settings2"
@@ -195552,6 +203642,21 @@ var config = {
 							"page": "tui-module",
 							"title": "TUI 模块",
 							"icon": "LayoutPanelLeft"
+						},
+						{
+							"page": "monitor-module",
+							"title": "监控模块",
+							"icon": "Activity"
+						},
+						{
+							"page": "agent-module",
+							"title": "AI Agent 模块",
+							"icon": "Bot"
+						},
+						{
+							"page": "web-module",
+							"title": "Web 模块",
+							"icon": "Server"
 						},
 						{
 							"page": "network-module",
@@ -195654,7 +203759,7 @@ var openApiSpecs = {};
 //#region \0virtual:clarify/slots
 var runtimeSlots = {};
 //#endregion
-//#region C:/Users/Lenovo/AppData/Local/Temp/clarify-ssr-Vnsmlx/entry-server.ts
+//#region C:/Users/Lenovo/AppData/Local/Temp/clarify-ssr-BkW3V4/entry-server.ts
 async function render(url) {
 	const entries = Object.values(runtimeSlots).flat();
 	await Promise.all(entries.map(async (entry) => {

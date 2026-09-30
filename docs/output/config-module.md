@@ -156,5 +156,5 @@ pub struct QsshSettings {
 | `save_settings()` | 保存设置到 `~/.qsshrc` |
 
 <Note>
-  当前版本中 `QsshSettings` 已预留但部分字段尚未启用，将在后续版本中逐步激活。
+  `~/.qsshrc` 的字段可通过 [Web 界面](/webui) 的「程序设置」分组读写；`ping_timeout_secs` 已用于 TUI 的 Ping 检测，`ssh_config_path` 仍为预留字段。AI Agent 配置使用独立的 `agent.json`（见 [AI Agent 模块](/agent-module)）。
 </Note>

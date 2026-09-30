@@ -35,6 +35,9 @@ qssh mysrv
   <Property name="import" type="导入配置">
     从 JSON 文件导入主机配置
   </Property>
+  <Property name="web" type="本地 Web 界面">
+    启动本地 WebUI（AI Agent 网页设置界面）
+  </Property>
   <Property name="help" type="帮助信息">
     打印自定义帮助信息
   </Property>
@@ -235,6 +238,34 @@ qssh import <file>
 ```bash
 qssh import backup.json
 ```
+
+---
+
+## `qssh web` — 本地 Web 界面
+
+启动一个仅监听 `127.0.0.1` 的本地 WebUI，用表单方式查看状态并编辑 Agent、程序与 Dashboard 设置。
+
+```bash
+qssh web [选项]
+```
+
+**选项：**
+
+| 选项 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `-p`, `--port` | `u16` | `17890` | 监听端口 |
+
+**示例：**
+
+```bash
+# 默认端口 17890
+qssh web
+
+# 指定端口
+qssh web -p 8080
+```
+
+启动后访问 `http://127.0.0.1:17890`。详见 [Web 界面](/webui)。
 
 ---
 

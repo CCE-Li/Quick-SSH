@@ -1,0 +1,83 @@
+﻿# 监控模块
+
+监控模块位于 [`qssh/src/monitor/`](/qssh/src/monitor/)，负责「在远端主机上执行命令并解析成结构化快照」，为 Dashboard 工作台和 AI Agent 工具提供数据。
+
+## 模块结构
+
+```
+monitor/
+├── mod.rs        # 模块声明
+├── executor.rs   # RemoteExecutor trait + SshProcessExecutor
+├── platform.rs   # 聚合采集脚本与 Collector
+├── snapshot.rs   # ServerSnapshot 及其子结构
+├── scheduler.rs  # 周期性采集调度器
+├── docker.rs     # docker ps 解析与容器操作
+├── services.rs   # systemctl 解析与服务操作
+├── files.rs      # ls -l 解析与目录操作
+├── logs.rs       # journalctl 解析
+└── network.rs    # ss -tan 连接状态解析
+```
+
+## executor.rs — 远程执行器
+
+```rust
+pub trait RemoteExecutor {
+    fn exec(&self, command: &str) -> Result<ExecOutput, ExecError>;
+}
+```
+
+`SshProcessExecutor` 复用 [`SshTarget::build_ssh_args`](/ssh-module)，并追加 `-o ConnectTimeout=<n>`、`-o BatchMode=yes`，在命令前插入 `--`。
+
+默认超时：连接 10 秒、命令 15 秒；Dashboard 采集时用 `with_timeouts(5, 10s)` 覆盖。
+
+`ExecError` 分类：`Timeout`、`Disconnect`、`Permission`、`NotFound`、`UnsupportedOs`、`Other`，由 `classify()` 依据 stderr 关键词映射。
+
+## platform.rs — 聚合采集
+
+`Collector::collect()` 通过**一次 SSH 往返**执行 `LINUX_COLLECT_ALL`，用分节标记切分输出：
+
+| 分节 | 采集内容 |
+|------|---------|
+| `===CPU===` | `/proc/stat` |
+| `===LOAD===` | `/proc/loadavg` |
+| `===MEM===` | `free -b` |
+| `===DISK===` | `df -B1` |
+| `===NET===` | `/proc/net/dev` |
+| `===SYS===` | `uname` / `hostname` / `uptime` |
+| `===PROC===` | `ps` 按 CPU 前 10 |
+| `===DOCKER===` | `docker ps -a` |
+| `===SERVICES===` | `systemctl list-units` |
+| `===CONNS===` | `ss -tan` |
+| `===FILES===` | `ls -lA` |
+| `===LOGS===` | `journalctl -n 50` |
+
+解析结果写入 `ServerSnapshot`（`snapshot.rs`），字段包括 `cpu` / `memory` / `disks` / `network` / `system` / `processes` / `docker` / `services` / `conn_counts` / `files` / `logs` / `warnings`。
+
+`platform.rs` 还提供 Agent 工具用的单命令构造器：`server_status_command()`、`processes_command()`、`disks_command()`、`network_command()`。
+
+## scheduler.rs — 调度器
+
+`MonitorScheduler` 为每个目标主机启动一个采集线程：
+
+```rust
+let (scheduler, rx) = MonitorScheduler::with_channel();
+scheduler.add_target(alias, collector, Duration::from_secs(2));
+// 线程循环采集并通过 mpsc 发送 BackgroundEvent::MonitorSnapshot
+```
+
+`stop_target()` / `stop_all()` 只设置 `AtomicBool`，不 join 线程，以保证 UI 不被阻塞；`Drop` 会停止所有目标。
+
+## 子解析器
+
+| 文件 | 解析对象 | 相关操作 |
+|------|---------|---------|
+| `docker.rs` | `docker ps -a --format ID\|Names\|Image\|Status\|Ports` | `container_action_command`（restart / stop / `rm -f`） |
+| `services.rs` | `systemctl list-units`（`awk` 提取） | `service_action_command`（start / stop / restart） |
+| `files.rs` | `ls -lA --time-style=long-iso` | `dir_entries`、`parent_dir`、`join_dir`、`shell_quote`、`ls_l_command` |
+| `logs.rs` | `journalctl -o short-iso` | `journalctl_command`，`MAX_LOG_LINES = 200` |
+| `network.rs` | `ss -tan state all` | `ConnCounts`（`is_healthy()`：`close_wait < 100`） |
+
+## 相关页面
+
+- [工作台（Dashboard）](/dashboard) — 监控数据在界面上的呈现
+- [AI Agent](/ai-agent) — 工具调用如何复用这些命令

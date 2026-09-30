@@ -133,6 +133,10 @@ OpenSSH 仍按自身顺序优先尝试密钥和 ssh-agent。AskPass 入口只返
    - `SetConsoleCursorInfo` — 直接 WinAPI 设置
    - `WriteFile` — 内核路径写入
 
+### 在新窗口连接
+
+`spawn_connection_window(target)` 用于「不占用当前 TUI」的连接：Windows 下以 `CREATE_NEW_CONSOLE` 启动本程序并传入别名（走 `qssh <别名>` 直连路径），Unix 下复用「在新终端中启动本程序」的逻辑。新窗口里就是普通的交互式 SSH 会话。
+
 ## drag_detect.rs — 拖拽文件检测
 
 ### 检测原理

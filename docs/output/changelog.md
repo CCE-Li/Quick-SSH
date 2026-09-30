@@ -1,5 +1,22 @@
 ﻿# 变更日志
 
+## 未发布（main 分支）
+
+### 新增
+
+- **Dashboard 监控工作台**：12 个可自定义组件（CPU / 内存 / 磁盘 / 网络 / Docker / 进程 / 服务 / 文件 / 日志 / 系统信息 / 终端 / AI Agent），内置多套 Profile，支持鼠标拖动布局
+- **嵌入式终端**：基于 portable-pty + vt100，在 TUI 内直接使用 SSH 会话，Ctrl+B 前缀键，1000 行滚动回看，连接与待机动画
+- **运维面板**：Docker 容器、系统服务、远程文件浏览、journalctl 日志，以及 `:` 远程命令执行
+- **AI Agent**：17 个工具、四级权限与审批流，支持 OpenAI 兼容接口 / OpenCode Go / Ollama
+- **本地 Web 界面**：`qssh web` 启动，schema 驱动设置页，支持编辑 Agent / 程序 / Dashboard 设置并测试模型连通性
+- **命令面板**：`Ctrl+K` 搜索并执行动作
+- `Ctrl+Enter` 在新终端窗口连接主机；`<` / `>` 调整主机顺序；`.` 切换地址显示
+
+### 更改
+
+- 拖拽上传改用独立 `qssh-uploader` 进程，逐个文件顺序 SCP 上传并显示原生进度
+- `~/.qsshrc` 设置接入 Web 界面
+
 ## v2.0.4
 
 ### 新增
@@ -46,9 +63,9 @@
   - `help` — 帮助信息
   - `completions` — Shell 补全生成
 - Shell 补全生成（bash / zsh / fish / powershell / elvish）
-- 独立 SFTP 上传工具（`qssh-uploader`）
-  - 最多 3 文件并发上传
-  - 实时进度条显示
+- 独立 SCP 上传工具（`qssh-uploader`）
+  - 逐个文件顺序上传
+  - 实时进度显示
   - 防闪退设计
 - 渐进式 SSH 配置解析
   - 只管理 Host/HostName/User/Port/IdentityFile

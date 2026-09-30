@@ -1,0 +1,41 @@
+import{n as e}from"./vendor-CQh2k-GV.js";import{n as t}from"./react-vendor-6GaKtW3l.js";var n=t();function r(t){let r={a:`a`,code:`code`,h1:`h1`,h2:`h2`,hr:`hr`,li:`li`,p:`p`,strong:`strong`,table:`table`,tbody:`tbody`,td:`td`,th:`th`,thead:`thead`,tr:`tr`,ul:`ul`,...e(),...t.components},{Callout:i}=r;return i||a(`Callout`,!0),(0,n.jsxs)(n.Fragment,{children:[(0,n.jsx)(r.hr,{}),`
+`,(0,n.jsx)(r.p,{children:`title: 嵌入式终端
+description: 在 TUI 内直接使用 SSH 会话的嵌入式终端，基于 PTY + vt100 解析，支持前缀键与滚动回看。
+keywords:`}),`
+`,(0,n.jsxs)(r.ul,{children:[`
+`,(0,n.jsx)(r.li,{children:`终端`}),`
+`,(0,n.jsx)(r.li,{children:`terminal`}),`
+`,(0,n.jsx)(r.li,{children:`pty`}),`
+`,(0,n.jsx)(r.li,{children:`vt100`}),`
+`,(0,n.jsx)(r.li,{children:`ssh`}),`
+`,(0,n.jsx)(r.li,{children:`Ctrl+B`}),`
+`]}),`
+`,(0,n.jsx)(r.hr,{}),`
+`,(0,n.jsx)(r.h1,{id:`嵌入式终端`,children:`嵌入式终端`}),`
+`,(0,n.jsx)(r.p,{children:`Quick-SSH 提供两种连接方式：`}),`
+`,(0,n.jsxs)(r.ul,{children:[`
+`,(0,n.jsxs)(r.li,{children:[(0,n.jsxs)(r.strong,{language:`txt`,children:[`在主机列表中按 `,(0,n.jsx)(r.code,{language:`txt`,children:`Enter`})]}),`：退出 TUI，交给系统 OpenSSH 一个全屏交互会话，返回后重新进入 TUI。`]}),`
+`,(0,n.jsxs)(r.li,{children:[(0,n.jsxs)(r.strong,{language:`txt`,children:[`在 Dashboard 工作台中按 `,(0,n.jsx)(r.code,{language:`txt`,children:`Enter`})]}),`：在 TUI 内部打开`,(0,n.jsx)(r.strong,{children:`嵌入式终端`}),`，不离开工作台，可以一边看监控一边操作。`]}),`
+`]}),`
+`,(0,n.jsxs)(r.p,{language:`txt`,children:[`嵌入式终端使用 `,(0,n.jsx)(r.code,{language:`txt`,children:`portable-pty`}),` 分配 PTY（Windows 下为 ConPTY），并用 `,(0,n.jsx)(r.code,{language:`txt`,children:`vt100`}),` 解析远端输出的 ANSI 序列，因此 vim、htop、less 等全屏程序都能正常使用。`]}),`
+`,(0,n.jsx)(r.h2,{id:`打开与关闭`,children:`打开与关闭`}),`
+`,(0,n.jsxs)(r.table,{children:[(0,n.jsx)(r.thead,{children:(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.th,{children:`操作`}),(0,n.jsx)(r.th,{children:`说明`})]})}),(0,n.jsxs)(r.tbody,{children:[(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[`Dashboard 中按 `,(0,n.jsx)(r.code,{language:`txt`,children:`Enter`})]}),(0,n.jsx)(r.td,{children:`连接到选中主机（面板空闲时也可用鼠标点击 Terminal 组件）`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+Shift+C`})}),(0,n.jsx)(r.td,{children:`断开并结束会话`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+B`}),` 然后 `,(0,n.jsx)(r.code,{language:`txt`,children:`q`}),` / `,(0,n.jsx)(r.code,{language:`txt`,children:`x`})]}),(0,n.jsx)(r.td,{children:`断开并结束会话`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`Esc`})}),(0,n.jsxs)(r.td,{children:[(0,n.jsx)(r.strong,{children:`转发给远端`}),`（例如退出 vim），不是断开`]})]})]})]}),`
+`,(0,n.jsxs)(r.p,{language:`txt`,children:[`连接过程会显示 `,(0,n.jsx)(r.code,{language:`txt`,children:"${spinner} 正在连接 <别名> …"}),` 的动画；连接建立后显示远程画面。空闲或断开后，面板会显示一个「小电视」待机画面并提示按 `,(0,n.jsx)(r.code,{language:`txt`,children:`Enter`}),` 重新连接。`]}),`
+`,(0,n.jsx)(r.p,{children:`面板标题会显示当前状态：`}),`
+`,(0,n.jsxs)(r.table,{children:[(0,n.jsx)(r.thead,{children:(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.th,{children:`状态`}),(0,n.jsx)(r.th,{children:`标题 / 提示`})]})}),(0,n.jsxs)(r.tbody,{children:[(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:`连接中`}),(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`<别名> — 连接中`})})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:`已连接`}),(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`<别名> — 已连接`})})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:`已断开`}),(0,n.jsx)(r.td,{language:`txt`,children:(0,n.jsx)(r.code,{language:`txt`,children:`<别名> — 已断开`})})]})]})]}),`
+`,(0,n.jsxs)(r.h2,{id:`前缀键-ctrlb`,language:`txt`,children:[`前缀键 `,(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+B`})]}),`
+`,(0,n.jsxs)(r.p,{language:`txt`,children:[`在嵌入式终端中，`,(0,n.jsx)(r.strong,{children:`所有按键默认直接转发给远端 PTY`}),`，TUI 快捷键不生效。要使用 TUI 功能，先按前缀键 `,(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+B`}),`（tmux 风格），再按一个命令键：`]}),`
+`,(0,n.jsxs)(r.table,{children:[(0,n.jsx)(r.thead,{children:(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.th,{children:`前缀组合`}),(0,n.jsx)(r.th,{children:`功能`})]})}),(0,n.jsxs)(r.tbody,{children:[(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+B`}),` `,(0,n.jsx)(r.code,{language:`txt`,children:`d`})]}),(0,n.jsx)(r.td,{children:`打开 Docker 面板`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+B`}),` `,(0,n.jsx)(r.code,{language:`txt`,children:`s`})]}),(0,n.jsx)(r.td,{children:`打开服务面板`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+B`}),` `,(0,n.jsx)(r.code,{language:`txt`,children:`f`})]}),(0,n.jsx)(r.td,{children:`打开文件面板`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+B`}),` `,(0,n.jsx)(r.code,{language:`txt`,children:`l`})]}),(0,n.jsx)(r.td,{children:`打开日志面板`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+B`}),` `,(0,n.jsx)(r.code,{language:`txt`,children:`a`})]}),(0,n.jsx)(r.td,{children:`打开 AI Agent`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+B`}),` `,(0,n.jsx)(r.code,{language:`txt`,children:`k`})]}),(0,n.jsx)(r.td,{children:`打开命令面板`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+B`}),` `,(0,n.jsx)(r.code,{language:`txt`,children:`q`}),` / `,(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+B`}),` `,(0,n.jsx)(r.code,{language:`txt`,children:`x`})]}),(0,n.jsx)(r.td,{children:`断开连接`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+B`}),` `,(0,n.jsx)(r.code,{language:`txt`,children:`Esc`})]}),(0,n.jsx)(r.td,{children:`取消前缀，不执行任何操作`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsxs)(r.td,{language:`txt`,children:[(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+B`}),` 其他键`]}),(0,n.jsx)(r.td,{children:`放行给远端 PTY`})]})]})]}),`
+`,(0,n.jsxs)(r.p,{language:`txt`,children:[`按 `,(0,n.jsx)(r.code,{language:`txt`,children:`Ctrl+B`}),` 后如果不想执行命令，按 `,(0,n.jsx)(r.code,{language:`txt`,children:`Esc`}),` 取消；鼠标点击也会取消前缀等待状态。`]}),`
+`,(0,n.jsx)(i,{title:`关闭面板后回到终端`,children:(0,n.jsx)(r.p,{children:`从嵌入式终端打开 Docker / 服务 / 文件 / 日志 / Agent 面板后，关闭这些面板时如果 SSH 仍然连接，焦点会自动回到终端，键盘继续转发给远端。`})}),`
+`,(0,n.jsx)(r.h2,{id:`滚动回看`,children:`滚动回看`}),`
+`,(0,n.jsx)(r.p,{children:`终端保留 1000 行回滚历史。`}),`
+`,(0,n.jsxs)(r.table,{children:[(0,n.jsx)(r.thead,{children:(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.th,{children:`操作`}),(0,n.jsx)(r.th,{children:`说明`})]})}),(0,n.jsxs)(r.tbody,{children:[(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:`鼠标滚轮`}),(0,n.jsx)(r.td,{children:`上下回看历史（每次 3 行）`})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:`回看中`}),(0,n.jsxs)(r.td,{language:`txt`,children:[`右上角显示 `,(0,n.jsx)(r.code,{language:`txt`,children:`↑ 回看中`})]})]}),(0,n.jsxs)(r.tr,{children:[(0,n.jsx)(r.td,{children:`滚到底部`}),(0,n.jsx)(r.td,{children:`自动回到实时画面`})]})]})]}),`
+`,(0,n.jsx)(r.h2,{id:`密码自动填写`,children:`密码自动填写`}),`
+`,(0,n.jsx)(r.p,{children:`如果该主机在系统凭据库中保存了密码，嵌入式终端也会像普通会话一样，通过 OpenSSH AskPass 自动填写登录密码；OpenSSH 仍会优先尝试密钥和 ssh-agent。`}),`
+`,(0,n.jsx)(i,{title:`首次连接`,children:(0,n.jsxs)(r.p,{language:`txt`,children:[`首次连接新主机时，请先运行 `,(0,n.jsx)(r.code,{language:`txt`,children:`ssh <别名>`}),` 手动核对并确认主机指纹。Quick-SSH 不会自动回答主机指纹或私钥口令提示。`]})}),`
+`,(0,n.jsx)(r.h2,{id:`下一步`,children:`下一步`}),`
+`,(0,n.jsxs)(r.ul,{children:[`
+`,(0,n.jsxs)(r.li,{children:[(0,n.jsx)(r.a,{href:`/dashboard`,children:`工作台（Dashboard）`}),` — 监控组件与运维面板`]}),`
+`,(0,n.jsxs)(r.li,{children:[(0,n.jsx)(r.a,{href:`/ai-agent`,children:`AI Agent`}),` — 用自然语言驱动远程运维`]}),`
+`]})]})}function i(t={}){let{wrapper:i}={...e(),...t.components};return i?(0,n.jsx)(i,{...t,children:(0,n.jsx)(r,{...t})}):r(t)}function a(e,t){throw Error(`Expected `+(t?`component`:`object`)+" `"+e+"` to be defined: you likely forgot to import, pass, or provide it.")}export{i as default};

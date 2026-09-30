@@ -9,7 +9,7 @@ quick-ssh/
 │   ├── Cargo.toml
 │   ├── build.rs                 # 构建脚本（监视 cli.rs 变更）
 │   └── src/
-│       ├── main.rs              # 入口：clap 参数解析 → 分发
+│       ├── main.rs              # 入口：AskPass 短路 → clap 解析 → 分发
 │       ├── cli.rs               # clap derive CLI 定义
 │       ├── config/              # SSH 配置 + 程序设置
 │       │   ├── mod.rs           # 模块重导出
@@ -18,41 +18,57 @@ quick-ssh/
 │       │   ├── writer.rs        # SSH 配置渲染器
 │       │   ├── credentials.rs   # 系统凭据库与 OpenSSH AskPass
 │       │   └── settings.rs      # ~/.qsshrc 加载/保存
-│       ├── ssh/                 # SSH 会话 + SFTP 上传
+│       ├── ssh/                 # SSH 会话 + 上传
 │       │   ├── mod.rs
 │       │   ├── session.rs       # SshTarget 解析与构建
-│       │   ├── spawn.rs         # spawn ssh 进程与 AskPass 配置
+│       │   ├── spawn.rs         # spawn ssh、AskPass、新窗口连接、拖拽上传
 │       │   ├── upload.rs        # 内联 SCP 上传（预留）
 │       │   └── drag_detect.rs   # 拖拽文件路径检测
 │       ├── network/             # TCP 在线检测
 │       │   ├── mod.rs
 │       │   └── ping.rs          # TcpStream 连接测试
+│       ├── monitor/             # 远端采集与解析
+│       │   ├── executor.rs      # RemoteExecutor trait + SshProcessExecutor
+│       │   ├── platform.rs      # 聚合采集脚本与 Collector
+│       │   ├── snapshot.rs      # ServerSnapshot 及其子结构
+│       │   ├── scheduler.rs     # 周期性采集调度器
+│       │   └── docker/services/files/logs/network.rs
+│       ├── agent/               # AI 运维助手
+│       │   ├── mod.rs           # AgentRunner 运行循环
+│       │   ├── config.rs        # agent.json
+│       │   ├── provider.rs      # OpenAI / OpenCode Go / Ollama
+│       │   ├── tools.rs         # 工具注册表
+│       │   ├── permissions.rs   # 权限与危险等级
+│       │   └── timeline.rs
+│       ├── web/                 # 本地 WebUI
+│       │   ├── server.rs        # 零依赖 HTTP 服务
+│       │   ├── schema.rs        # schema 驱动设置页
+│       │   └── index.html
 │       ├── tui/                 # 终端 UI（事件驱动）
 │       │   ├── mod.rs
-│       │   ├── action.rs        # Action + Mode 枚举
+│       │   ├── action.rs        # Action / Mode / View 枚举
 │       │   ├── app.rs           # 应用状态与业务逻辑
 │       │   ├── event.rs         # 事件循环
 │       │   ├── keymap.rs        # 键盘映射 + Mode 标签/提示
+│       │   ├── term.rs          # 嵌入式终端（portable-pty + vt100）
+│       │   ├── mouse.rs         # 鼠标事件映射
 │       │   ├── ui.rs            # 渲染逻辑
 │       │   ├── widgets.rs       # 自定义组件（弹窗等）
-│       │   └── editor.rs        # 主机编辑表单
+│       │   ├── editor.rs        # 主机/Agent 编辑表单
+│       │   └── dashboard/       # 工作台：布局引擎、组件、命令面板
 │       └── cmd/                 # CLI 子命令实现
-│           ├── mod.rs
-│           ├── ps.rs            # 列出主机
-│           ├── add.rs           # 添加主机
-│           ├── rm.rs            # 删除主机
-│           ├── connect.rs       # 连接主机
-│           ├── export.rs        # 导出 JSON
-│           ├── import.rs        # 导入 JSON
-│           ├── help.rs          # 自定义帮助
-│           └── completions.rs   # Shell 补全生成
+│           ├── ps.rs, add.rs, rm.rs, connect.rs
+│           ├── export.rs, import.rs, help.rs
+│           └── completions.rs
 ├── qssh-uploader/               # 独立上传二进制
-│   └── src/main.rs              # 并发 SCP 上传 + 进度显示
-├── docs/                        # 文档
+│   └── src/main.rs              # SCP 上传 + 进度显示
+├── docs/                        # 文档站（Clarify）
+├── docx/                        # 设计文档
 ├── packaging/                   # 包管理器配置
 └── .github/workflows/           # CI/CD
     ├── ci.yml                   # 每次推送自动检查
-    └── release.yml              # 打标签触发发布
+    ├── release.yml              # 打标签触发发布
+    └── deploy.yml               # 推送 main 部署文档站
 ```
 
 ## 工作空间架构
@@ -61,14 +77,14 @@ quick-ssh/
 
 <Properties>
   <Property name="qssh" type="主程序">
-    核心 SSH 管理工具，包含 CLI、TUI、配置管理、SSH 连接功能
+    核心工具，包含 CLI、TUI、配置管理、SSH 连接、监控采集、AI Agent 与 WebUI
   </Property>
   <Property name="qssh-uploader" type="上传工具">
-    独立的文件上传程序，专注于 SCP 并发上传和进度显示
+    独立的文件上传程序，专注于 SCP 上传和进度显示
   </Property>
 </Properties>
 
-Workspace 共享的依赖包括：`tokio`、`serde`、`clap`、`ratatui`、`crossterm`、`ssh2` 等。
+Workspace 共享的依赖包括：`tokio`、`serde`、`clap`、`ratatui`、`crossterm`、`portable-pty`、`vt100`、`keyring`、`ssh2` 等。
 
 ## 数据流
 
@@ -114,13 +130,43 @@ Workspace 共享的依赖包括：`tokio`、`serde`、`clap`、`ratatui`、`cros
 ### 文件上传
 
 ```
-拖拽检测 → UploadPayload → spawn qssh-uploader → SFTP 连接 → 进度条 → 完成
+拖拽检测 → UploadPayload → spawn qssh-uploader → SCP 连接 → 进度条 → 完成
 ```
 
 1. SSH 会话期间，[`drag_detect.rs`](/qssh/src/ssh/drag_detect.rs) 检测终端输入中的文件路径
 2. 检测到拖拽操作 → 在新控制台窗口中启动 `qssh-uploader`
-3. 上传器使用 `scp` 实现文件传输，最多 3 文件并发
-4. 实时渲染每个文件的进度条
+3. 上传器使用 `scp` 逐个传输文件（顺序上传），实时渲染每个文件的进度条
+
+### 工作台监控
+
+```
+进入工作台 → MonitorScheduler::add_target(2s) → SshProcessExecutor 单次 SSH 往返
+         → ServerSnapshot → BackgroundEvent::MonitorSnapshot → App 分发到各组件
+```
+
+1. 进入工作台时选中主机，调度器为该主机启动采集线程
+2. 每 2 秒执行一次聚合采集脚本（连接超时 5 秒、命令超时 10 秒）
+3. 解析成 `ServerSnapshot` 后经 mpsc 回传给 UI 并分发到各组件
+
+### AI Agent
+
+```
+用户输入 → AgentRunner → provider::chat() → 工具调用
+        → permissions::decide() →（需审批则阻塞等待确认）→ execute_tool() → 结果回填 → 循环
+```
+
+1. Agent 拿到工具清单与监控快照作为上下文
+2. 模型返回文字或一个工具调用
+3. 按权限模型决定是否需审批；审批通过后在远端执行
+4. 结果回填后继续下一轮，最多 6 轮
+
+### 本地 WebUI
+
+```
+浏览器 → TcpListener(127.0.0.1:17890) → 路由
+      → /api/settings → SettingsCatalog（读/写 agent.json、qsshrc、dashboard.json）
+      → /api/test → provider::chat() 探活
+```
 
 ## 设计决策
 
@@ -165,3 +211,15 @@ SSH 会话在 Unix 上直接继承终端标准流；Windows 平台使用 WinAPI 
 - 禁用 ECHO、LINE_INPUT、PROCESSED_INPUT
 - 启用 ENABLE_VIRTUAL_TERMINAL_INPUT（使 `std::io::stdin().read()` 能正确读取按键字节序列）
 - 退出时三种方法确保恢复光标可见性
+
+### 7. 监控与执行分离
+
+`monitor` 模块通过 `RemoteExecutor` trait 抽象命令执行，`SshProcessExecutor` 只是其中一种实现。Agent 工具与 Dashboard 采集共用同一批命令构造器和解析器，保证两边看到的数据一致，也让执行层可以独立替换。
+
+### 8. Agent 不持有 SSH 连接
+
+AI Agent 只产生工具调用，真正的执行交给 `RemoteExecutor`，并由 `permissions` 模块在两者之间做权限裁决。这样权限门禁是唯一入口，模型无法绕过它直接操作服务器。
+
+### 9. 嵌入式终端独立于 TUI 事件循环
+
+`term.rs` 用后台线程读取 PTY 输出并送入 `vt100` 解析器，UI 侧按渲染周期拉取当前屏幕。终端模式下按键默认全部编码后转发给远端，只有 `Ctrl+B` 前缀键会把控制权交回 TUI，从而在不牺牲全屏程序（vim/htop）可用性的前提下保留面板切换能力。
