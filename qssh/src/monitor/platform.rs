@@ -3,51 +3,179 @@
 //! 首版实现 Linux（/proc、/sys、df、free、uptime、ps、ss、ip）。
 //! 未来扩展 windows/macos（决策 D5：命令解析为主）。
 
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
+
 use super::executor::{ExecOutput, RemoteExecutor};
 use super::snapshot::{
     CpuInfo, DiskInfo, MemoryInfo, NetworkInfo, ProcessInfo, ServerSnapshot, SystemInfo,
 };
 
+/// 采集分区：只有被启用组件（或打开的操作面板）需要的分区才会参与采集。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Section {
+    Cpu,
+    Load,
+    Memory,
+    Disk,
+    Network,
+    System,
+    Process,
+    Docker,
+    Services,
+    Connections,
+    Files,
+    Logs,
+}
+
+impl Section {
+    /// 全部分区（顺序与采集命令输出一致）
+    pub const ALL: [Section; 12] = [
+        Section::Cpu,
+        Section::Load,
+        Section::Memory,
+        Section::Disk,
+        Section::Network,
+        Section::System,
+        Section::Process,
+        Section::Docker,
+        Section::Services,
+        Section::Connections,
+        Section::Files,
+        Section::Logs,
+    ];
+
+    /// 分区的位标记（用于掩码）
+    pub const fn bit(self) -> u32 {
+        1 << (self as u8)
+    }
+
+    /// 输出分区标记（`===KEY===`）
+    pub const fn key(self) -> &'static str {
+        match self {
+            Section::Cpu => "CPU",
+            Section::Load => "LOAD",
+            Section::Memory => "MEM",
+            Section::Disk => "DISK",
+            Section::Network => "NET",
+            Section::System => "SYS",
+            Section::Process => "PROC",
+            Section::Docker => "DOCKER",
+            Section::Services => "SERVICES",
+            Section::Connections => "CONNS",
+            Section::Files => "FILES",
+            Section::Logs => "LOGS",
+        }
+    }
+
+    /// Linux 采集命令片段
+    pub const fn command(self) -> &'static str {
+        match self {
+            Section::Cpu => "cat /proc/stat | head -1",
+            Section::Load => "cat /proc/loadavg",
+            Section::Memory => "free -b | sed -n '2p'",
+            Section::Disk => "df -B1 --output=target,used,size | tail -n +2",
+            Section::Network => "cat /proc/net/dev | tail -n +3",
+            Section::System => "uname -sr; hostname; cat /proc/uptime | cut -d' ' -f1",
+            Section::Process => "ps -eo pid,comm,%cpu,rss --sort=-%cpu | head -n 10",
+            Section::Docker => {
+                "docker ps -a --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.Ports}}' 2>/dev/null || true"
+            }
+            Section::Services => {
+                "systemctl list-units --type=service --all --no-pager --no-legend --plain 2>/dev/null | awk '{print $1\"|\"$2\"|\"$3\"|\"$4}' || true"
+            }
+            Section::Connections => {
+                "ss -tan state all 2>/dev/null | awk 'NR>1 {print $1}' | sort | uniq -c | awk '{print $2\"|\"$1}' || true"
+            }
+            Section::Files => {
+                "LC_ALL=C ls -lA --time-style=long-iso 2>/dev/null | sed 's/  */ /g' || true"
+            }
+            Section::Logs => "journalctl -n 50 --no-pager -o short-iso 2>/dev/null || true",
+        }
+    }
+}
+
+/// 多个分区按位或为掩码
+pub fn section_bits(sections: &[Section]) -> u32 {
+    sections
+        .iter()
+        .fold(0, |bits, section| bits | section.bit())
+}
+
+/// 采集分区掩码：App 侧按「启用的组件 + 打开的面板」动态更新，
+/// 采集线程每轮读取，未请求的分区不会产生任何远程命令。
+#[derive(Debug, Clone, Default)]
+pub struct SectionMask(Arc<AtomicU32>);
+
+impl SectionMask {
+    /// 由分区列表构造
+    pub fn from_sections(sections: &[Section]) -> Self {
+        Self(Arc::new(AtomicU32::new(section_bits(sections))))
+    }
+
+    /// 更新分区集合
+    pub fn set(&self, sections: &[Section]) {
+        self.0.store(section_bits(sections), Ordering::Relaxed);
+    }
+
+    /// 当前位掩码
+    pub fn get(&self) -> u32 {
+        self.0.load(Ordering::Relaxed)
+    }
+}
+
+/// 按分区掩码构建一次性采集命令（分号分隔，避免多次 SSH 往返）
+pub fn collect_command(mask: u32) -> String {
+    let mut command = String::new();
+    for section in Section::ALL {
+        if mask & section.bit() != 0 {
+            command.push_str("echo \"===");
+            command.push_str(section.key());
+            command.push_str("===\"; ");
+            command.push_str(section.command());
+            command.push_str(";\n");
+        }
+    }
+    command
+}
+
 /// 采集器：针对单个目标执行一组远程命令并组装快照
 pub struct Collector {
     executor: Box<dyn RemoteExecutor>,
+    sections: SectionMask,
 }
 
 impl Collector {
+    /// 默认采集全部分区（测试 / 不需要按需裁剪的场景）
     pub fn new(executor: Box<dyn RemoteExecutor>) -> Self {
-        Self { executor }
+        Self {
+            executor,
+            sections: SectionMask::from_sections(&Section::ALL),
+        }
     }
 
-    /// 执行一次完整采集（命令并行化留给 scheduler，这里串行执行）
+    /// 使用共享分区掩码按需采集
+    pub fn with_sections(mut self, sections: SectionMask) -> Self {
+        self.sections = sections;
+        self
+    }
+
+    /// 执行一次采集：只包含当前需要的分区；无分区时直接返回空快照（不建立 SSH 连接）
     pub fn collect(&self, alias: &str) -> ServerSnapshot {
         let mut snap = ServerSnapshot::new(alias);
+        let mask = self.sections.get();
+        if mask == 0 {
+            return snap;
+        }
         let mut warnings = Vec::new();
-
-        match self.executor.exec(LINUX_COLLECT_ALL) {
+        match self.executor.exec(&collect_command(mask)) {
             Ok(out) => parse_linux_output(&out, &mut snap),
             Err(e) => warnings.push(format!("采集失败: {e}")),
         }
-
         snap.warnings = warnings;
         snap
     }
 }
-
-/// Linux 一次性采集命令（分号分隔，避免多次 SSH 往返）
-const LINUX_COLLECT_ALL: &str = r#"
-echo "===CPU==="; cat /proc/stat | head -1;
-echo "===LOAD==="; cat /proc/loadavg;
-echo "===MEM==="; free -b | sed -n '2p';
-echo "===DISK==="; df -B1 --output=target,used,size | tail -n +2;
-echo "===NET==="; cat /proc/net/dev | tail -n +3;
-echo "===SYS==="; uname -sr; hostname; cat /proc/uptime | cut -d' ' -f1;
-echo "===PROC==="; ps -eo pid,comm,%cpu,rss --sort=-%cpu | head -n 10;
-echo "===DOCKER==="; docker ps -a --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.Ports}}' 2>/dev/null || true;
-echo "===SERVICES==="; systemctl list-units --type=service --all --no-pager --no-legend --plain 2>/dev/null | awk '{print $1"|"$2"|"$3"|"$4}' || true;
-echo "===CONNS==="; ss -tan state all 2>/dev/null | awk 'NR>1 {print $1}' | sort | uniq -c | awk '{print $2"|"$1}' || true;
-echo "===FILES==="; LC_ALL=C ls -lA --time-style=long-iso 2>/dev/null | sed 's/  */ /g' || true;
-echo "===LOGS==="; journalctl -n 50 --no-pager -o short-iso 2>/dev/null || true;
-"#;
 
 // ── 独立采集命令（Agent Tool Registry 按需调用）──────────────
 
@@ -373,6 +501,75 @@ drwxr-xr-x 2 user group 4096 2026-08-13 15:00 logs
         let cpu = snap.cpu.unwrap();
         assert!((cpu.load.0 - 1.5).abs() < 0.01);
         assert!((cpu.load.1 - 1.1).abs() < 0.01);
+    }
+
+    /// 按需采集：命令只包含请求的分区，未启用分区不产生任何远程命令
+    #[test]
+    fn collect_command_only_includes_requested_sections() {
+        let command = collect_command(section_bits(&[Section::Cpu, Section::Logs]));
+        assert!(command.contains("===CPU==="));
+        assert!(command.contains("===LOGS==="));
+        assert!(!command.contains("===DOCKER==="));
+        assert!(!command.contains("docker ps"));
+        assert!(!command.contains("df -B1"));
+    }
+
+    #[test]
+    fn collect_command_with_empty_mask_is_empty() {
+        assert!(collect_command(0).is_empty());
+    }
+
+    /// 分区掩码：位运算 + 跨线程共享更新
+    #[test]
+    fn section_mask_tracks_updates() {
+        fn has(mask: &SectionMask, section: Section) -> bool {
+            mask.get() & section.bit() != 0
+        }
+        let mask = SectionMask::from_sections(&[Section::Cpu]);
+        assert!(has(&mask, Section::Cpu));
+        assert!(!has(&mask, Section::Logs));
+
+        let shared = mask.clone();
+        mask.set(&[Section::Logs, Section::Docker]);
+        assert!(!has(&shared, Section::Cpu));
+        assert!(has(&shared, Section::Logs));
+        assert!(has(&shared, Section::Docker));
+    }
+
+    /// 没有任何组件需要硬件信息时不执行远程命令（不建立 SSH 连接）
+    #[test]
+    fn collector_skips_executor_when_no_sections() {
+        struct PanicExecutor;
+        impl RemoteExecutor for PanicExecutor {
+            fn exec(
+                &self,
+                _command: &str,
+            ) -> Result<ExecOutput, crate::monitor::executor::ExecError> {
+                panic!("无分区需要采集时不应执行远程命令");
+            }
+        }
+        let collector =
+            Collector::new(Box::new(PanicExecutor)).with_sections(SectionMask::from_sections(&[]));
+        let snap = collector.collect("web");
+        assert_eq!(snap.alias, "web");
+        assert!(snap.warnings.is_empty());
+        assert!(!snap.has_fatal_error());
+    }
+
+    /// 部分分区采集：只解析存在的分区，其余保持为空且不视为致命错误
+    #[test]
+    fn parses_partial_output_without_fatal_error() {
+        let out = ExecOutput {
+            stdout: "===LOGS===\n2026-08-13T16:00:00.123456+0800 web01 sshd[1234]: hi\n"
+                .to_string(),
+            stderr: String::new(),
+            exit_code: Some(0),
+        };
+        let mut snap = ServerSnapshot::new("web01");
+        parse_linux_output(&out, &mut snap);
+        assert_eq!(snap.logs.len(), 1);
+        assert!(snap.cpu.is_none());
+        assert!(!snap.has_fatal_error());
     }
 
     #[test]

@@ -1,5 +1,6 @@
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Style};
+use ratatui::layout::{Constraint, Direction, Flex, Layout, Rect};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
 use ratatui::Frame;
 
@@ -7,26 +8,15 @@ use crate::tui::app::App;
 
 // ── 自定义 TUI 组件 ──────────────────────────────────────
 
-/// 居中弹窗辅助函数
+/// 居中弹窗辅助函数（`Flex::Center` 自动分配两侧剩余空间）
 #[allow(dead_code)]
 pub fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
-    let popup_layout = ratatui::layout::Layout::default()
-        .direction(ratatui::layout::Direction::Vertical)
-        .constraints([
-            ratatui::layout::Constraint::Percentage((100 - percent_y) / 2),
-            ratatui::layout::Constraint::Percentage(percent_y),
-            ratatui::layout::Constraint::Percentage((100 - percent_y) / 2),
-        ])
+    let rows = Layout::vertical([Constraint::Percentage(percent_y)])
+        .flex(Flex::Center)
         .split(area);
-
-    ratatui::layout::Layout::default()
-        .direction(ratatui::layout::Direction::Horizontal)
-        .constraints([
-            ratatui::layout::Constraint::Percentage((100 - percent_x) / 2),
-            ratatui::layout::Constraint::Percentage(percent_x),
-            ratatui::layout::Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(popup_layout[1])[1]
+    Layout::horizontal([Constraint::Percentage(percent_x)])
+        .flex(Flex::Center)
+        .split(rows[0])[0]
 }
 
 /// 渲染确认对话框
@@ -44,34 +34,44 @@ pub fn render_confirm_dialog(frame: &mut Frame, area: Rect, title: &str, message
     frame.render_widget(paragraph, popup_area);
 }
 
+/// 帮助弹窗的分组标题
+fn help_section(title: &'static str) -> Line<'static> {
+    Line::from(Span::styled(
+        title,
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    ))
+}
+
 /// 渲染帮助弹窗
 #[allow(dead_code)]
 pub fn render_help_popup(frame: &mut Frame, area: Rect) {
     let popup_area = centered_rect(60, 80, area);
-    let help_text = "\
-┌─ 键盘快捷键 ──────────────────────┐
-│                                    │
-│  j / ↓       向下移动              │
-│  k / ↑       向上移动              │
-│  gg          跳到顶部              │
-│  G           跳到底部              │
-│  Space       选择/取消选择          │
-│  a           字段弹窗添加           │
-│  e           字段弹窗编辑           │
-│  d           删除主机              │
-│  /           搜索                  │
-│  p           检测当前主机          │
-│  P           检测所有主机          │
-│  Enter       连接主机              │
-│  q / Esc     退出/取消             │
-│  ?           帮助                  │
-│                                    │
-├─ 鼠标操作 ────────────────────────┤
-│  点击主机      选中                │
-│  滚轮          滚动列表            │
-│  点击 Widget   打开对应操作面板    │
-│                                    │
-└────────────────────────────────────┘";
+    let help_lines = vec![
+        help_section("键盘快捷键"),
+        Line::from(""),
+        Line::from("  j / ↓       向下移动"),
+        Line::from("  k / ↑       向上移动"),
+        Line::from("  gg          跳到顶部"),
+        Line::from("  G           跳到底部"),
+        Line::from("  Space       选择/取消选择"),
+        Line::from("  a           字段弹窗添加"),
+        Line::from("  e           字段弹窗编辑"),
+        Line::from("  d           删除主机"),
+        Line::from("  /           搜索"),
+        Line::from("  p           检测当前主机"),
+        Line::from("  P           检测所有主机"),
+        Line::from("  Enter       连接主机"),
+        Line::from("  q / Esc     退出/取消"),
+        Line::from("  ?           帮助"),
+        Line::from(""),
+        help_section("鼠标操作"),
+        Line::from(""),
+        Line::from("  点击主机      选中"),
+        Line::from("  滚轮          滚动列表"),
+        Line::from("  点击 Widget   打开对应操作面板"),
+    ];
 
     let block = Block::default()
         .title("帮助")
@@ -79,7 +79,7 @@ pub fn render_help_popup(frame: &mut Frame, area: Rect) {
         .border_type(BorderType::Rounded)
         .style(Style::default().bg(Color::Black));
 
-    let paragraph = Paragraph::new(help_text).block(block);
+    let paragraph = Paragraph::new(help_lines).block(block);
     frame.render_widget(Clear, popup_area);
     frame.render_widget(paragraph, popup_area);
 }

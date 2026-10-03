@@ -66,6 +66,11 @@ fn screen_has_visible_content(screen: &vt100::Screen) -> bool {
     !screen.contents().trim().is_empty()
 }
 
+/// 请求尺寸有效且与当前尺寸不同时才需要通知 PTY。
+fn resize_needed(current: (u16, u16), requested: (u16, u16)) -> bool {
+    requested.0 > 0 && requested.1 > 0 && current != requested
+}
+
 /// 嵌入式终端会话：PTY 进程 + vt100 解析器 + 事件通道
 pub struct TermSession {
     /// 目标主机（面板标题栏展示）
@@ -90,6 +95,8 @@ pub struct TermSession {
     pub scroll_offset: usize,
     /// 会话创建时刻（「连接中」旋转动画的计时基准）
     pub started_at: Instant,
+    /// 最近一次已提交给 PTY/vt100 的尺寸（避免每帧重复 resize）
+    size: (u16, u16),
 }
 
 impl TermSession {
@@ -170,6 +177,7 @@ impl TermSession {
             killed,
             scroll_offset: 0,
             started_at: Instant::now(),
+            size: (cols, rows),
         })
     }
 
@@ -192,8 +200,11 @@ impl TermSession {
         }
     }
 
-    /// 调整终端尺寸（面板 resize 时调用）
+    /// 调整终端尺寸（面板 resize 时调用）；零尺寸和重复尺寸直接忽略。
     pub fn resize(&mut self, cols: u16, rows: u16) {
+        if !resize_needed(self.size, (cols, rows)) {
+            return;
+        }
         if let Some(master) = self.master.as_ref() {
             let _ = master.resize(PtySize {
                 rows,
@@ -204,6 +215,17 @@ impl TermSession {
         }
         if let Ok(mut parser) = self.parser.lock() {
             parser.set_size(rows, cols);
+        }
+        self.size = (cols, rows);
+    }
+
+    /// 终端连接 spinner 是否仍需高刷新率。
+    pub fn has_active_visual_animation_at(&self, now: Instant) -> bool {
+        let elapsed = now.saturating_duration_since(self.started_at);
+        match self.status {
+            TermStatus::Connecting => true,
+            TermStatus::Running => elapsed < std::time::Duration::from_millis(500),
+            TermStatus::Exited => false,
         }
     }
 
@@ -538,6 +560,15 @@ pub fn encode_key(key: KeyEvent) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resize_only_runs_for_valid_changed_size() {
+        assert!(!resize_needed((80, 24), (80, 24)));
+        assert!(!resize_needed((80, 24), (0, 24)));
+        assert!(!resize_needed((80, 24), (80, 0)));
+        assert!(resize_needed((80, 24), (100, 24)));
+        assert!(resize_needed((80, 24), (80, 30)));
+    }
 
     #[test]
     fn encode_simple_keys() {

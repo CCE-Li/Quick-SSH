@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use ratatui::buffer::Buffer;
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Constraint, Direction, Flex, Layout, Rect};
 use ratatui::prelude::Widget;
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
@@ -396,41 +396,24 @@ fn render_terminal_idle(area: Rect, buf: &mut Buffer, focused: bool) {
         return;
     }
 
-    // 图案 + 空行 + 提示整体垂直居中
+    // 图案 + 空行 + 提示整体垂直居中（Flex::Center 自动分配剩余空间）
     let total = IDLE_ART.len() as u16 + 2;
-    let start_y = inner.y + inner.height.saturating_sub(total) / 2;
+    let rows = Layout::vertical([Constraint::Length(total)])
+        .flex(Flex::Center)
+        .split(inner);
     let art_style = Style::default().fg(Color::Magenta);
-    for (i, line) in IDLE_ART.iter().enumerate() {
-        let y = start_y + i as u16;
-        if y >= inner.y + inner.height {
-            break;
-        }
-        let row = Rect {
-            x: inner.x,
-            y,
-            width: inner.width,
-            height: 1,
-        };
-        Paragraph::new(Line::from(Span::styled(*line, art_style)))
-            .alignment(Alignment::Center)
-            .render(row, buf);
-    }
-
-    let hint_y = start_y + IDLE_ART.len() as u16 + 1;
-    if hint_y < inner.y + inner.height {
-        let row = Rect {
-            x: inner.x,
-            y: hint_y,
-            width: inner.width,
-            height: 1,
-        };
-        Paragraph::new(Line::from(Span::styled(
-            IDLE_HINT,
-            Style::default().fg(Color::DarkGray),
-        )))
+    let mut lines: Vec<Line> = IDLE_ART
+        .iter()
+        .map(|line| Line::from(Span::styled(*line, art_style)))
+        .collect();
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        IDLE_HINT,
+        Style::default().fg(Color::DarkGray),
+    )));
+    Paragraph::new(lines)
         .alignment(Alignment::Center)
-        .render(row, buf);
-    }
+        .render(rows[0], buf);
 }
 
 /// 连接动画帧（4 帧 ASCII，保证各终端字体均可渲染）
@@ -476,15 +459,12 @@ fn render_connecting(area: Rect, buf: &mut Buffer, elapsed: Duration, alias: &st
         ),
         Span::raw(format!(" 正在连接 {alias} …")),
     ]);
-    let row = Rect {
-        x: area.x,
-        y: area.y + area.height / 2,
-        width: area.width,
-        height: 1,
-    };
+    let rows = Layout::vertical([Constraint::Length(1)])
+        .flex(Flex::Center)
+        .split(area);
     Paragraph::new(line)
         .alignment(Alignment::Center)
-        .render(row, buf);
+        .render(rows[0], buf);
 }
 
 /// 渲染命令面板弹窗（Ctrl+K）

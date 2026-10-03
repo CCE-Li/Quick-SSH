@@ -172,6 +172,8 @@ pub enum Action {
     CommandSubmit,
     /// 关闭远程命令执行结果弹窗
     CloseCommandResult,
+    /// 结果弹窗滚动（正数向下，负数向上）
+    CommandResultScroll(isize),
     /// 终端回看滚动（正数向下，负数向上）
     TermScroll(isize),
     /// 终端回看滚动到底部（最新输出）

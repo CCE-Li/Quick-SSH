@@ -24,13 +24,14 @@ use crate::monitor::logs::{journalctl_command, parse_journalctl, LogEntry, MAX_L
 use crate::monitor::scheduler::{BackgroundEvent, MonitorScheduler};
 use crate::monitor::services::{service_action_command, ServiceAction};
 use crate::monitor::snapshot::ServerSnapshot;
-use crate::monitor::{Collector, SshProcessExecutor};
+use crate::monitor::{section_bits, Collector, Section, SectionMask, SshProcessExecutor};
 use crate::ssh::session::SshTarget;
 use crate::tui::action::{Action, Mode, View};
+use crate::tui::animation::{Easing, Transition, UiState};
 use crate::tui::dashboard::palette::{filter_palette, PaletteAction, PALETTE_ACTIONS};
 use crate::tui::dashboard::widgets::WidgetModule;
 use crate::tui::dashboard::{
-    load_dashboard_config, save_dashboard_config, DashboardConfig, LayoutNode,
+    load_dashboard_config, save_dashboard_config, DashboardConfig, LayoutNode, WidgetId,
 };
 use crate::tui::editor::{
     AgentFormState, EditorOutcome, HostFormMode, HostFormState, HostFormSubmission,
@@ -61,6 +62,39 @@ enum PingEvent {
 enum CmdEvent {
     Finished {
         alias: String,
+        output: Result<ExecOutput, ExecError>,
+    },
+}
+
+/// Dashboard 交互式远程操作的后台完成事件
+#[derive(Debug)]
+enum OpsEvent {
+    Docker {
+        key: String,
+        action: DockerAction,
+        output: Result<ExecOutput, ExecError>,
+    },
+    Service {
+        key: String,
+        action: ServiceAction,
+        output: Result<ExecOutput, ExecError>,
+    },
+    FileList {
+        key: String,
+        alias: String,
+        cwd: String,
+        operation: &'static str,
+        output: Result<ExecOutput, ExecError>,
+    },
+    Download {
+        key: String,
+        destination: PathBuf,
+        result: Result<(), String>,
+    },
+    Logs {
+        key: String,
+        alias: String,
+        unit: Option<String>,
         output: Result<ExecOutput, ExecError>,
     },
 }
@@ -130,6 +164,12 @@ pub struct App {
     pub mode: Mode,
     /// 当前视图（主机列表 / Dashboard）
     pub view: View,
+    /// 最近一次帧边界已观察到的 Mode/View 状态
+    observed_ui_state: UiState,
+    /// 当前视觉过渡
+    transition: Option<Transition>,
+    /// 视图布局动画期间收到的最后一个 PTY 尺寸请求
+    deferred_term_size: Option<(u16, u16)>,
     /// 输入缓存
     pub input_buffer: String,
     /// 搜索结果过滤
@@ -167,18 +207,26 @@ pub struct App {
     monitor_rx: Receiver<BackgroundEvent>,
     /// 当前正在监控的主机别名（None = 未监控）
     monitor_target: Option<String>,
+    /// 当前需要采集的监控分区（随启用组件 / 操作面板动态更新，与采集线程共享）
+    monitor_sections: SectionMask,
     /// 最近一次监控快照（Docker/服务操作面板使用）
     latest_snapshot: Option<ServerSnapshot>,
     /// Docker 容器列表选中索引
     docker_selected: usize,
+    /// Docker 面板列表状态（保持滚动偏移）
+    pub docker_list_state: ListState,
     /// 待确认的 Docker 操作（None = 未处于确认流程）
     docker_action: Option<DockerAction>,
     /// 服务列表选中索引
     service_selected: usize,
+    /// 服务面板列表状态（保持滚动偏移）
+    pub service_list_state: ListState,
     /// 待确认的服务操作（None = 未处于确认流程）
     service_action: Option<ServiceAction>,
     /// 文件列表选中索引
     file_selected: usize,
+    /// 文件面板列表状态（保持滚动偏移）
+    pub file_list_state: ListState,
     /// 待确认的文件操作（None = 未处于确认流程）
     file_action: Option<FileAction>,
     /// 日志列表选中索引
@@ -187,6 +235,8 @@ pub struct App {
     log_unit: String,
     /// 日志原始（未筛选）列表
     log_raw: Vec<LogEntry>,
+    /// 日志面板列表状态（保持滚动偏移）
+    pub log_list_state: ListState,
     /// Agent 设置表单弹窗状态（None = 未打开）
     pub agent_form: Option<AgentFormState>,
     /// AI Agent 配置
@@ -213,10 +263,18 @@ pub struct App {
     command_input: String,
     /// `:` 远程命令执行结果（None = 无结果）
     command_result: Option<CommandResult>,
+    /// 结果弹窗滚动偏移（行，0 = 顶部）
+    command_result_scroll: u16,
     /// 远程命令后台执行事件接收端
     cmd_rx: Receiver<CmdEvent>,
     /// 远程命令后台执行事件发送端
     cmd_tx: Sender<CmdEvent>,
+    /// Dashboard 交互操作后台事件接收端
+    ops_rx: Receiver<OpsEvent>,
+    /// Dashboard 交互操作后台事件发送端
+    ops_tx: Sender<OpsEvent>,
+    /// 正在执行的交互操作 key（防止危险操作重复提交）
+    pending_ops: HashSet<String>,
     /// 已保存密码的主机别名
     pub remembered_password_aliases: HashSet<String>,
     /// 是否运行中
@@ -254,8 +312,13 @@ impl App {
         let (agent_tx, agent_rx) = mpsc::channel();
         let (term_tx, term_rx) = mpsc::channel();
         let (cmd_tx, cmd_rx) = mpsc::channel();
+        let (ops_tx, ops_rx) = mpsc::channel();
         let agent_config = load_agent_config();
         let main_split_weight = load_main_split_weight().clamp(20, 80);
+        let initial_ui_state = UiState {
+            mode: Mode::Normal,
+            view: View::HostList,
+        };
         Self {
             hosts,
             preamble: config.preamble,
@@ -264,6 +327,9 @@ impl App {
             scroll_offset: 0,
             mode: Mode::Normal,
             view: View::HostList,
+            observed_ui_state: initial_ui_state,
+            transition: None,
+            deferred_term_size: None,
             input_buffer: String::new(),
             search_keyword: String::new(),
             marked: Vec::new(),
@@ -283,16 +349,21 @@ impl App {
             monitor_scheduler,
             monitor_rx,
             monitor_target: None,
+            monitor_sections: SectionMask::default(),
             latest_snapshot: None,
             docker_selected: 0,
+            docker_list_state: ListState::default(),
             docker_action: None,
             service_selected: 0,
+            service_list_state: ListState::default(),
             service_action: None,
             file_selected: 0,
+            file_list_state: ListState::default(),
             file_action: None,
             log_selected: 0,
             log_unit: String::new(),
             log_raw: Vec::new(),
+            log_list_state: ListState::default(),
             agent_form: None,
             agent_config,
             agent_rx,
@@ -306,8 +377,12 @@ impl App {
             agent_pending_call: None,
             command_input: String::new(),
             command_result: None,
+            command_result_scroll: 0,
             cmd_rx,
             cmd_tx,
+            ops_rx,
+            ops_tx,
+            pending_ops: HashSet::new(),
             remembered_password_aliases,
             running: true,
             show_address: false,
@@ -500,6 +575,70 @@ impl App {
         }
     }
 
+    /// 当前 Mode/View 逻辑状态。
+    pub fn ui_state(&self) -> UiState {
+        UiState {
+            mode: self.mode,
+            view: self.view,
+        }
+    }
+
+    /// 当前视觉过渡（渲染层只读）。
+    pub fn transition(&self) -> Option<&Transition> {
+        self.transition.as_ref()
+    }
+
+    /// 在帧边界捕获所有 Mode/View 变化，并清理已经结束的过渡。
+    pub fn sync_animations(&mut self, now: Instant) {
+        let current = self.ui_state();
+        if current != self.observed_ui_state {
+            let from = self.observed_ui_state;
+            self.observed_ui_state = current;
+            self.transition = Some(Transition::new(
+                from,
+                current,
+                now,
+                Duration::from_millis(180),
+                Easing::EaseOutCubic,
+            ));
+            self.deferred_term_size = None;
+            return;
+        }
+        if self
+            .transition
+            .as_ref()
+            .is_some_and(|transition| transition.is_finished_at(now))
+        {
+            self.transition = None;
+            if self.view != View::Dashboard {
+                self.deferred_term_size = None;
+            }
+        }
+    }
+
+    /// 当前是否存在 Mode/View 视觉过渡。
+    pub fn has_active_transition_at(&self, now: Instant) -> bool {
+        self.transition
+            .as_ref()
+            .is_some_and(|transition| !transition.is_finished_at(now))
+    }
+
+    /// 当前是否存在会改变 Dashboard 几何尺寸的视图过渡。
+    pub fn has_active_layout_transition_at(&self, now: Instant) -> bool {
+        self.transition
+            .as_ref()
+            .is_some_and(|transition| transition.view_changed() && !transition.is_finished_at(now))
+    }
+
+    /// 当前是否有需要高刷新率的动画（UI 过渡或终端连接 spinner）。
+    pub fn has_active_animation_at(&self, now: Instant) -> bool {
+        self.has_active_transition_at(now)
+            || self
+                .term_session
+                .as_ref()
+                .is_some_and(|session| session.has_active_visual_animation_at(now))
+    }
+
     pub fn poll_background_tasks(&mut self) {
         while let Ok(event) = self.ping_rx.try_recv() {
             self.handle_ping_event(event);
@@ -512,6 +651,9 @@ impl App {
         }
         while let Ok(event) = self.cmd_rx.try_recv() {
             self.handle_cmd_event(event);
+        }
+        while let Ok(event) = self.ops_rx.try_recv() {
+            self.handle_ops_event(event);
         }
         self.poll_term_events();
     }
@@ -544,6 +686,7 @@ impl App {
         if let Some(mut session) = self.term_session.take() {
             session.handle_exit(code);
         }
+        self.deferred_term_size = None;
         // 停留在嵌入式面板等待 Enter 重连（q/Esc 返回主机列表）；
         // 仅在焦点仍在终端时复位，避免打断已打开的操作面板。
         if self.mode == Mode::Terminal {
@@ -559,8 +702,19 @@ impl App {
         }
     }
 
-    /// 调整嵌入式终端尺寸（面板 resize 时调用）
+    /// 调整嵌入式终端尺寸（面板 resize 时调用）。
+    ///
+    /// View 几何过渡期间只记录最后请求，避免远程 vim/top 每帧收到 SIGWINCH；
+    /// 过渡结束后的首个完整布局帧会提交准确最终尺寸。
     pub fn term_resize(&mut self, cols: u16, rows: u16) {
+        if cols == 0 || rows == 0 || self.term_session.is_none() {
+            return;
+        }
+        if self.has_active_layout_transition_at(Instant::now()) {
+            self.deferred_term_size = Some((cols, rows));
+            return;
+        }
+        self.deferred_term_size = None;
         if let Some(session) = self.term_session.as_mut() {
             session.resize(cols, rows);
         }
@@ -703,6 +857,7 @@ impl App {
 
     /// 启动嵌入式 SSH 终端会话（连接当前选中主机）
     pub fn start_terminal_session(&mut self) {
+        self.deferred_term_size = None;
         // 若已有会话，先断开
         if let Some(mut session) = self.term_session.take() {
             session.kill();
@@ -747,6 +902,7 @@ impl App {
         if let Some(mut session) = self.term_session.take() {
             session.kill();
         }
+        self.deferred_term_size = None;
         self.mode = Mode::Normal;
         self.set_flash_message("已断开 SSH 会话", "yellow");
     }
@@ -777,6 +933,62 @@ impl App {
         self.host_drag_outside = false;
     }
 
+    /// 组件 → 该组件需要的采集分区
+    fn sections_for_widget(id: WidgetId) -> &'static [Section] {
+        match id {
+            WidgetId::Cpu => &[Section::Cpu, Section::Load],
+            WidgetId::Memory => &[Section::Memory],
+            WidgetId::Disk => &[Section::Disk],
+            WidgetId::Network => &[Section::Network, Section::Connections],
+            WidgetId::Process => &[Section::Process],
+            WidgetId::Docker => &[Section::Docker],
+            WidgetId::Services => &[Section::Services],
+            WidgetId::Files => &[Section::Files],
+            WidgetId::Logs => &[Section::Logs],
+            WidgetId::SystemInfo => &[Section::System],
+            // 终端走独立 PTY；Agent 通过工具调用按需执行命令，都不需要周期采集
+            WidgetId::Agent | WidgetId::Terminal => &[],
+        }
+    }
+
+    /// 操作面板 → 打开期间需要临时补采的分区
+    fn sections_for_mode(mode: Mode) -> &'static [Section] {
+        match mode {
+            Mode::DockerOps | Mode::DockerConfirm => &[Section::Docker],
+            Mode::ServiceOps | Mode::ServiceConfirm => &[Section::Services],
+            Mode::FileOps | Mode::FileConfirm => &[Section::Files],
+            Mode::LogOps | Mode::LogFilter => &[Section::Logs],
+            _ => &[],
+        }
+    }
+
+    /// 当前需要采集的分区：启用组件 + 正在打开的操作面板
+    fn required_sections(&self) -> Vec<Section> {
+        let mut sections = Vec::new();
+        if let Some(profile) = self
+            .dashboard_config
+            .profiles
+            .get(&self.dashboard_config.active_profile)
+        {
+            for id in &profile.enabled {
+                sections.extend_from_slice(Self::sections_for_widget(*id));
+            }
+        }
+        sections.extend_from_slice(Self::sections_for_mode(self.mode));
+        sections
+    }
+
+    /// 同步采集分区（启用组件、切换 Profile、打开/关闭操作面板后调用）
+    ///
+    /// 未启用的组件不会被采集：其分区不会出现在远程命令里；
+    /// 所有组件都不需要硬件信息时，采集线程不会建立 SSH 连接。
+    pub fn sync_monitor_sections(&mut self) {
+        let sections = self.required_sections();
+        if self.monitor_sections.get() != section_bits(&sections) {
+            self.monitor_sections.set(&sections);
+        }
+    }
+
     /// 启动对当前选中主机的后台监控（进入 Dashboard 视图时调用）
     pub fn start_monitoring(&mut self) {
         if self.monitor_target.is_some() {
@@ -791,7 +1003,9 @@ impl App {
         let target = SshTarget::from_host(host);
         let executor =
             SshProcessExecutor::new(target.clone()).with_timeouts(5, Duration::from_secs(10));
-        let collector = Collector::new(Box::new(executor));
+        self.sync_monitor_sections();
+        let collector =
+            Collector::new(Box::new(executor)).with_sections(self.monitor_sections.clone());
         let alias = target.alias.clone();
         self.monitor_scheduler
             .add_target(alias.clone(), collector, Duration::from_secs(2));
@@ -810,11 +1024,29 @@ impl App {
     /// 消费监控事件：将最新快照分发到各 Widget
     fn handle_monitor_event(&mut self, event: BackgroundEvent) {
         match event {
-            BackgroundEvent::MonitorSnapshot(snapshot) => {
+            BackgroundEvent::MonitorSnapshot(mut snapshot) => {
                 // 停止监控时不 join 采集线程，可能在途有一次采集结果迟到；
                 // 仅接受当前监控目标的快照，避免离开 Dashboard 后出现游离的告警/数据。
                 if self.monitor_target.as_deref() != Some(snapshot.alias.as_str()) {
                     return;
+                }
+                // 周期采集固定读取默认目录与未筛选日志；保留交互操作产生的非默认状态，
+                // 避免目录浏览每 2 秒跳回 `~`、unit 筛选被下一次监控快照覆盖。
+                if let Some(previous) = self.latest_snapshot.as_ref() {
+                    let file_navigation_pending = self
+                        .pending_ops
+                        .contains(&format!("file-nav:{}", snapshot.alias));
+                    if previous.file_cwd != "~" || file_navigation_pending {
+                        snapshot.file_cwd = previous.file_cwd.clone();
+                        snapshot.files = previous.files.clone();
+                    }
+                    let logs_pending = self
+                        .pending_ops
+                        .contains(&format!("logs:{}", snapshot.alias));
+                    if !previous.log_unit.is_empty() || logs_pending {
+                        snapshot.log_unit = previous.log_unit.clone();
+                        snapshot.logs = previous.logs.clone();
+                    }
                 }
                 for widget in &mut self.dashboard_widgets {
                     widget.set_snapshot(Some(&snapshot));
@@ -938,6 +1170,7 @@ impl App {
                 if let Some(mut session) = self.term_session.take() {
                     session.kill();
                 }
+                self.deferred_term_size = None;
                 self.running = false;
             }
             Action::ShowHelp => self.mode = Mode::Help,
@@ -989,6 +1222,7 @@ impl App {
             Action::OpenDockerOps => {
                 if self.latest_snapshot.is_some() {
                     self.docker_selected = 0;
+                    self.docker_list_state.select(None);
                     self.mode = Mode::DockerOps;
                 } else {
                     self.set_flash_message(
@@ -1052,32 +1286,27 @@ impl App {
                     container.name,
                     alias
                 );
-                self.set_flash_message(flash, "yellow");
-                let (result_tx, result_rx) = mpsc::channel();
-                let _ = thread::spawn(move || {
-                    let outcome = match executor.exec(&command) {
-                        Ok(out) if out.exit_code == Some(0) => {
-                            format!("{} 成功", action.label())
-                        }
-                        Ok(out) => format!(
-                            "{} 失败: {}",
-                            action.label(),
-                            out.stderr.trim_end().lines().next().unwrap_or("未知错误")
-                        ),
-                        Err(e) => format!("{} 失败: {}", action.label(), e),
-                    };
-                    let _ = result_tx.send(outcome);
-                });
-                if let Ok(outcome) = result_rx.recv_timeout(Duration::from_secs(15)) {
-                    self.set_flash_message(outcome, "green");
-                } else {
-                    self.set_flash_message("操作超时", "red");
+                let key = format!("docker:{alias}:{}", container.id);
+                if !self.begin_operation(key.clone(), "该容器操作正在执行，请稍候…")
+                {
+                    return;
                 }
+                self.set_flash_message(flash, "yellow");
+                let tx = self.ops_tx.clone();
+                thread::spawn(move || {
+                    let output = executor.exec(&command);
+                    let _ = tx.send(OpsEvent::Docker {
+                        key,
+                        action,
+                        output,
+                    });
+                });
             }
             // ── 系统服务操作 ────────────────────────────
             Action::OpenServiceOps => {
                 if self.latest_snapshot.is_some() {
                     self.service_selected = 0;
+                    self.service_list_state.select(None);
                     self.mode = Mode::ServiceOps;
                 } else {
                     self.set_flash_message(
@@ -1140,32 +1369,27 @@ impl App {
                     service.name,
                     alias
                 );
-                self.set_flash_message(flash, "yellow");
-                let (result_tx, result_rx) = mpsc::channel();
-                let _ = thread::spawn(move || {
-                    let outcome = match executor.exec(&command) {
-                        Ok(out) if out.exit_code == Some(0) => {
-                            format!("{} 成功", action.label())
-                        }
-                        Ok(out) => format!(
-                            "{} 失败: {}",
-                            action.label(),
-                            out.stderr.trim_end().lines().next().unwrap_or("未知错误")
-                        ),
-                        Err(e) => format!("{} 失败: {}", action.label(), e),
-                    };
-                    let _ = result_tx.send(outcome);
-                });
-                if let Ok(outcome) = result_rx.recv_timeout(Duration::from_secs(15)) {
-                    self.set_flash_message(outcome, "green");
-                } else {
-                    self.set_flash_message("操作超时", "red");
+                let key = format!("service:{alias}:{}", service.name);
+                if !self.begin_operation(key.clone(), "该服务操作正在执行，请稍候…")
+                {
+                    return;
                 }
+                self.set_flash_message(flash, "yellow");
+                let tx = self.ops_tx.clone();
+                thread::spawn(move || {
+                    let output = executor.exec(&command);
+                    let _ = tx.send(OpsEvent::Service {
+                        key,
+                        action,
+                        output,
+                    });
+                });
             }
             // ── 文件浏览操作 ────────────────────────────
             Action::OpenFileOps => {
                 if self.latest_snapshot.is_some() {
                     self.file_selected = 0;
+                    self.file_list_state.select(None);
                     self.mode = Mode::FileOps;
                 } else {
                     self.set_flash_message(
@@ -1223,34 +1447,22 @@ impl App {
                 let executor =
                     SshProcessExecutor::new(target).with_timeouts(5, Duration::from_secs(10));
                 let command = ls_l_command(&new_cwd);
-                let (result_tx, result_rx) = mpsc::channel();
-                let _ = thread::spawn(move || {
-                    let outcome = executor
-                        .exec(&command)
-                        .map(|out| (out.stdout, out.stderr, out.exit_code));
-                    let _ = result_tx.send(outcome);
-                });
-                if let Ok(Ok((stdout, stderr, exit_code))) =
-                    result_rx.recv_timeout(Duration::from_secs(15))
-                {
-                    if let Some(snap) = self.latest_snapshot.as_mut() {
-                        if exit_code == Some(0) {
-                            snap.files = dir_entries(parse_ls_l(&stdout));
-                            snap.file_cwd = new_cwd.clone();
-                            self.file_selected = 0;
-                        } else {
-                            self.set_flash_message(
-                                format!(
-                                    "进入目录失败: {}",
-                                    stderr.trim_end().lines().next().unwrap_or("未知错误")
-                                ),
-                                "red",
-                            );
-                        }
-                    }
-                } else {
-                    self.set_flash_message("进入目录超时", "red");
+                let key = format!("file-nav:{alias}");
+                if !self.begin_operation(key.clone(), "目录正在加载，请稍候…") {
+                    return;
                 }
+                self.set_flash_message(format!("正在打开 {new_cwd}…"), "yellow");
+                let tx = self.ops_tx.clone();
+                thread::spawn(move || {
+                    let output = executor.exec(&command);
+                    let _ = tx.send(OpsEvent::FileList {
+                        key,
+                        alias,
+                        cwd: new_cwd,
+                        operation: "进入目录",
+                        output,
+                    });
+                });
             }
             Action::FileOpsUp => {
                 let Some(alias) = self.monitor_target.clone() else {
@@ -1272,34 +1484,22 @@ impl App {
                 let executor =
                     SshProcessExecutor::new(target).with_timeouts(5, Duration::from_secs(10));
                 let command = ls_l_command(&new_cwd);
-                let (result_tx, result_rx) = mpsc::channel();
-                let _ = thread::spawn(move || {
-                    let outcome = executor
-                        .exec(&command)
-                        .map(|out| (out.stdout, out.stderr, out.exit_code));
-                    let _ = result_tx.send(outcome);
-                });
-                if let Ok(Ok((stdout, stderr, exit_code))) =
-                    result_rx.recv_timeout(Duration::from_secs(15))
-                {
-                    if let Some(snap) = self.latest_snapshot.as_mut() {
-                        if exit_code == Some(0) {
-                            snap.files = dir_entries(parse_ls_l(&stdout));
-                            snap.file_cwd = new_cwd.clone();
-                            self.file_selected = 0;
-                        } else {
-                            self.set_flash_message(
-                                format!(
-                                    "返回上级失败: {}",
-                                    stderr.trim_end().lines().next().unwrap_or("未知错误")
-                                ),
-                                "red",
-                            );
-                        }
-                    }
-                } else {
-                    self.set_flash_message("返回上级超时", "red");
+                let key = format!("file-nav:{alias}");
+                if !self.begin_operation(key.clone(), "目录正在加载，请稍候…") {
+                    return;
                 }
+                self.set_flash_message(format!("正在返回 {new_cwd}…"), "yellow");
+                let tx = self.ops_tx.clone();
+                thread::spawn(move || {
+                    let output = executor.exec(&command);
+                    let _ = tx.send(OpsEvent::FileList {
+                        key,
+                        alias,
+                        cwd: new_cwd,
+                        operation: "返回上级",
+                        output,
+                    });
+                });
             }
             Action::FileActionSelected(action) => {
                 self.file_action = Some(action);
@@ -1354,9 +1554,14 @@ impl App {
                             .map(|d| d.join(&file.name))
                             .unwrap_or_else(|_| PathBuf::from(&file.name));
                         let flash = format!("下载 {} → {}…", remote_path, dest.display());
+                        let key = format!("download:{alias}:{remote_path}:{}", dest.display());
+                        if !self.begin_operation(key.clone(), "该文件正在下载，请稍候…")
+                        {
+                            return;
+                        }
                         self.set_flash_message(flash, "yellow");
-                        let (result_tx, result_rx) = mpsc::channel();
-                        let _ = thread::spawn(move || {
+                        let tx = self.ops_tx.clone();
+                        thread::spawn(move || {
                             let mut cmd = std::process::Command::new("scp");
                             if target.port != 22 {
                                 cmd.arg("-P").arg(target.port.to_string());
@@ -1368,18 +1573,44 @@ impl App {
                             cmd.arg("-q");
                             cmd.arg(&remote_target);
                             cmd.arg(&dest);
-                            let outcome = match cmd.status() {
-                                Ok(st) if st.success() => "下载成功".to_string(),
-                                Ok(st) => format!("下载失败: 退出码 {:?}", st.code().unwrap_or(-1)),
-                                Err(e) => format!("下载失败: {}", e),
+                            let result = match cmd.spawn() {
+                                Ok(mut child) => {
+                                    let started = Instant::now();
+                                    loop {
+                                        match child.try_wait() {
+                                            Ok(Some(status)) if status.success() => break Ok(()),
+                                            Ok(Some(status)) => {
+                                                break Err(format!(
+                                                    "下载失败: 退出码 {}",
+                                                    status.code().unwrap_or(-1)
+                                                ))
+                                            }
+                                            Ok(None)
+                                                if started.elapsed() < Duration::from_secs(60) =>
+                                            {
+                                                thread::sleep(Duration::from_millis(50));
+                                            }
+                                            Ok(None) => {
+                                                let _ = child.kill();
+                                                let _ = child.wait();
+                                                break Err("下载超时".to_string());
+                                            }
+                                            Err(error) => {
+                                                let _ = child.kill();
+                                                let _ = child.wait();
+                                                break Err(format!("下载失败: {error}"));
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(error) => Err(format!("下载失败: {error}")),
                             };
-                            let _ = result_tx.send(outcome);
+                            let _ = tx.send(OpsEvent::Download {
+                                key,
+                                destination: dest,
+                                result,
+                            });
                         });
-                        if let Ok(outcome) = result_rx.recv_timeout(Duration::from_secs(60)) {
-                            self.set_flash_message(outcome, "green");
-                        } else {
-                            self.set_flash_message("下载超时", "red");
-                        }
                     }
                 }
             }
@@ -1392,6 +1623,7 @@ impl App {
                         .map(|s| s.logs.clone())
                         .unwrap_or_default();
                     self.log_selected = 0;
+                    self.log_list_state.select(None);
                     self.mode = Mode::LogOps;
                 } else {
                     self.set_flash_message(
@@ -1430,48 +1662,21 @@ impl App {
                     Some(self.log_unit.trim().to_string())
                 };
                 let command = journalctl_command(unit.as_deref(), MAX_LOG_LINES);
-                let (result_tx, result_rx) = mpsc::channel();
-                let _ = thread::spawn(move || {
-                    let outcome = executor
-                        .exec(&command)
-                        .map(|out| (out.stdout, out.stderr, out.exit_code));
-                    let _ = result_tx.send(outcome);
-                });
-                if let Ok(Ok((stdout, stderr, exit_code))) =
-                    result_rx.recv_timeout(Duration::from_secs(20))
-                {
-                    if exit_code == Some(0) {
-                        let parsed = parse_journalctl(&stdout);
-                        if let Some(snap) = self.latest_snapshot.as_mut() {
-                            snap.logs = parsed.clone();
-                            snap.log_unit = self.log_unit.clone();
-                        }
-                        self.log_raw = parsed;
-                        self.log_selected = 0;
-                        self.set_flash_message(
-                            format!(
-                                "已刷新日志 {} 条{}",
-                                self.log_raw.len(),
-                                if self.log_unit.trim().is_empty() {
-                                    String::new()
-                                } else {
-                                    format!("（unit: {}）", self.log_unit.trim())
-                                }
-                            ),
-                            "green",
-                        );
-                    } else {
-                        self.set_flash_message(
-                            format!(
-                                "获取日志失败: {}",
-                                stderr.trim_end().lines().next().unwrap_or("未知错误")
-                            ),
-                            "red",
-                        );
-                    }
-                } else {
-                    self.set_flash_message("获取日志超时", "red");
+                let key = format!("logs:{alias}");
+                if !self.begin_operation(key.clone(), "日志正在刷新，请稍候…") {
+                    return;
                 }
+                self.set_flash_message("正在刷新日志…", "yellow");
+                let tx = self.ops_tx.clone();
+                thread::spawn(move || {
+                    let output = executor.exec(&command);
+                    let _ = tx.send(OpsEvent::Logs {
+                        key,
+                        alias,
+                        unit,
+                        output,
+                    });
+                });
             }
             Action::LogUnitFilter(input) => {
                 self.log_unit = input;
@@ -1658,7 +1863,13 @@ impl App {
             }
             Action::CloseCommandResult => {
                 self.command_result = None;
+                self.command_result_scroll = 0;
                 self.restore_mode_after_overlay();
+            }
+            Action::CommandResultScroll(delta) => {
+                let max = self.command_result_total_lines() as isize;
+                let next = (self.command_result_scroll as isize + delta).clamp(0, max);
+                self.command_result_scroll = next as u16;
             }
             Action::StartAdd => {
                 self.mode = Mode::Add;
@@ -2029,6 +2240,143 @@ impl App {
         });
     }
 
+    /// 注册后台交互操作；同 key 正在执行时拒绝重复提交
+    fn begin_operation(&mut self, key: String, busy_message: &str) -> bool {
+        if !self.pending_ops.insert(key) {
+            self.set_flash_message(busy_message, "yellow");
+            return false;
+        }
+        true
+    }
+
+    /// 从远程命令输出中提取适合状态栏展示的一行错误
+    fn remote_error(prefix: &str, output: Result<ExecOutput, ExecError>) -> String {
+        match output {
+            Ok(out) => format!(
+                "{prefix}: {}",
+                out.stderr
+                    .trim_end()
+                    .lines()
+                    .next()
+                    .filter(|line| !line.is_empty())
+                    .unwrap_or("未知错误")
+            ),
+            Err(error) => format!("{prefix}: {error}"),
+        }
+    }
+
+    /// 消费 Dashboard 交互操作完成事件（始终在 TUI 主线程更新状态）
+    fn handle_ops_event(&mut self, event: OpsEvent) {
+        match event {
+            OpsEvent::Docker {
+                key,
+                action,
+                output,
+            } => {
+                self.pending_ops.remove(&key);
+                match output {
+                    Ok(out) if out.exit_code == Some(0) => {
+                        self.set_flash_message(format!("{} 成功", action.label()), "green");
+                    }
+                    output => self.set_flash_message(
+                        Self::remote_error(&format!("{} 失败", action.label()), output),
+                        "red",
+                    ),
+                }
+            }
+            OpsEvent::Service {
+                key,
+                action,
+                output,
+            } => {
+                self.pending_ops.remove(&key);
+                match output {
+                    Ok(out) if out.exit_code == Some(0) => {
+                        self.set_flash_message(format!("{} 成功", action.label()), "green");
+                    }
+                    output => self.set_flash_message(
+                        Self::remote_error(&format!("{} 失败", action.label()), output),
+                        "red",
+                    ),
+                }
+            }
+            OpsEvent::FileList {
+                key,
+                alias,
+                cwd,
+                operation,
+                output,
+            } => {
+                self.pending_ops.remove(&key);
+                if self.monitor_target.as_deref() != Some(alias.as_str()) {
+                    return;
+                }
+                match output {
+                    Ok(out) if out.exit_code == Some(0) => {
+                        if let Some(snapshot) = self.latest_snapshot.as_mut() {
+                            snapshot.files = dir_entries(parse_ls_l(&out.stdout));
+                            snapshot.file_cwd = cwd;
+                            self.file_selected = 0;
+                            self.file_list_state.select(None);
+                        }
+                    }
+                    output => self.set_flash_message(
+                        Self::remote_error(&format!("{operation}失败"), output),
+                        "red",
+                    ),
+                }
+            }
+            OpsEvent::Download {
+                key,
+                destination,
+                result,
+            } => {
+                self.pending_ops.remove(&key);
+                match result {
+                    Ok(()) => self
+                        .set_flash_message(format!("下载成功: {}", destination.display()), "green"),
+                    Err(error) => self.set_flash_message(error, "red"),
+                }
+            }
+            OpsEvent::Logs {
+                key,
+                alias,
+                unit,
+                output,
+            } => {
+                self.pending_ops.remove(&key);
+                if self.monitor_target.as_deref() != Some(alias.as_str()) {
+                    return;
+                }
+                match output {
+                    Ok(out) if out.exit_code == Some(0) => {
+                        let parsed = parse_journalctl(&out.stdout);
+                        if let Some(snapshot) = self.latest_snapshot.as_mut() {
+                            snapshot.logs = parsed.clone();
+                            snapshot.log_unit = unit.clone().unwrap_or_default();
+                        }
+                        self.log_raw = parsed;
+                        self.log_selected = 0;
+                        self.log_list_state.select(None);
+                        self.set_flash_message(
+                            format!(
+                                "已刷新日志 {} 条{}",
+                                self.log_raw.len(),
+                                unit.as_deref()
+                                    .map(|unit| format!("（unit: {unit}）"))
+                                    .unwrap_or_default()
+                            ),
+                            "green",
+                        );
+                    }
+                    output => {
+                        self.set_flash_message(Self::remote_error("获取日志失败", output), "red")
+                    }
+                }
+            }
+        }
+    }
+
     /// 处理远程命令执行结果
     fn handle_cmd_event(&mut self, event: CmdEvent) {
         let CmdEvent::Finished { alias, output } = event;
@@ -2055,6 +2403,7 @@ impl App {
             }
         }
         self.command_input.clear();
+        self.command_result_scroll = 0;
         self.mode = Mode::CommandResult;
     }
 
@@ -2316,6 +2665,35 @@ impl App {
     /// `:` 远程命令执行结果（None = 无结果）
     pub fn command_result(&self) -> Option<&CommandResult> {
         self.command_result.as_ref()
+    }
+
+    /// 结果弹窗滚动偏移（行）
+    pub fn command_result_scroll(&self) -> u16 {
+        self.command_result_scroll
+    }
+
+    /// 更新结果弹窗滚动偏移（渲染时按可视高度收敛）
+    pub fn set_command_result_scroll(&mut self, value: u16) {
+        self.command_result_scroll = value;
+    }
+
+    /// 结果弹窗内容总行数（与 ui.rs 的弹窗行构造保持一致，用于滚动上限）
+    fn command_result_total_lines(&self) -> usize {
+        let Some(result) = self.command_result.as_ref() else {
+            return 0;
+        };
+        // 头部（空行 + 状态行 + 空行）+ 尾部（空行 + 提示行）
+        let mut total = 5;
+        if !result.stdout.is_empty() {
+            total += 2 + result.stdout.lines().count();
+        }
+        if !result.stderr.is_empty() {
+            total += 2 + result.stderr.lines().count();
+        }
+        if result.stdout.is_empty() && result.stderr.is_empty() && result.error.is_none() {
+            total += 1;
+        }
+        total
     }
 
     /// Agent 状态（状态栏 AI 指示）
@@ -2864,5 +3242,203 @@ mod tests {
                 let _ = std::fs::remove_file(&path);
             }
         }
+    }
+
+    /// 只有启用组件需要的分区才会被采集；打开操作面板会临时补采对应分区
+    #[test]
+    fn monitor_sections_follow_enabled_widgets_and_panels() {
+        use crate::monitor::Section;
+        use crate::tui::dashboard::{default_layout_for, DashboardConfig, ProfileConfig, WidgetId};
+        use std::collections::HashMap;
+
+        let mut app = App::new(
+            SshConfig {
+                hosts: vec![],
+                preamble: String::new(),
+            },
+            PathBuf::from("dummy"),
+        );
+        let enabled = vec![WidgetId::Cpu, WidgetId::Terminal];
+        app.dashboard_config = DashboardConfig {
+            active_profile: "test".to_string(),
+            profiles: HashMap::from([(
+                "test".to_string(),
+                ProfileConfig {
+                    layout: default_layout_for(&enabled),
+                    enabled,
+                },
+            )]),
+        };
+
+        app.sync_monitor_sections();
+        let bits = app.monitor_sections.get();
+        assert!(bits & Section::Cpu.bit() != 0, "CPU 组件已启用");
+        assert!(bits & Section::Load.bit() != 0, "CPU 组件需要负载");
+        assert!(bits & Section::Docker.bit() == 0, "Docker 组件未启用");
+        assert!(bits & Section::Logs.bit() == 0, "Logs 组件未启用");
+
+        // 打开操作面板 → 临时补采对应分区
+        app.mode = Mode::DockerOps;
+        app.sync_monitor_sections();
+        assert!(app.monitor_sections.get() & Section::Docker.bit() != 0);
+
+        // 关闭面板 → 恢复为只采集启用组件需要的分区
+        app.mode = Mode::Normal;
+        app.sync_monitor_sections();
+        assert!(app.monitor_sections.get() & Section::Docker.bit() == 0);
+
+        // 启用 Docker 组件 → 开始采集
+        app.apply(Action::ToggleDashboardModule(WidgetId::Docker));
+        app.sync_monitor_sections();
+        assert!(app.monitor_sections.get() & Section::Docker.bit() != 0);
+    }
+
+    /// 只启用 Terminal / Agent 时没有任何硬件分区需要采集（不建立 SSH 连接）
+    #[test]
+    fn monitor_sections_empty_without_hardware_widgets() {
+        use crate::tui::dashboard::{default_layout_for, DashboardConfig, ProfileConfig, WidgetId};
+        use std::collections::HashMap;
+
+        let mut app = App::new(
+            SshConfig {
+                hosts: vec![],
+                preamble: String::new(),
+            },
+            PathBuf::from("dummy"),
+        );
+        let enabled = vec![WidgetId::Terminal, WidgetId::Agent];
+        app.dashboard_config = DashboardConfig {
+            active_profile: "test".to_string(),
+            profiles: HashMap::from([(
+                "test".to_string(),
+                ProfileConfig {
+                    layout: default_layout_for(&enabled),
+                    enabled,
+                },
+            )]),
+        };
+        app.sync_monitor_sections();
+        assert_eq!(app.monitor_sections.get(), 0);
+    }
+
+    /// 结果弹窗滚动：按行累加，越界时收敛在 [0, 内容总行数]
+    #[test]
+    fn command_result_scroll_stays_in_range() {
+        let mut app = App::new(
+            SshConfig {
+                hosts: vec![],
+                preamble: String::new(),
+            },
+            PathBuf::from("dummy"),
+        );
+        app.command_result = Some(super::CommandResult {
+            alias: "web".into(),
+            command: "ls".into(),
+            stdout: "a\nb\nc".into(),
+            stderr: String::new(),
+            exit_code: Some(0),
+            error: None,
+        });
+
+        app.apply(Action::CommandResultScroll(2));
+        assert_eq!(app.command_result_scroll(), 2);
+
+        // 总行数 = 头部 5 + stdout 段（表头 + 3 行 + 空行）= 10
+        app.apply(Action::CommandResultScroll(1000));
+        assert_eq!(app.command_result_scroll(), 10);
+
+        app.apply(Action::CommandResultScroll(-1000));
+        assert_eq!(app.command_result_scroll(), 0);
+
+        // 关闭弹窗后滚动位置复位
+        app.apply(Action::CommandResultScroll(3));
+        app.apply(Action::CloseCommandResult);
+        assert_eq!(app.command_result_scroll(), 0);
+    }
+
+    #[test]
+    fn frame_boundary_detects_direct_mode_and_view_changes() {
+        let mut app = App::new(
+            SshConfig {
+                hosts: vec![],
+                preamble: String::new(),
+            },
+            PathBuf::from("dummy"),
+        );
+        let started = Instant::now();
+        app.sync_animations(started);
+        assert!(app.transition().is_none());
+
+        app.mode = Mode::Help;
+        app.view = View::Dashboard;
+        app.sync_animations(started + Duration::from_millis(1));
+        let transition = app.transition().expect("状态变化应触发动画");
+        assert!(transition.mode_changed());
+        assert!(transition.view_changed());
+        assert!(app.has_active_transition_at(started + Duration::from_millis(50)));
+
+        app.sync_animations(started + Duration::from_secs(1));
+        assert!(app.transition().is_none());
+    }
+
+    #[test]
+    fn consecutive_state_changes_replace_current_transition() {
+        let mut app = App::new(
+            SshConfig {
+                hosts: vec![],
+                preamble: String::new(),
+            },
+            PathBuf::from("dummy"),
+        );
+        let started = Instant::now();
+        app.mode = Mode::Help;
+        app.sync_animations(started);
+        assert_eq!(app.transition().unwrap().to.mode, Mode::Help);
+
+        app.mode = Mode::Normal;
+        app.view = View::Dashboard;
+        app.sync_animations(started + Duration::from_millis(20));
+        let transition = app.transition().unwrap();
+        assert_eq!(transition.from.mode, Mode::Help);
+        assert_eq!(transition.to.mode, Mode::Normal);
+        assert_eq!(transition.to.view, View::Dashboard);
+    }
+
+    #[test]
+    fn operation_result_uses_success_and_failure_colors() {
+        let mut app = App::new(
+            SshConfig {
+                hosts: vec![],
+                preamble: String::new(),
+            },
+            PathBuf::from("dummy"),
+        );
+        let key = "docker:srv:id".to_string();
+        app.pending_ops.insert(key.clone());
+        app.handle_ops_event(super::OpsEvent::Docker {
+            key: key.clone(),
+            action: crate::monitor::docker::DockerAction::Restart,
+            output: Ok(crate::monitor::executor::ExecOutput {
+                stdout: String::new(),
+                stderr: String::new(),
+                exit_code: Some(0),
+            }),
+        });
+        assert_eq!(app.flash_message.as_ref().unwrap().color, "green");
+        assert!(!app.pending_ops.contains(&key));
+
+        app.pending_ops.insert(key.clone());
+        app.handle_ops_event(super::OpsEvent::Docker {
+            key,
+            action: crate::monitor::docker::DockerAction::Restart,
+            output: Ok(crate::monitor::executor::ExecOutput {
+                stdout: String::new(),
+                stderr: "permission denied".into(),
+                exit_code: Some(1),
+            }),
+        });
+        let flash = app.flash_message.as_ref().unwrap();
+        assert_eq!(flash.color, "red");
+        assert!(flash.message.contains("permission denied"));
     }
 }

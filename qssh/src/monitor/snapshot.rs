@@ -49,9 +49,27 @@ impl ServerSnapshot {
         }
     }
 
-    /// 是否有致命错误（如连接失败）
+    /// 是否有致命错误（整次采集失败，如连接异常，所有分区均无数据）
+    ///
+    /// 按需采集时未请求的分区本来就没有数据，因此「某个分区为空」不算错误；
+    /// 只有采集执行失败（带警告）且没有任何数据时才视为致命错误。
     pub fn has_fatal_error(&self) -> bool {
-        self.cpu.is_none() && self.memory.is_none() && self.disks.is_empty()
+        !self.warnings.is_empty() && self.is_empty()
+    }
+
+    /// 是否所有分区都没有数据
+    pub fn is_empty(&self) -> bool {
+        self.cpu.is_none()
+            && self.memory.is_none()
+            && self.disks.is_empty()
+            && self.network.is_none()
+            && self.system.is_none()
+            && self.processes.is_empty()
+            && self.docker.is_empty()
+            && self.services.is_empty()
+            && self.conn_counts.is_none()
+            && self.files.is_empty()
+            && self.logs.is_empty()
     }
 }
 
@@ -134,10 +152,33 @@ mod tests {
         assert!(snap.disks.is_empty());
     }
 
+    /// 采集执行失败（连接异常）且无任何数据 → 致命错误
     #[test]
-    fn empty_snapshot_is_fatal() {
-        let snap = ServerSnapshot::new("x");
+    fn failed_collection_without_data_is_fatal() {
+        let mut snap = ServerSnapshot::new("x");
+        snap.warnings = vec!["采集失败: 连接超时".to_string()];
         assert!(snap.has_fatal_error());
+    }
+
+    /// 按需采集：未请求的分区为空不算致命错误
+    #[test]
+    fn empty_snapshot_without_warning_is_not_fatal() {
+        let snap = ServerSnapshot::new("x");
+        assert!(!snap.has_fatal_error());
+        assert!(snap.is_empty());
+    }
+
+    /// 只启用了部分分区时，有数据就不算致命错误
+    #[test]
+    fn partial_snapshot_is_not_fatal() {
+        let mut snap = ServerSnapshot::new("x");
+        snap.memory = Some(MemoryInfo {
+            total_gb: 1.0,
+            used_gb: 0.5,
+            usage_percent: 50.0,
+        });
+        assert!(!snap.has_fatal_error());
+        assert!(!snap.is_empty());
     }
 
     #[test]

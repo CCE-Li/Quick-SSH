@@ -110,16 +110,42 @@ fn left_click(app: &App, col: u16, row: u16) -> Action {
                 widget_click(app, col, row)
             }
         }
-        Mode::DockerOps => panel_index_at(row, col, OPS_POPUP_W, OPS_POPUP_H, app.docker_count())
-            .map_or(Action::None, Action::SelectListItem),
-        Mode::ServiceOps => panel_index_at(row, col, OPS_POPUP_W, OPS_POPUP_H, app.service_count())
-            .map_or(Action::None, Action::SelectListItem),
-        Mode::FileOps => panel_index_at(row, col, OPS_POPUP_W, OPS_POPUP_H, app.file_count())
-            .map_or(Action::None, Action::SelectListItem),
-        Mode::LogOps => {
-            panel_index_at(row, col, LOG_POPUP_W, LOG_POPUP_H, app.log_selected_count())
-                .map_or(Action::None, Action::SelectListItem)
-        }
+        Mode::DockerOps => panel_index_at(
+            row,
+            col,
+            OPS_POPUP_W,
+            OPS_POPUP_H,
+            app.docker_count(),
+            app.docker_list_state.offset(),
+        )
+        .map_or(Action::None, Action::SelectListItem),
+        Mode::ServiceOps => panel_index_at(
+            row,
+            col,
+            OPS_POPUP_W,
+            OPS_POPUP_H,
+            app.service_count(),
+            app.service_list_state.offset(),
+        )
+        .map_or(Action::None, Action::SelectListItem),
+        Mode::FileOps => panel_index_at(
+            row,
+            col,
+            OPS_POPUP_W,
+            OPS_POPUP_H,
+            app.file_count(),
+            app.file_list_state.offset(),
+        )
+        .map_or(Action::None, Action::SelectListItem),
+        Mode::LogOps => panel_index_at(
+            row,
+            col,
+            LOG_POPUP_W,
+            LOG_POPUP_H,
+            app.log_selected_count(),
+            app.log_list_state.offset(),
+        )
+        .map_or(Action::None, Action::SelectListItem),
         Mode::Palette => {
             palette_index_at(app, col, row).map_or(Action::None, Action::SelectListItem)
         }
@@ -188,23 +214,32 @@ fn host_index_at(app: &App, col: u16, row: u16) -> Option<usize> {
 }
 
 /// 指定宽度下的主机列表命中索引（测试友好）
+///
+/// 列表滚动后（`ListState::offset` > 0）首行不再对应下标 0，命中需加上滚动偏移。
 fn host_index_at_w(app: &App, width: u16, col: u16, row: u16) -> Option<usize> {
     let list_width = main_split_boundary(app.main_split_weight, width).max(1);
     if col >= list_width || row <= 1 {
         return None;
     }
-    let idx = (row - 2) as usize;
+    let idx = app.list_state.offset() + (row - 2) as usize;
     (idx < app.visible_indices().len()).then_some(idx)
 }
 
-/// 操作面板列表命中索引：弹窗边框内每行一项
-fn panel_index_at(row: u16, col: u16, w: u16, h: u16, count: usize) -> Option<usize> {
+/// 操作面板列表命中索引：弹窗边框内每行一项（`offset` 为列表滚动偏移）
+fn panel_index_at(
+    row: u16,
+    col: u16,
+    w: u16,
+    h: u16,
+    count: usize,
+    offset: usize,
+) -> Option<usize> {
     let popup = centered_rect(w, h, full_area());
     let inner = popup.inner(Margin::new(1, 1));
     if !inner.contains(Position::new(col, row)) {
         return None;
     }
-    let idx = (row - inner.y) as usize;
+    let idx = offset + (row - inner.y) as usize;
     (idx < count).then_some(idx)
 }
 

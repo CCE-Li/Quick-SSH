@@ -1,5 +1,5 @@
 use std::io::Write;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use crossterm::event::{
@@ -74,17 +74,29 @@ pub fn start() -> Result<()> {
     result
 }
 
+/// 按动画状态选择事件轮询间隔：动画 30 FPS，空闲 10 FPS。
+fn event_tick_rate(has_active_animation: bool) -> Duration {
+    if has_active_animation {
+        Duration::from_millis(33)
+    } else {
+        Duration::from_millis(100)
+    }
+}
+
 /// TUI 事件循环：Event → Action → State → Render
 fn run_event_loop(mut terminal: DefaultTerminal, app: &mut App) -> Result<()> {
-    let tick_rate = Duration::from_millis(100);
-
     while app.running {
         app.poll_background_tasks();
         app.expire_flash_message();
+        let now = Instant::now();
+        app.sync_animations(now);
+        // 组件开关 / 操作面板开合 / Profile 切换后，只采集仍被需要的分区
+        app.sync_monitor_sections();
 
         // Render
         terminal.draw(|frame| render(frame, app))?;
 
+        let tick_rate = event_tick_rate(app.has_active_animation_at(Instant::now()));
         // 等待事件（带超时）。捕获 crossterm_winapi 对异常 INPUT_RECORD 的 panic
         // （Windows 偶发 EventType=0 的无效控制台记录，见 crossterm-winapi#25），
         // 避免单个无效记录导致整个 TUI 崩溃；坏记录已被消费，下一轮继续正常读取。
@@ -199,4 +211,16 @@ fn run_event_loop(mut terminal: DefaultTerminal, app: &mut App) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::event_tick_rate;
+    use std::time::Duration;
+
+    #[test]
+    fn animation_uses_faster_tick_rate() {
+        assert_eq!(event_tick_rate(true), Duration::from_millis(33));
+        assert_eq!(event_tick_rate(false), Duration::from_millis(100));
+    }
 }

@@ -1,12 +1,15 @@
-use ratatui::buffer::Buffer;
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Constraint, Direction, Layout, Margin, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, List, ListItem, Paragraph};
+use ratatui::widgets::{
+    Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation,
+    ScrollbarState,
+};
 use ratatui::Frame;
 
 use crate::agent::timeline::AgentStatus;
 use crate::tui::action::Mode;
+use crate::tui::animation::expand_rect;
 use crate::tui::app::App;
 use crate::tui::dashboard::ui::render_palette_popup;
 use crate::tui::widgets::render_host_form_popup;
@@ -25,10 +28,17 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         .split(area);
 
     render_header(frame, chunks[0], app);
+    let now = std::time::Instant::now();
+    let body_area = app
+        .transition()
+        .filter(|transition| transition.view_changed())
+        .map_or(chunks[1], |transition| {
+            expand_rect(chunks[1], transition.progress_at(now))
+        });
     match app.view {
-        crate::tui::action::View::HostList => render_body(frame, chunks[1], app),
+        crate::tui::action::View::HostList => render_body(frame, body_area, app),
         crate::tui::action::View::Dashboard => {
-            render_dashboard_body(frame, chunks[1], app);
+            render_dashboard_body(frame, body_area, app);
         }
     }
     render_status_bar(frame, chunks[2], app);
@@ -100,16 +110,29 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 /// 若标签左边界正好落在**全角字符的右半格**上，该全角字符仍占着两列，
 /// ratatui 生成差分时会跳过其右侧单元格，导致块边框「缺一条边」。
 /// 多清左边一格可把这个全角字符一并移除。
-fn clear_overlay_area(buf: &mut Buffer, rect: Rect) {
-    let start_x = rect.x.saturating_sub(1);
-    let end_x = rect.x.saturating_add(rect.width);
-    for y in rect.y..rect.y.saturating_add(rect.height) {
-        for x in start_x..end_x {
-            if let Some(cell) = buf.cell_mut((x, y)) {
-                cell.reset();
-            }
-        }
+fn clear_overlay_area(frame: &mut Frame, rect: Rect) {
+    let widen = u16::from(rect.x > 0);
+    let clear_rect = Rect::new(
+        rect.x.saturating_sub(1),
+        rect.y,
+        rect.width + widen,
+        rect.height,
+    );
+    frame.render_widget(Clear, clear_rect);
+}
+
+/// 为列表/长内容叠加垂直滚动条（绘制在 `area` 最右列，需传边框内区域）
+fn render_scrollbar(frame: &mut Frame, area: Rect, total: usize, position: usize) {
+    if total == 0 || area.width == 0 || area.height == 0 {
+        return;
     }
+    let mut state = ScrollbarState::new(total).position(position.min(total.saturating_sub(1)));
+    frame.render_stateful_widget(
+        Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .style(Style::default().fg(Color::DarkGray)),
+        area,
+        &mut state,
+    );
 }
 
 /// 拖动主机项时，在光标处绘制浮动标签（圆角卡片，拖拽反馈）
@@ -167,7 +190,7 @@ fn render_drag_card(frame: &mut Frame, app: &App, alias: &str, col: u16, row: u1
         .border_style(Style::default().fg(color));
     let inner = block.inner(rect);
 
-    clear_overlay_area(frame.buffer_mut(), rect);
+    clear_overlay_area(frame, rect);
     frame.render_widget(block, rect);
     if inner.width == 0 || inner.height == 0 {
         return;
@@ -298,11 +321,11 @@ fn render_dashboard_config_popup(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// Docker 容器操作面板弹窗：列出容器 + 高亮选中项 + 操作提示
-fn render_docker_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
+fn render_docker_ops_popup(frame: &mut Frame, area: Rect, app: &mut App) {
     use crate::tui::widgets::centered_rect;
 
     let popup = centered_rect(70, 60, area);
-    frame.render_widget(ratatui::widgets::Clear, popup);
+    frame.render_widget(Clear, popup);
 
     let Some(snapshot) = app.docker_snapshot() else {
         let paragraph = Paragraph::new("暂无容器数据").block(
@@ -315,20 +338,20 @@ fn render_docker_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
         return;
     };
 
+    let selected = app.docker_selected_index();
     let mut items: Vec<ListItem> = Vec::new();
     for (idx, c) in snapshot.docker.iter().enumerate() {
-        let marker = if idx == app.docker_selected_index() {
-            "┃ "
-        } else {
-            "  "
-        };
+        let marker = if idx == selected { "┃ " } else { "  " };
         let status_icon = if c.running { "●" } else { "○" };
         let status_color = if c.running { Color::Green } else { Color::Red };
         let line = Line::from(vec![
             Span::raw(marker),
             Span::styled(status_icon, Style::default().fg(status_color)),
             Span::raw(" "),
-            Span::styled(&c.name, Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(
+                c.name.clone(),
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
             Span::styled(format!("  {}", c.image), Style::default().fg(Color::Cyan)),
             Span::styled(
                 format!("  {}", c.status),
@@ -338,9 +361,10 @@ fn render_docker_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
         items.push(ListItem::new(line));
     }
 
+    let total = items.len();
     let title = format!(
         " Docker 容器操作 ({}) — {} ",
-        snapshot.docker.len(),
+        total,
         app.monitor_target_alias().unwrap_or("-")
     );
     let list = List::new(items)
@@ -356,7 +380,10 @@ fn render_docker_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("");
-    frame.render_widget(list, popup);
+    let state = &mut app.docker_list_state;
+    state.select((total > 0).then_some(selected.min(total.saturating_sub(1))));
+    frame.render_stateful_widget(list, popup, state);
+    render_scrollbar(frame, popup.inner(Margin::new(1, 1)), total, state.offset());
 }
 
 /// Docker 危险操作确认弹窗：显示将要执行的操作 + 目标容器
@@ -398,11 +425,11 @@ fn render_docker_confirm_popup(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// 系统服务操作面板弹窗：列出服务 + 高亮选中项 + 操作提示
-fn render_service_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
+fn render_service_ops_popup(frame: &mut Frame, area: Rect, app: &mut App) {
     use crate::tui::widgets::centered_rect;
 
     let popup = centered_rect(70, 60, area);
-    frame.render_widget(ratatui::widgets::Clear, popup);
+    frame.render_widget(Clear, popup);
 
     let Some(snapshot) = app.docker_snapshot() else {
         let paragraph = Paragraph::new("暂无服务数据").block(
@@ -415,13 +442,10 @@ fn render_service_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
         return;
     };
 
+    let selected = app.service_selected_index();
     let mut items: Vec<ListItem> = Vec::new();
     for (idx, s) in snapshot.services.iter().enumerate() {
-        let marker = if idx == app.service_selected_index() {
-            "┃ "
-        } else {
-            "  "
-        };
+        let marker = if idx == selected { "┃ " } else { "  " };
         let status_icon = if s.is_running() { "●" } else { "○" };
         let status_color = if s.active == "failed" {
             Color::Red
@@ -441,7 +465,10 @@ fn render_service_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
             Span::raw(marker),
             Span::styled(status_icon, Style::default().fg(status_color)),
             Span::raw(" "),
-            Span::styled(&s.name, Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(
+                s.name.clone(),
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
             Span::styled(
                 format!("  {} / {}", s.active, status),
                 Style::default().fg(status_color),
@@ -450,9 +477,10 @@ fn render_service_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
         items.push(ListItem::new(line));
     }
 
+    let total = items.len();
     let title = format!(
         " 系统服务操作 ({}) — {} ",
-        snapshot.services.len(),
+        total,
         app.monitor_target_alias().unwrap_or("-")
     );
     let list = List::new(items)
@@ -468,7 +496,10 @@ fn render_service_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("");
-    frame.render_widget(list, popup);
+    let state = &mut app.service_list_state;
+    state.select((total > 0).then_some(selected.min(total.saturating_sub(1))));
+    frame.render_stateful_widget(list, popup, state);
+    render_scrollbar(frame, popup.inner(Margin::new(1, 1)), total, state.offset());
 }
 
 /// 服务危险操作确认弹窗：显示将要执行的操作 + 目标服务
@@ -510,11 +541,11 @@ fn render_service_confirm_popup(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// 文件浏览弹窗：列出当前目录文件，支持目录导航
-fn render_file_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
+fn render_file_ops_popup(frame: &mut Frame, area: Rect, app: &mut App) {
     use crate::tui::widgets::centered_rect;
 
     let popup = centered_rect(80, 65, area);
-    frame.render_widget(ratatui::widgets::Clear, popup);
+    frame.render_widget(Clear, popup);
 
     let Some(snapshot) = app.docker_snapshot() else {
         let paragraph = Paragraph::new("暂无文件数据").block(
@@ -527,13 +558,10 @@ fn render_file_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
         return;
     };
 
+    let selected = app.file_selected_index();
     let mut items: Vec<ListItem> = Vec::new();
     for (idx, file) in snapshot.files.iter().enumerate() {
-        let marker = if idx == app.file_selected_index() {
-            "┃ "
-        } else {
-            "  "
-        };
+        let marker = if idx == selected { "┃ " } else { "  " };
         let dir_icon = if file.is_dir { "📁" } else { "📄" };
         let size = if file.is_dir {
             "DIR".to_string()
@@ -544,7 +572,10 @@ fn render_file_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
             Span::raw(marker),
             Span::raw(dir_icon),
             Span::raw(" "),
-            Span::styled(&file.name, Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(
+                file.name.clone(),
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
             Span::styled(
                 format!("  {:>9}  {}", size, file.mtime),
                 Style::default().fg(Color::DarkGray),
@@ -553,6 +584,7 @@ fn render_file_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
         items.push(ListItem::new(line));
     }
 
+    let total = items.len();
     let title = format!(
         " 文件浏览 {} — {} ",
         snapshot.file_cwd,
@@ -571,7 +603,10 @@ fn render_file_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("");
-    frame.render_widget(list, popup);
+    let state = &mut app.file_list_state;
+    state.select((total > 0).then_some(selected.min(total.saturating_sub(1))));
+    frame.render_stateful_widget(list, popup, state);
+    render_scrollbar(frame, popup.inner(Margin::new(1, 1)), total, state.offset());
 }
 
 /// 文件操作确认弹窗（下载）
@@ -610,20 +645,17 @@ fn render_file_confirm_popup(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 /// 日志面板弹窗：展示 journalctl 日志，支持 unit 筛选
-fn render_log_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
+fn render_log_ops_popup(frame: &mut Frame, area: Rect, app: &mut App) {
     use crate::tui::widgets::centered_rect;
 
     let popup = centered_rect(80, 70, area);
-    frame.render_widget(ratatui::widgets::Clear, popup);
+    frame.render_widget(Clear, popup);
 
     let logs = app.filtered_logs();
+    let selected = app.log_selected_index();
     let mut items: Vec<ListItem> = Vec::new();
     for (idx, log) in logs.iter().enumerate() {
-        let marker = if idx == app.log_selected_index() {
-            "┃ "
-        } else {
-            "  "
-        };
+        let marker = if idx == selected { "┃ " } else { "  " };
         let line = Line::from(vec![
             Span::raw(marker),
             Span::styled(log.timestamp.clone(), Style::default().fg(Color::DarkGray)),
@@ -634,6 +666,7 @@ fn render_log_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
         items.push(ListItem::new(line));
     }
 
+    let total = items.len();
     let unit_label = if app.log_unit().trim().is_empty() {
         "全部".to_string()
     } else {
@@ -641,7 +674,7 @@ fn render_log_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
     };
     let title = format!(
         " 系统日志 ({}) unit: {} — {} ",
-        logs.len(),
+        total,
         unit_label,
         app.monitor_target_alias().unwrap_or("-")
     );
@@ -658,7 +691,10 @@ fn render_log_ops_popup(frame: &mut Frame, area: Rect, app: &App) {
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("");
-    frame.render_widget(list, popup);
+    let state = &mut app.log_list_state;
+    state.select((total > 0).then_some(selected.min(total.saturating_sub(1))));
+    frame.render_stateful_widget(list, popup, state);
+    render_scrollbar(frame, popup.inner(Margin::new(1, 1)), total, state.offset());
 }
 
 /// 日志 unit 筛选输入弹窗
@@ -761,8 +797,8 @@ fn render_command_popup(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(Paragraph::new(lines).block(block), popup);
 }
 
-/// `:` 远程命令执行结果弹窗
-fn render_command_result_popup(frame: &mut Frame, area: Rect, app: &App) {
+/// `:` 远程命令执行结果弹窗（展示完整输出，j/k 滚动）
+fn render_command_result_popup(frame: &mut Frame, area: Rect, app: &mut App) {
     use crate::tui::widgets::centered_rect;
 
     let Some(result) = app.command_result() else {
@@ -770,7 +806,7 @@ fn render_command_result_popup(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let popup = centered_rect(80, 75, area);
-    frame.render_widget(ratatui::widgets::Clear, popup);
+    frame.render_widget(Clear, popup);
 
     let mut lines: Vec<Line> = Vec::new();
     lines.push(Line::from(""));
@@ -797,7 +833,7 @@ fn render_command_result_popup(frame: &mut Frame, area: Rect, app: &App) {
             "  ── stdout ──",
             Style::default().fg(Color::Cyan),
         )));
-        for line in result.stdout.lines().take(40) {
+        for line in result.stdout.lines() {
             lines.push(Line::from(format!("  {line}")));
         }
         lines.push(Line::from(""));
@@ -807,7 +843,7 @@ fn render_command_result_popup(frame: &mut Frame, area: Rect, app: &App) {
             "  ── stderr ──",
             Style::default().fg(Color::Cyan),
         )));
-        for line in result.stderr.lines().take(20) {
+        for line in result.stderr.lines() {
             lines.push(Line::from(format!("  {line}")));
         }
         lines.push(Line::from(""));
@@ -819,13 +855,22 @@ fn render_command_result_popup(frame: &mut Frame, area: Rect, app: &App) {
         )));
     }
     lines.push(Line::from(""));
-    lines.push(Line::from("  q/Esc 关闭"));
+    lines.push(Line::from("  j/k 滚动    PgUp/PgDn 翻页    q/Esc 关闭"));
 
+    let title = format!(" 执行结果 — {}: {} ", result.alias, result.command);
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .title(format!(" 执行结果 — {}: {} ", result.alias, result.command));
-    frame.render_widget(Paragraph::new(lines).block(block), popup);
+        .title(title);
+    let inner = block.inner(popup);
+    let total = lines.len();
+    let max_scroll = total.saturating_sub(inner.height as usize) as u16;
+    let scroll = app.command_result_scroll().min(max_scroll);
+    app.set_command_result_scroll(scroll);
+
+    let paragraph = Paragraph::new(lines).scroll((scroll, 0)).block(block);
+    frame.render_widget(paragraph, popup);
+    render_scrollbar(frame, inner, total, scroll as usize);
 }
 
 fn render_header(frame: &mut Frame, area: Rect, app: &App) {
@@ -912,6 +957,12 @@ fn render_host_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .highlight_symbol("┃ ");
 
     frame.render_stateful_widget(list, area, &mut app.list_state);
+    render_scrollbar(
+        frame,
+        area.inner(Margin::new(1, 1)),
+        visible.len(),
+        app.list_state.offset(),
+    );
 }
 
 /// 详情面板：对长文本按显示宽度硬换行（CJK 全角按 2 列，超长单词也折行），
@@ -1228,8 +1279,6 @@ mod tests {
     /// 长 token（无空格连续串 / CJK）也被折行，拼接后文本完整不丢。
     #[test]
     fn detail_long_text_wraps() {
-        use unicode_width::UnicodeWidthStr;
-
         let long_comment = format!(
             "生产环境服务器，用于部署应用 {}",
             "与数据库集群和缓存节点保持心跳，出现异常时自动告警".repeat(8)

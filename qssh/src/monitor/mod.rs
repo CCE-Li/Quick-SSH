@@ -35,7 +35,8 @@ pub use logs::{journalctl_command, parse_journalctl, LogEntry, MAX_LOG_LINES};
 pub use network::{parse_ss_tan, ss_connections_command, ConnCounts};
 #[allow(unused_imports)]
 pub use platform::{
-    disks_command, network_command, processes_command, server_status_command, Collector,
+    collect_command, disks_command, network_command, processes_command, section_bits,
+    server_status_command, Collector, Section, SectionMask,
 };
 #[allow(unused_imports)]
 pub use scheduler::{BackgroundEvent, MonitorScheduler};

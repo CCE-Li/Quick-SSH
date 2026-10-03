@@ -1,4 +1,5 @@
 pub mod action;
+pub mod animation;
 pub mod app;
 pub mod dashboard;
 pub mod editor;
