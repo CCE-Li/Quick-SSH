@@ -58,15 +58,20 @@ pub enum ProviderKind { OpenAI, OpenCodeGo, Ollama }
 pub struct ChatReply { pub text: Option<String>, pub tool_call: Option<String> }
 ```
 
-| 服务商 | 别名字符串 | 调用方式 |
-|--------|-----------|---------|
-| OpenAI 兼容 | `openai` / `openai-compatible` / `deepseek` / `qwen` | `curl <base_url>/chat/completions` |
+| 服务商 | provider 取值 | 调用方式 |
+|--------|--------------|---------|
+| OpenAI / DeepSeek / Gemini / 豆包（火山方舟） | `openai` / `deepseek` / `gemini` / `doubao` | `curl <base_url>/chat/completions`；缺省 base_url/model 由预设补全 |
+| Command Code | `commandcode`（别名 `command-code`） | 同上；官方未公开端点，需自填网关地址 |
+| 任意 OpenAI 兼容 | `custom`（别名 `openai-compatible` / `qwen`） | 同上；需显式填写 base_url 与 model |
 | OpenCode Go | `opencode` / `opencode-go` | 同上，缺省 base_url/model 自动补全 |
 | Ollama | `ollama` / `local` | 优先 `ollama run`，回退到 `/api/chat` |
 
+预设（端点 / 默认模型 / 密钥环境变量）集中在 `provider.rs::PROVIDER_PRESETS`，TUI 表单与 WebUI 下拉共用同一份定义；
+Gemini 走 Google 的 OpenAI 兼容层（`/v1beta/openai`）。别名归一化：`google`→`gemini`、`volcengine`→`doubao`。
+
 请求参数：`temperature 0.2`、`max_tokens 1024`。`list_models()` 读取 OpenAI `/models` 或 Ollama `/api/tags`。
 
-API Key 解析顺序（`resolve_api_key`）：`agent.json` → `QSSH_OPENAI_API_KEY` → `OPENCODE_API_KEY` → OpenCode `auth.json`。
+API Key 解析顺序（`resolve_api_key`）：`agent.json` → 供应商环境变量（`OPENAI_API_KEY` / `DEEPSEEK_API_KEY` / `GEMINI_API_KEY` / `ARK_API_KEY` / `COMMANDCODE_API_KEY` …）→ `QSSH_OPENAI_API_KEY` → `OPENCODE_API_KEY` → OpenCode `auth.json`。
 
 ## tools.rs — 工具注册表
 

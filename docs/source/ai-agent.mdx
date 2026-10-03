@@ -99,16 +99,21 @@ Agent 可调用 17 个工具，按危险等级分类：
 
 | provider 取值 | 说明 |
 |---------------|------|
-| `openai` / `deepseek` / `qwen` / `openai-compatible` | 任意 OpenAI 兼容接口（走 `/chat/completions`） |
+| `openai` / `deepseek` / `gemini` / `doubao` | 内置预设：自动补全端点与默认模型（端点取自 models.dev 注册表） |
+| `commandcode` | Command Code：官方未公开 OpenAI 兼容端点，需自填网关地址与模型 |
+| `custom` / `openai-compatible` / `qwen` | 任意 OpenAI 兼容接口，需显式填写 base_url 与 model |
 | `opencode` / `opencode-go` | OpenCode Go，自动补全 base_url 与模型 |
 | `ollama` / `local` | 本地 Ollama，优先用 CLI，回退到 HTTP API |
+
+别名归一化：`google`→`gemini`、`volcengine`/`ark`→`doubao`、`command-code`→`commandcode`。
 
 ### API Key 解析顺序
 
 1. `agent.json` 中的 `api_key`
-2. 环境变量 `QSSH_OPENAI_API_KEY`
-3. 环境变量 `OPENCODE_API_KEY`
-4. OpenCode 登录凭据（`~/.local/share/opencode/auth.json` 或 `~/.config/opencode/auth.json`）
+2. 供应商环境变量（`OPENAI_API_KEY` / `DEEPSEEK_API_KEY` / `GEMINI_API_KEY` / `ARK_API_KEY` / `COMMANDCODE_API_KEY` …）
+3. 环境变量 `QSSH_OPENAI_API_KEY`
+4. 环境变量 `OPENCODE_API_KEY`
+5. OpenCode 登录凭据（`~/.local/share/opencode/auth.json` 或 `~/.config/opencode/auth.json`）
 
 <Callout title="配置热加载">
   每次开始 Agent 会话前都会从磁盘重新读取 `agent.json`，因此在 Web 界面里改完设置后立即生效，无需重启 qssh。

@@ -295,6 +295,19 @@ mod tests {
         }
     }
 
+    /// 离线 Agent 配置：未知 provider + 空端点，chat() 立即失败（不发网络请求）。
+    ///
+    /// 不能用 `AgentConfig::default()`：本机若设置了 `OPENAI_API_KEY` 等环境变量，
+    /// 测试会真的去请求远端 LLM（慢且不确定）。
+    fn offline_agent_config() -> AgentConfig {
+        AgentConfig {
+            provider: "test-offline".to_string(),
+            base_url: String::new(),
+            model: String::new(),
+            ..AgentConfig::default()
+        }
+    }
+
     #[test]
     fn snapshot_context_is_short_and_actionable() {
         let snap = ServerSnapshot::new("web");
@@ -314,7 +327,7 @@ mod tests {
     #[test]
     fn agent_run_emits_events_and_returns_session() {
         let (tx, rx) = std::sync::mpsc::channel();
-        let runner = AgentRunner::new(AgentConfig::default(), tx);
+        let runner = AgentRunner::new(offline_agent_config(), tx);
         let snap = ServerSnapshot::new("web");
 
         // approve 回调记录调用
@@ -325,7 +338,7 @@ mod tests {
             true
         };
 
-        // 由于 chat() 会实际调用 curl/ollama，这里仅验证在无网络时会优雅失败并返回错误
+        // 离线配置下 chat() 立即失败，这里验证失败链路会优雅返回错误
         let session = runner.run(&[], "查询服务器状态", &FakeExecutor, &snap, approve);
 
         // 至少发出了 Started / Timeline 事件
@@ -338,7 +351,7 @@ mod tests {
     #[test]
     fn agent_run_with_denied_tool_stops() {
         let (tx, _rx) = std::sync::mpsc::channel();
-        let runner = AgentRunner::new(AgentConfig::default(), tx);
+        let runner = AgentRunner::new(offline_agent_config(), tx);
         let snap = ServerSnapshot::new("web");
 
         let session = runner.run(&[], "tool:server.status", &FakeExecutor, &snap, |_| true);

@@ -16,7 +16,7 @@ use serde_json::{json, Map, Value};
 
 use crate::agent::config::{load_agent_config, save_agent_config, AgentConfig};
 use crate::agent::permissions::PermissionLevel;
-use crate::agent::provider::ProviderKind;
+use crate::agent::provider::{canonical_provider_id, PROVIDER_PRESETS};
 use crate::config::settings::{load_settings, save_settings, QsshSettings};
 use crate::tui::dashboard::config::{
     default_layout_for, load_dashboard_config, save_dashboard_config, DashboardConfig, WidgetId,
@@ -61,6 +61,8 @@ pub enum FieldOptions {
     Static(&'static [FieldChoice]),
     /// 动态选项：从 dashboard 配置读取 profile 名称
     Profiles,
+    /// 动态选项：内置 AI 供应商预设（与 TUI / 配置解析共用同一份定义）
+    Providers,
 }
 
 /// 单个可设置项的描述
@@ -109,6 +111,10 @@ impl GroupSpec {
                 .keys()
                 .map(|name| json!({ "value": name, "label": name }))
                 .collect(),
+            FieldOptions::Providers => PROVIDER_PRESETS
+                .iter()
+                .map(|preset| json!({ "value": preset.id, "label": preset.label }))
+                .collect(),
         }
     }
 
@@ -137,21 +143,6 @@ impl GroupSpec {
 }
 
 // ── 分组目录 ─────────────────────────────────────────────
-
-const PROVIDER_CHOICES: &[FieldChoice] = &[
-    FieldChoice {
-        value: "opencode",
-        label: "opencode-go（推荐）",
-    },
-    FieldChoice {
-        value: "openai",
-        label: "OpenAI Compatible",
-    },
-    FieldChoice {
-        value: "ollama",
-        label: "Ollama",
-    },
-];
 
 const PERMISSION_CHOICES: &[FieldChoice] = &[
     FieldChoice {
@@ -230,7 +221,7 @@ static AGENT_FIELDS: &[FieldSpec] = &[
         kind: FieldKind::Select,
         placeholder: "",
         hint: "",
-        options: FieldOptions::Static(PROVIDER_CHOICES),
+        options: FieldOptions::Providers,
         min: None,
         max: None,
         reload_on_change: false,
@@ -441,7 +432,7 @@ impl SettingsCatalog {
 fn agent_values() -> Value {
     let c = load_agent_config();
     json!({
-        "provider": ProviderKind::from_str(&c.provider).unwrap_or_default().as_str(),
+        "provider": canonical_provider_id(&c.provider).unwrap_or("custom"),
         "base_url": c.base_url,
         "model": c.model,
         "permission": c.permission,
@@ -453,10 +444,16 @@ fn agent_values() -> Value {
 /// 把请求里的字段更新应用到 `config`（只做校验与赋值，不落盘）
 fn apply_agent_to(config: &mut AgentConfig, v: &Value) -> Result<(), String> {
     if let Some(val) = v.get("provider").and_then(Value::as_str) {
-        if ProviderKind::from_str(val).is_none() {
-            return Err("Provider 无效（支持 openai-compatible / opencode / ollama）".to_string());
+        // 归一化：别名（google / volcengine / openai-compatible …）存为预设 id
+        match canonical_provider_id(val) {
+            Some(id) => config.provider = id.to_string(),
+            None => {
+                return Err(
+                    "Provider 无效（支持 openai / deepseek / gemini / doubao / commandcode / opencode / ollama / custom）"
+                        .to_string(),
+                )
+            }
         }
-        config.provider = val.to_string();
     }
     if let Some(val) = v.get("base_url").and_then(Value::as_str) {
         config.base_url = val.to_string();
@@ -595,6 +592,53 @@ mod tests {
         ] {
             assert!(v.get(key).is_some(), "缺少字段 {key}");
         }
+    }
+
+    /// Provider 下拉来自内置预设（新增供应商只需改 provider.rs 一处）
+    #[test]
+    fn provider_choices_come_from_presets() {
+        let catalog = SettingsCatalog::load_all();
+        let agent = catalog["groups"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|g| g["id"] == "agent")
+            .unwrap();
+        let provider = agent["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["key"] == "provider")
+            .unwrap();
+        let values: Vec<&str> = provider["options"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|o| o["value"].as_str().unwrap())
+            .collect();
+        for expected in ["openai", "deepseek", "gemini", "doubao", "commandcode"] {
+            assert!(
+                values.contains(&expected),
+                "缺少预设 {expected}: {values:?}"
+            );
+        }
+        assert!(provider["options"][0]["label"]
+            .as_str()
+            .is_some_and(|l| !l.is_empty()));
+    }
+
+    /// provider 别名（google / volcengine）归一化为预设 id 后保存
+    #[test]
+    fn agent_apply_normalizes_provider_aliases() {
+        let mut c = AgentConfig::default();
+        apply_agent_to(&mut c, &json!({ "provider": "google" })).unwrap();
+        assert_eq!(c.provider, "gemini");
+
+        apply_agent_to(&mut c, &json!({ "provider": "volcengine" })).unwrap();
+        assert_eq!(c.provider, "doubao");
+
+        apply_agent_to(&mut c, &json!({ "provider": "openai-compatible" })).unwrap();
+        assert_eq!(c.provider, "custom");
     }
 
     #[test]

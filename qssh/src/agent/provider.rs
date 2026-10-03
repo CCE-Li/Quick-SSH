@@ -43,15 +43,121 @@ pub const OPENCODE_GO_AUTH_KEY: &str = "opencode-go";
 /// opencode 的标准 API key 环境变量
 pub const OPENCODE_API_KEY_ENV: &str = "OPENCODE_API_KEY";
 
+/// 供应商预设：端点 + 默认模型 + API Key 环境变量
+///
+/// 端点与模型 id 取自 models.dev 注册表（与 Command Code `/providers` 向导同源），
+/// 不做猜测。`base_url` / `model` 为空表示该供应商必须由用户显式填写。
+pub struct ProviderPreset {
+    /// `agent.json` 中 `provider` 字段使用的 id
+    pub id: &'static str,
+    /// 展示名（TUI / WebUI）
+    pub label: &'static str,
+    /// OpenAI 兼容端点（空 = 需用户填写）
+    pub base_url: &'static str,
+    /// 默认模型（空 = 需用户填写）
+    pub model: &'static str,
+    /// API Key 环境变量（按优先级尝试）
+    pub api_key_envs: &'static [&'static str],
+}
+
+/// 内置供应商预设（WebUI 下拉 / TUI 校验 / 默认值填充共用同一份定义）
+pub const PROVIDER_PRESETS: &[ProviderPreset] = &[
+    ProviderPreset {
+        id: "openai",
+        label: "OpenAI",
+        base_url: "https://api.openai.com/v1",
+        model: "gpt-5.4",
+        api_key_envs: &["OPENAI_API_KEY"],
+    },
+    ProviderPreset {
+        id: "deepseek",
+        label: "DeepSeek",
+        base_url: "https://api.deepseek.com",
+        model: "deepseek-v4-flash",
+        api_key_envs: &["DEEPSEEK_API_KEY"],
+    },
+    ProviderPreset {
+        id: "gemini",
+        label: "Google Gemini（OpenAI 兼容层）",
+        base_url: "https://generativelanguage.googleapis.com/v1beta/openai",
+        model: "gemini-flash-latest",
+        api_key_envs: &[
+            "GEMINI_API_KEY",
+            "GOOGLE_API_KEY",
+            "GOOGLE_GENERATIVE_AI_API_KEY",
+        ],
+    },
+    ProviderPreset {
+        id: "doubao",
+        label: "豆包 / 火山方舟",
+        base_url: "https://ark.cn-beijing.volces.com/api/v3",
+        model: "doubao-seed-2-1-pro-260628",
+        api_key_envs: &["ARK_API_KEY"],
+    },
+    // Command Code 未公开 OpenAI 兼容端点（其 BYOK 是反向的：在 CLI 里配置别家），
+    // 因此这里只提供 id 与密钥变量，端点需用户填写自己的网关地址。
+    ProviderPreset {
+        id: "commandcode",
+        label: "Command Code（需自填网关）",
+        base_url: "",
+        model: "",
+        api_key_envs: &["COMMANDCODE_API_KEY"],
+    },
+    ProviderPreset {
+        id: "opencode",
+        label: "opencode-go",
+        base_url: OPENCODE_GO_BASE_URL,
+        model: OPENCODE_GO_MODEL,
+        api_key_envs: &[OPENCODE_API_KEY_ENV],
+    },
+    ProviderPreset {
+        id: "ollama",
+        label: "Ollama（本地）",
+        base_url: "http://localhost:11434",
+        model: "",
+        api_key_envs: &[],
+    },
+    ProviderPreset {
+        id: "custom",
+        label: "OpenAI 兼容（自定义）",
+        base_url: "",
+        model: "",
+        api_key_envs: &[],
+    },
+];
+
+/// 归一化 provider 字段：预设 id 原样返回，常见别名映射到对应预设 id
+pub fn canonical_provider_id(value: &str) -> Option<&'static str> {
+    let value = value.trim().to_ascii_lowercase().replace('_', "-");
+    if let Some(preset) = PROVIDER_PRESETS.iter().find(|p| p.id == value.as_str()) {
+        return Some(preset.id);
+    }
+    Some(match value.as_str() {
+        "openai-compatible" | "compatible" | "qwen" | "dashscope" => "custom",
+        "google" | "google-gemini" | "gemini-openai" => "gemini",
+        "volcengine" | "volcengine-ark" | "ark" | "volc" => "doubao",
+        "command-code" => "commandcode",
+        "opencode-go" => "opencode",
+        "local" => "ollama",
+        _ => return None,
+    })
+}
+
+/// 查询供应商预设（含别名归一化）
+pub fn provider_preset(value: &str) -> Option<&'static ProviderPreset> {
+    let id = canonical_provider_id(value)?;
+    PROVIDER_PRESETS.iter().find(|preset| preset.id == id)
+}
+
 impl ProviderKind {
-    /// 从配置字符串解析
+    /// 从配置字符串解析（供应商预设决定传输类型：仅 ollama / opencode 有专属后端）
     pub fn from_str(s: &str) -> Option<Self> {
-        match s.trim().to_ascii_lowercase().as_str() {
-            "openai" | "openai-compatible" | "deepseek" | "qwen" => Some(ProviderKind::OpenAI),
-            "opencode" | "opencode-go" => Some(ProviderKind::OpenCodeGo),
-            "ollama" | "local" => Some(ProviderKind::Ollama),
-            _ => None,
-        }
+        let id = canonical_provider_id(s)?;
+        Some(match id {
+            "opencode" => ProviderKind::OpenCodeGo,
+            "ollama" => ProviderKind::Ollama,
+            _ => ProviderKind::OpenAI,
+        })
     }
 
     /// 配置字符串（与 [`from_str`] 互逆）
@@ -76,6 +182,8 @@ pub struct ProviderConfig {
     pub timeout_secs: u64,
     /// 显式配置的 API Key（`None` 时回退到环境变量 / opencode auth.json）
     pub api_key: Option<String>,
+    /// 供应商预设声明的 API Key 环境变量（按优先级尝试）
+    pub api_key_envs: &'static [&'static str],
 }
 
 impl Default for ProviderConfig {
@@ -86,6 +194,7 @@ impl Default for ProviderConfig {
             model: "deepseek-chat".to_string(),
             timeout_secs: 60,
             api_key: None,
+            api_key_envs: &[],
         }
     }
 }
@@ -158,7 +267,11 @@ fn chat_openai(
     })
     .to_string();
 
-    let url = format!("{}/chat/completions", config.base_url.trim_end_matches('/'));
+    let base = config.base_url.trim().trim_end_matches('/');
+    if base.is_empty() {
+        return Err(ProviderError::MissingBaseUrl);
+    }
+    let url = format!("{base}/chat/completions");
     let mut command = Command::new("curl");
     command
         .args(curl_https_args(config.timeout_secs))
@@ -210,9 +323,10 @@ fn missing_content_error(choice_or_message: &serde_json::Value) -> String {
 
 /// 解析 API Key，优先级：
 /// 1. 配置中显式设置的 `api_key`（`ProviderConfig.api_key`，WebUI 配置）
-/// 2. 环境变量 `QSSH_OPENAI_API_KEY`（Quick-SSH 专属）
-/// 3. 环境变量 `OPENCODE_API_KEY`（opencode-go 标准变量）
-/// 4. opencode 登录凭证 `~/.local/share/opencode/auth.json` 中对应 provider 的 `key`
+/// 2. 供应商预设声明的环境变量（如 `DEEPSEEK_API_KEY` / `GEMINI_API_KEY` / `ARK_API_KEY`）
+/// 3. 通用环境变量 `QSSH_OPENAI_API_KEY`（Quick-SSH 专属）
+/// 4. 通用环境变量 `OPENCODE_API_KEY`（opencode-go 标准变量）
+/// 5. opencode 登录凭证 `~/.local/share/opencode/auth.json` 中对应 provider 的 `key`
 fn resolve_api_key(config: &ProviderConfig) -> Result<String, ProviderError> {
     // 1. 显式配置的 key 优先级最高
     if let Some(key) = config.api_key.as_deref() {
@@ -220,18 +334,23 @@ fn resolve_api_key(config: &ProviderConfig) -> Result<String, ProviderError> {
             return Ok(key.trim().to_string());
         }
     }
-    // 2. 环境变量
-    if let Ok(key) = std::env::var("QSSH_OPENAI_API_KEY") {
-        if !key.trim().is_empty() {
-            return Ok(key);
+    // 2. 供应商自己的环境变量
+    for var in config.api_key_envs {
+        if let Ok(key) = std::env::var(var) {
+            if !key.trim().is_empty() {
+                return Ok(key);
+            }
         }
     }
-    if let Ok(key) = std::env::var(OPENCODE_API_KEY_ENV) {
-        if !key.trim().is_empty() {
-            return Ok(key);
+    // 3. 通用环境变量
+    for var in ["QSSH_OPENAI_API_KEY", OPENCODE_API_KEY_ENV] {
+        if let Ok(key) = std::env::var(var) {
+            if !key.trim().is_empty() {
+                return Ok(key);
+            }
         }
     }
-    // 3. opencode 登录凭证回退（仅对 opencode / opencode-go provider）
+    // 4. opencode 登录凭证回退（仅对 opencode / opencode-go provider）
     let auth_name = match config.kind {
         ProviderKind::OpenCodeGo => Some(OPENCODE_GO_AUTH_KEY),
         _ => None,
@@ -394,13 +513,12 @@ pub fn list_models(config: &ProviderConfig) -> Result<Vec<String>, ProviderError
 
 /// OpenAI 兼容：`curl -s <base_url>/models` → `data[].id`
 fn list_models_openai(config: &ProviderConfig) -> Result<Vec<String>, ProviderError> {
+    let base = config.base_url.trim().trim_end_matches('/');
+    if base.is_empty() {
+        return Err(ProviderError::MissingBaseUrl);
+    }
     let api_key = resolve_api_key(config)?;
-    let base = if config.base_url.is_empty() {
-        "https://api.deepseek.com/v1".to_string()
-    } else {
-        config.base_url.clone()
-    };
-    let url = format!("{}/models", base.trim_end_matches('/'));
+    let url = format!("{base}/models");
 
     let mut command = Command::new("curl");
     command
@@ -550,6 +668,8 @@ fn curl_error(code: Option<i32>, stderr: &[u8]) -> String {
 pub enum ProviderError {
     /// 缺少 API Key（OpenAI 后端）
     MissingApiKey,
+    /// 未配置 Base URL（供应商预设没有默认端点时需用户填写）
+    MissingBaseUrl,
     /// 无法启动子进程（curl / ollama 未安装）
     Spawn(String),
     /// HTTP / 退出码错误
@@ -564,7 +684,13 @@ impl std::fmt::Display for ProviderError {
             ProviderError::MissingApiKey => {
                 write!(
                     f,
-                    "未找到 API Key（已依次检查 QSSH_OPENAI_API_KEY、OPENCODE_API_KEY 与 opencode auth.json）"
+                    "未找到 API Key（已依次检查配置、供应商环境变量、QSSH_OPENAI_API_KEY、OPENCODE_API_KEY 与 opencode auth.json）"
+                )
+            }
+            ProviderError::MissingBaseUrl => {
+                write!(
+                    f,
+                    "未配置 Base URL（该 Provider 没有默认端点，请在设置中填写）"
                 )
             }
             ProviderError::Spawn(msg) => write!(f, "无法启动子进程: {msg}"),
@@ -611,7 +737,111 @@ mod tests {
             ProviderKind::from_str("opencode-go"),
             Some(ProviderKind::OpenCodeGo)
         );
+        // 新增供应商（OpenAI 兼容传输）
+        for id in [
+            "deepseek",
+            "gemini",
+            "google",
+            "doubao",
+            "volcengine",
+            "commandcode",
+            "custom",
+            "openai-compatible",
+        ] {
+            assert_eq!(
+                ProviderKind::from_str(id),
+                Some(ProviderKind::OpenAI),
+                "{id} 应为 OpenAI 兼容传输"
+            );
+        }
         assert_eq!(ProviderKind::from_str("bogus"), None);
+    }
+
+    /// 预设表自洽：id 唯一、可归一化，且端点来自 models.dev 注册表
+    #[test]
+    fn provider_presets_are_self_consistent() {
+        let mut ids: Vec<&str> = PROVIDER_PRESETS.iter().map(|p| p.id).collect();
+        let total = ids.len();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), total, "预设 id 重复: {ids:?}");
+        for preset in PROVIDER_PRESETS {
+            assert_eq!(canonical_provider_id(preset.id), Some(preset.id));
+            assert!(!preset.label.is_empty());
+        }
+
+        assert_eq!(
+            provider_preset("deepseek").unwrap().base_url,
+            "https://api.deepseek.com"
+        );
+        assert_eq!(
+            provider_preset("doubao").unwrap().base_url,
+            "https://ark.cn-beijing.volces.com/api/v3"
+        );
+        assert!(provider_preset("gemini")
+            .unwrap()
+            .base_url
+            .contains("generativelanguage.googleapis.com"));
+        assert!(provider_preset("openai")
+            .unwrap()
+            .base_url
+            .starts_with("https://api.openai.com"));
+        // Command Code 未公开 OpenAI 兼容端点：留空，由用户填写网关
+        assert!(provider_preset("commandcode").unwrap().base_url.is_empty());
+        assert_eq!(
+            provider_preset("commandcode").unwrap().api_key_envs,
+            ["COMMANDCODE_API_KEY"].as_slice()
+        );
+    }
+
+    /// 别名归一化到预设 id
+    #[test]
+    fn canonical_provider_id_maps_aliases() {
+        assert_eq!(canonical_provider_id("google"), Some("gemini"));
+        assert_eq!(canonical_provider_id("volcengine"), Some("doubao"));
+        assert_eq!(canonical_provider_id("ARK"), Some("doubao"));
+        assert_eq!(canonical_provider_id("openai_compatible"), Some("custom"));
+        assert_eq!(canonical_provider_id("command-code"), Some("commandcode"));
+        assert_eq!(canonical_provider_id(" DeepSeek "), Some("deepseek"));
+        assert_eq!(canonical_provider_id("bogus"), None);
+    }
+
+    /// 按供应商声明的环境变量解析 API Key（如 DEEPSEEK_API_KEY）
+    #[test]
+    fn resolve_api_key_uses_provider_env_var() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        unsafe {
+            std::env::remove_var("QSSH_OPENAI_API_KEY");
+            std::env::remove_var("OPENCODE_API_KEY");
+            std::env::set_var("DEEPSEEK_API_KEY", "sk-deepseek-test");
+        }
+        let config = ProviderConfig {
+            api_key_envs: &["DEEPSEEK_API_KEY"],
+            ..ProviderConfig::default()
+        };
+        let key = resolve_api_key(&config).expect("应读取供应商环境变量");
+        assert_eq!(key, "sk-deepseek-test");
+        unsafe {
+            std::env::remove_var("DEEPSEEK_API_KEY");
+        }
+    }
+
+    /// 未配置 Base URL 时给出明确错误（不启动 curl）
+    #[test]
+    fn missing_base_url_reports_clear_error() {
+        let config = ProviderConfig {
+            api_key: Some("sk-test".to_string()),
+            base_url: String::new(),
+            ..ProviderConfig::default()
+        };
+        assert!(matches!(
+            chat(&config, &[], ""),
+            Err(ProviderError::MissingBaseUrl)
+        ));
+        assert!(matches!(
+            list_models(&config),
+            Err(ProviderError::MissingBaseUrl)
+        ));
     }
 
     #[test]
@@ -630,6 +860,7 @@ mod tests {
             model: "test".to_string(),
             timeout_secs: 10,
             api_key: Some("sk-explicit".to_string()),
+            api_key_envs: &[],
         };
         unsafe {
             std::env::set_var("QSSH_OPENAI_API_KEY", "sk-env");

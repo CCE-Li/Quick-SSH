@@ -45,25 +45,25 @@ impl Default for AgentConfig {
 impl AgentConfig {
     /// 转换为运行时 [`ProviderConfig`]
     ///
-    /// opencode / opencode-go 的 `base_url` / `model` 若未配置，自动填入 opencode
-    /// 官方默认值（`https://opencode.ai/zen/go/v1` + `deepseek-v4-flash`），
-    /// 复用 opencode 的 API key 即可直接使用。
+    /// `provider` 命中内置预设（openai / deepseek / gemini / doubao / commandcode /
+    /// opencode / ollama / custom，含别名）时，空缺的 `base_url` / `model` 自动填入
+    /// 预设默认值（端点与模型 id 取自 models.dev 注册表）；显式配置始终优先。
     pub fn to_provider_config(&self) -> ProviderConfig {
+        let preset = super::provider::provider_preset(&self.provider);
         let kind = ProviderKind::from_str(&self.provider).unwrap_or_default();
-        let (base_url, model) = if kind == ProviderKind::OpenCodeGo {
-            let base_url = if self.base_url.trim().is_empty() {
-                super::provider::OPENCODE_GO_BASE_URL.to_string()
-            } else {
-                self.base_url.clone()
-            };
-            let model = if self.model.trim().is_empty() {
-                super::provider::OPENCODE_GO_MODEL.to_string()
-            } else {
-                self.model.clone()
-            };
-            (base_url, model)
+        let base_url = if self.base_url.trim().is_empty() {
+            preset
+                .map(|preset| preset.base_url.to_string())
+                .unwrap_or_default()
         } else {
-            (self.base_url.clone(), self.model.clone())
+            self.base_url.clone()
+        };
+        let model = if self.model.trim().is_empty() {
+            preset
+                .map(|preset| preset.model.to_string())
+                .unwrap_or_default()
+        } else {
+            self.model.clone()
         };
         ProviderConfig {
             kind,
@@ -75,6 +75,7 @@ impl AgentConfig {
             } else {
                 Some(self.api_key.trim().to_string())
             },
+            api_key_envs: preset.map(|preset| preset.api_key_envs).unwrap_or(&[]),
         }
     }
 
@@ -178,6 +179,101 @@ mod tests {
         assert_eq!(pc.kind, ProviderKind::OpenCodeGo);
         assert_eq!(pc.base_url, super::super::provider::OPENCODE_GO_BASE_URL);
         assert_eq!(pc.model, super::super::provider::OPENCODE_GO_MODEL);
+    }
+
+    /// 内置供应商预设：空缺的 base_url / model 自动填入权威默认值
+    #[test]
+    fn provider_presets_fill_blank_endpoint_and_model() {
+        let cases = [
+            (
+                "deepseek",
+                "https://api.deepseek.com",
+                "deepseek-v4-flash",
+                "DEEPSEEK_API_KEY",
+            ),
+            (
+                "gemini",
+                "https://generativelanguage.googleapis.com/v1beta/openai",
+                "gemini-flash-latest",
+                "GEMINI_API_KEY",
+            ),
+            (
+                "doubao",
+                "https://ark.cn-beijing.volces.com/api/v3",
+                "doubao-seed-2-1-pro-260628",
+                "ARK_API_KEY",
+            ),
+            (
+                "openai",
+                "https://api.openai.com/v1",
+                "gpt-5.4",
+                "OPENAI_API_KEY",
+            ),
+        ];
+        for (provider, base_url, model, env) in cases {
+            let config = AgentConfig {
+                provider: provider.to_string(),
+                base_url: String::new(),
+                model: String::new(),
+                ..AgentConfig::default()
+            };
+            let pc = config.to_provider_config();
+            assert_eq!(pc.base_url, base_url, "{provider} 端点默认值");
+            assert_eq!(pc.model, model, "{provider} 模型默认值");
+            assert_eq!(
+                pc.api_key_envs.first().copied(),
+                Some(env),
+                "{provider} 首选密钥变量"
+            );
+        }
+    }
+
+    /// 别名归一化：google→gemini、volcengine→doubao
+    #[test]
+    fn provider_aliases_fill_preset_defaults() {
+        let gemini = AgentConfig {
+            provider: "google".to_string(),
+            base_url: String::new(),
+            model: String::new(),
+            ..AgentConfig::default()
+        };
+        assert_eq!(
+            gemini.to_provider_config().base_url,
+            "https://generativelanguage.googleapis.com/v1beta/openai"
+        );
+
+        let doubao = AgentConfig {
+            provider: "volcengine".to_string(),
+            base_url: String::new(),
+            model: String::new(),
+            ..AgentConfig::default()
+        };
+        let pc = doubao.to_provider_config();
+        assert!(pc.base_url.contains("volces.com"), "{}", pc.base_url);
+    }
+
+    /// 无默认端点的供应商（commandcode）保留用户填写值，不注入默认
+    #[test]
+    fn providers_without_default_endpoint_keep_user_values() {
+        let blank = AgentConfig {
+            provider: "commandcode".to_string(),
+            base_url: String::new(),
+            model: String::new(),
+            ..AgentConfig::default()
+        };
+        let pc = blank.to_provider_config();
+        assert!(pc.base_url.is_empty());
+        assert_eq!(pc.api_key_envs, ["COMMANDCODE_API_KEY"].as_slice());
+
+        let custom = AgentConfig {
+            provider: "commandcode".to_string(),
+            base_url: "https://gateway.example/v1".to_string(),
+            model: "my-model".to_string(),
+            ..AgentConfig::default()
+        };
+        let pc = custom.to_provider_config();
+        assert_eq!(pc.base_url, "https://gateway.example/v1");
+        assert_eq!(pc.model, "my-model");
     }
 
     #[test]

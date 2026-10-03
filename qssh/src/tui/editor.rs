@@ -144,7 +144,7 @@ impl AgentFormState {
         let mut state = Self {
             fields: vec![
                 FormField::new(
-                    "Provider（openai / opencode / ollama）",
+                    "Provider（openai/deepseek/gemini/doubao/commandcode/opencode/ollama/custom）",
                     &config.provider,
                     false,
                 ),
@@ -209,19 +209,22 @@ impl AgentFormState {
     /// 构建新的 Agent 配置（校验 + 规范化）
     pub fn build_config(&self) -> anyhow::Result<crate::agent::config::AgentConfig> {
         use crate::agent::permissions::PermissionLevel;
-        use crate::agent::provider::ProviderKind;
+        use crate::agent::provider::provider_preset;
 
         let provider = self.fields[AGENT_FIELD_PROVIDER].text().trim().to_string();
-        if ProviderKind::from_str(&provider).is_none() {
-            bail!("Provider 无效（支持 openai / opencode / ollama）");
-        }
+        let Some(preset) = provider_preset(&provider) else {
+            bail!(
+                "Provider 无效（支持 openai / deepseek / gemini / doubao / commandcode / opencode / ollama / custom）"
+            );
+        };
+        // 预设自带端点 / 默认模型的供应商允许留空，运行时自动填充
         let base_url = self.fields[AGENT_FIELD_BASE_URL].text().trim().to_string();
-        if base_url.is_empty() {
-            bail!("Base URL 不能为空");
+        if base_url.is_empty() && preset.base_url.is_empty() {
+            bail!("Base URL 不能为空（该 Provider 没有默认端点，请填写网关地址）");
         }
         let model = self.fields[AGENT_FIELD_MODEL].text().trim().to_string();
-        if model.is_empty() {
-            bail!("Model 不能为空");
+        if model.is_empty() && preset.model.is_empty() {
+            bail!("Model 不能为空（该 Provider 没有默认模型，请填写模型 id）");
         }
         let permission = self.fields[AGENT_FIELD_PERMISSION]
             .text()
@@ -878,6 +881,38 @@ mod tests {
         assert_eq!(config.provider, "opencode");
         assert_eq!(config.base_url, "https://opencode.ai/zen/go/v1");
         assert_eq!(config.model, "deepseek-v4-flash");
+    }
+
+    /// 预设自带端点/模型的供应商：Base URL 与 Model 可留空，运行时自动填充
+    #[test]
+    fn agent_form_allows_preset_defaults_to_fill_blanks() {
+        let mut form = AgentFormState::new(&AgentConfig::default());
+        form.fields[0].textarea = TextArea::from(["gemini"]);
+        form.fields[1].textarea = TextArea::from([""]);
+        form.fields[2].textarea = TextArea::from([""]);
+        let config = form.build_config().expect("gemini 应允许留空");
+        let provider = config.to_provider_config();
+        assert!(provider
+            .base_url
+            .contains("generativelanguage.googleapis.com"));
+        assert_eq!(provider.model, "gemini-flash-latest");
+        assert_eq!(provider.api_key_envs.first(), Some(&"GEMINI_API_KEY"));
+    }
+
+    /// 无默认端点的供应商（commandcode）必须填写 Base URL
+    #[test]
+    fn agent_form_requires_base_url_without_preset_endpoint() {
+        let mut form = AgentFormState::new(&AgentConfig::default());
+        form.fields[0].textarea = TextArea::from(["commandcode"]);
+        form.fields[1].textarea = TextArea::from([""]);
+        let err = form.build_config().expect_err("缺少端点应失败");
+        assert!(err.to_string().contains("Base URL"));
+
+        // 填上网关地址后可保存
+        form.fields[1].textarea = TextArea::from(["https://gateway.example/v1"]);
+        form.fields[2].textarea = TextArea::from(["my-model"]);
+        let config = form.build_config().expect("填写端点后应可保存");
+        assert_eq!(config.provider, "commandcode");
     }
 
     #[test]

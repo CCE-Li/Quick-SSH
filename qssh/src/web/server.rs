@@ -250,8 +250,9 @@ fn handle_test(w: &mut TcpStream, req: &Request) {
     let mut config = load_agent_config();
     let body: Value = serde_json::from_slice(&req.body).unwrap_or(Value::Null);
     if let Some(v) = body["provider"].as_str() {
-        if ProviderKind::from_str(v).is_some() {
-            config.provider = v.to_string();
+        // 归一化：别名（google / volcengine / openai-compatible …）按预设 id 处理
+        if let Some(id) = crate::agent::provider::canonical_provider_id(v) {
+            config.provider = id.to_string();
         }
     }
     if let Some(v) = body["base_url"].as_str() {
