@@ -251,7 +251,10 @@ fn render_dashboard_body(frame: &mut Frame, area: Rect, app: &mut App) {
         &profile,
         &mut app.dashboard_widgets,
         focused_widget_from_mode(app.mode),
-        app.term_session.as_ref(),
+        crate::tui::dashboard::ui::TerminalWidgetView {
+            session: app.term_session.as_ref(),
+            connect_animation: app.connect_anim,
+        },
         Some(&agent_view),
     );
 }

@@ -4,6 +4,7 @@
 //! 后续 Phase 将各模块替换为真实监控数据，并演进为独立 crate。
 
 pub mod config;
+pub mod donut;
 pub mod layout;
 pub mod palette;
 pub mod ui;

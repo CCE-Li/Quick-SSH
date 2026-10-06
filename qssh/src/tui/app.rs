@@ -14,6 +14,7 @@ use crate::agent::timeline::{AgentStatus, Timeline};
 use crate::agent::tools::ToolCall;
 use crate::agent::AgentEvent;
 use crate::config::credentials;
+use crate::config::settings::{load_settings, ConnectAnimation};
 use crate::config::types::{HostBlock, SshConfig};
 use crate::monitor::docker::{container_action_command, DockerAction};
 use crate::monitor::executor::{ExecError, ExecOutput, RemoteExecutor};
@@ -289,6 +290,8 @@ pub struct App {
     term_tx: Sender<TermEvent>,
     /// 嵌入式终端前缀键等待状态（Ctrl+B 按下后等待下一个 TUI 命令）
     term_prefix: bool,
+    /// 嵌入式终端连接加载动画样式（~/.qsshrc: connect_animation）
+    pub connect_anim: ConnectAnimation,
     /// Dashboard 分隔线拖动状态（None = 未在拖动）
     pub split_drag: Option<SplitDrag>,
     /// 主界面（主机列表/详情）左栏宽度权重（0-100，默认 50）
@@ -315,6 +318,9 @@ impl App {
         let (ops_tx, ops_rx) = mpsc::channel();
         let agent_config = load_agent_config();
         let main_split_weight = load_main_split_weight().clamp(20, 80);
+        let connect_anim = load_settings()
+            .unwrap_or_default()
+            .connect_animation_style();
         let initial_ui_state = UiState {
             mode: Mode::Normal,
             view: View::HostList,
@@ -390,6 +396,7 @@ impl App {
             term_rx,
             term_tx,
             term_prefix: false,
+            connect_anim,
             split_drag: None,
             main_split_weight,
             main_split_drag: None,
@@ -858,6 +865,10 @@ impl App {
     /// 启动嵌入式 SSH 终端会话（连接当前选中主机）
     pub fn start_terminal_session(&mut self) {
         self.deferred_term_size = None;
+        // 每次连接重读 ~/.qsshrc：WebUI 修改的加载动画无需重启 TUI 即可生效
+        self.connect_anim = load_settings()
+            .unwrap_or_default()
+            .connect_animation_style();
         // 若已有会话，先断开
         if let Some(mut session) = self.term_session.take() {
             session.kill();

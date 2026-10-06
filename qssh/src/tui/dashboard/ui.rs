@@ -14,7 +14,16 @@ use super::config::{ProfileConfig, WidgetId};
 use super::layout::compute_layout;
 use super::palette::{filter_palette, PALETTE_ACTIONS};
 use super::widgets::WidgetModule;
+use crate::config::settings::ConnectAnimation;
 use crate::tui::widgets::centered_rect;
+
+/// 嵌入式终端面板渲染所需的最小只读视图。
+pub struct TerminalWidgetView<'a> {
+    /// 当前终端会话（None = 未连接/已断开，渲染空闲图案）
+    pub session: Option<&'a crate::tui::term::TermSession>,
+    /// 连接加载动画样式（`~/.qsshrc`: `connect_animation`）
+    pub connect_animation: ConnectAnimation,
+}
 
 /// Agent 面板渲染所需的最小只读视图（从 App 提取，避免 dashboard 依赖 App）。
 /// 字段为 owned 类型，避免渲染期间持有对 App 的借用。
@@ -45,13 +54,14 @@ pub struct AgentWidgetView {
 /// PTY 屏幕内容；否则回退到普通 Widget 渲染。
 /// `WidgetId::Agent` 提供 `agent_view` 时渲染内嵌输入框面板（聚焦时允许输入）。
 /// `focused` 为当前聚焦的模块（操作面板打开时对应 Widget 边框高亮）。
+/// `terminal.connect_animation` 决定连接握手期间展示的加载动画样式。
 pub fn render_dashboard(
     frame: &mut Frame,
     area: Rect,
     profile: &ProfileConfig,
     widgets: &mut [Box<dyn WidgetModule>],
     focused: Option<WidgetId>,
-    term_session: Option<&crate::tui::term::TermSession>,
+    terminal: TerminalWidgetView<'_>,
     agent_view: Option<&AgentWidgetView>,
 ) {
     for (id, rect) in compute_layout(&profile.layout, area) {
@@ -59,8 +69,14 @@ pub fn render_dashboard(
         if id == WidgetId::Terminal {
             let is_focused = focused == Some(WidgetId::Terminal);
             let buf = frame.buffer_mut();
-            match term_session {
-                Some(session) => render_terminal_widget(session, rect, buf, is_focused),
+            match terminal.session {
+                Some(session) => render_terminal_widget(
+                    session,
+                    rect,
+                    buf,
+                    is_focused,
+                    terminal.connect_animation,
+                ),
                 None => render_terminal_idle(rect, buf, is_focused),
             }
             continue;
@@ -327,6 +343,7 @@ fn render_terminal_widget(
     area: Rect,
     buf: &mut Buffer,
     focused: bool,
+    connect_animation: ConnectAnimation,
 ) {
     use ratatui::prelude::Modifier;
     use ratatui::style::Style;
@@ -349,10 +366,16 @@ fn render_terminal_widget(
     // 先画边框，再在内区域渲染 PTY 屏幕（内区域不覆盖边框）
     block.render(area, buf);
     if inner_area.height > 0 && inner_area.width > 0 {
-        // 连接中：PTY 尚无输出，用旋转动画替代空白屏幕
+        // 连接中：PTY 尚无输出，用加载动画替代空白屏幕
         let elapsed = session.started_at.elapsed();
         if should_show_connecting_anim(session.status, elapsed) {
-            render_connecting(inner_area, buf, elapsed, &session.target.alias);
+            render_connecting(
+                inner_area,
+                buf,
+                elapsed,
+                &session.target.alias,
+                connect_animation,
+            );
         } else {
             session.render(inner_area, buf);
         }
@@ -443,12 +466,34 @@ fn spinner_frame(elapsed: Duration) -> &'static str {
     SPINNER_FRAMES[idx]
 }
 
-/// 连接中面板：居中显示旋转动画 + 「正在连接 <alias> …」
-fn render_connecting(area: Rect, buf: &mut Buffer, elapsed: Duration, alias: &str) {
+/// 连接中面板：居中显示加载动画 + 「正在连接 <alias> …」
+///
+/// 样式来自 `~/.qsshrc` 的 `connect_animation`（WebUI「程序设置」可切换）：
+/// - `spinner`：单行旋转字符（原样式）；
+/// - `donut`：donut.c 风格 ASCII 甜甜圈，底部一行显示连接提示；
+///   区域过小时自动回退到 spinner，避免图案挤成一团。
+fn render_connecting(
+    area: Rect,
+    buf: &mut Buffer,
+    elapsed: Duration,
+    alias: &str,
+    animation: ConnectAnimation,
+) {
     use ratatui::layout::Alignment;
     use ratatui::prelude::Modifier;
     use ratatui::style::Style;
     use ratatui::text::{Line, Span};
+
+    if animation == ConnectAnimation::Donut && area.width >= 16 && area.height >= 8 {
+        // 底部留 2 行（1 行空隙 + 1 行提示语），其余区域渲染甜甜圈
+        let art = Rect::new(area.x, area.y, area.width, area.height - 2);
+        crate::tui::dashboard::donut::render_donut(art, buf, elapsed);
+        let hint = Rect::new(area.x, area.y + area.height - 1, area.width, 1);
+        Paragraph::new(format!("正在连接 {alias} …"))
+            .alignment(Alignment::Center)
+            .render(hint, buf);
+        return;
+    }
 
     let line = Line::from(vec![
         Span::styled(
@@ -704,12 +749,68 @@ mod tests {
     /// 连接中面板居中渲染动画帧与目标别名
     #[test]
     fn connecting_panel_renders_spinner_and_alias() {
+        use crate::config::settings::ConnectAnimation;
         use std::time::Duration;
         let area = Rect::new(0, 0, 40, 5);
         let mut buf = Buffer::empty(area);
-        render_connecting(area, &mut buf, Duration::ZERO, "web-01");
+        render_connecting(
+            area,
+            &mut buf,
+            Duration::ZERO,
+            "web-01",
+            ConnectAnimation::Spinner,
+        );
         let rendered: String = buf.content().iter().map(|c| c.symbol()).collect();
         // 宽字符（CJK）占用两列，尾随单元格为空白，比较前先去掉空白
+        let compact: String = rendered.chars().filter(|c| !c.is_whitespace()).collect();
+        assert!(
+            compact.contains("|正在连接web-01"),
+            "rendered: {rendered:?}"
+        );
+    }
+
+    /// donut 样式：甜甜圈动画 + 底部目标别名提示
+    #[test]
+    fn connecting_panel_renders_donut_and_alias() {
+        use crate::config::settings::ConnectAnimation;
+        use crate::tui::dashboard::donut::DONUT_CHARS;
+        use std::time::Duration;
+        let area = Rect::new(0, 0, 60, 20);
+        let mut buf = Buffer::empty(area);
+        render_connecting(
+            area,
+            &mut buf,
+            Duration::from_millis(600),
+            "web-01",
+            ConnectAnimation::Donut,
+        );
+        let rendered: String = buf.content().iter().map(|c| c.symbol()).collect();
+        let compact: String = rendered.chars().filter(|c| !c.is_whitespace()).collect();
+        assert!(
+            compact.contains("正在连接web-01"),
+            "缺少连接提示: {rendered:?}"
+        );
+        assert!(
+            rendered.chars().any(|c| DONUT_CHARS.contains(&c)),
+            "缺少甜甜圈图案: {rendered:?}"
+        );
+    }
+
+    /// donut 样式在区域过小时回退到单行 spinner
+    #[test]
+    fn connecting_donut_falls_back_to_spinner_in_tiny_area() {
+        use crate::config::settings::ConnectAnimation;
+        use std::time::Duration;
+        let area = Rect::new(0, 0, 20, 6);
+        let mut buf = Buffer::empty(area);
+        render_connecting(
+            area,
+            &mut buf,
+            Duration::ZERO,
+            "web-01",
+            ConnectAnimation::Donut,
+        );
+        let rendered: String = buf.content().iter().map(|c| c.symbol()).collect();
         let compact: String = rendered.chars().filter(|c| !c.is_whitespace()).collect();
         assert!(
             compact.contains("|正在连接web-01"),

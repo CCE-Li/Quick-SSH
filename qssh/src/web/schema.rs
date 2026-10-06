@@ -17,7 +17,7 @@ use serde_json::{json, Map, Value};
 use crate::agent::config::{load_agent_config, save_agent_config, AgentConfig};
 use crate::agent::permissions::PermissionLevel;
 use crate::agent::provider::{canonical_provider_id, PROVIDER_PRESETS};
-use crate::config::settings::{load_settings, save_settings, QsshSettings};
+use crate::config::settings::{load_settings, save_settings, ConnectAnimation, QsshSettings};
 use crate::tui::dashboard::config::{
     default_layout_for, load_dashboard_config, save_dashboard_config, DashboardConfig, WidgetId,
 };
@@ -283,6 +283,17 @@ static AGENT_FIELDS: &[FieldSpec] = &[
     },
 ];
 
+static CONNECT_ANIMATION_CHOICES: &[FieldChoice] = &[
+    FieldChoice {
+        value: "donut",
+        label: "ASCII 甜甜圈（默认）",
+    },
+    FieldChoice {
+        value: "spinner",
+        label: "旋转 spinner",
+    },
+];
+
 static PROGRAM_FIELDS: &[FieldSpec] = &[
     FieldSpec {
         key: "default_port",
@@ -315,6 +326,17 @@ static PROGRAM_FIELDS: &[FieldSpec] = &[
         options: FieldOptions::Static(&[]),
         min: Some(1),
         max: Some(16),
+        reload_on_change: false,
+    },
+    FieldSpec {
+        key: "connect_animation",
+        label: "连接加载动画",
+        kind: FieldKind::Select,
+        placeholder: "",
+        hint: "嵌入式终端连接握手期间显示的加载动画，下次连接时生效。",
+        options: FieldOptions::Static(CONNECT_ANIMATION_CHOICES),
+        min: None,
+        max: None,
         reload_on_change: false,
     },
 ];
@@ -487,6 +509,7 @@ fn program_values() -> Value {
         "default_port": s.default_port,
         "ping_timeout_secs": s.ping_timeout_secs,
         "upload_concurrency": s.upload_concurrency,
+        "connect_animation": s.connect_animation_style().as_str(),
     })
 }
 
@@ -500,6 +523,12 @@ fn apply_program_to(settings: &mut QsshSettings, v: &Value) -> Result<(), String
     }
     if let Some(val) = v.get("upload_concurrency").and_then(Value::as_u64) {
         settings.upload_concurrency = val.clamp(1, 16) as usize;
+    }
+    if let Some(val) = v.get("connect_animation").and_then(Value::as_str) {
+        match ConnectAnimation::parse(val) {
+            Some(style) => settings.connect_animation = style.as_str().to_string(),
+            None => return Err(format!("连接加载动画无效（可选 spinner / donut）：{val}")),
+        }
     }
     Ok(())
 }
@@ -687,12 +716,50 @@ mod tests {
         let mut s = QsshSettings::default();
         apply_program_to(
             &mut s,
-            &json!({ "default_port": 2222, "ping_timeout_secs": 5, "upload_concurrency": 99 }),
+            &json!({ "default_port": 2222, "ping_timeout_secs": 5, "upload_concurrency": 99, "connect_animation": "donut" }),
         )
         .unwrap();
         assert_eq!(s.default_port, 2222);
         assert_eq!(s.ping_timeout_secs, 5);
         assert_eq!(s.upload_concurrency, 16);
+        assert_eq!(s.connect_animation_style(), ConnectAnimation::Donut);
+    }
+
+    /// 连接加载动画：非法值拒绝且不改动已有配置
+    #[test]
+    fn program_apply_rejects_invalid_connect_animation() {
+        let mut s = QsshSettings::default();
+        apply_program_to(&mut s, &json!({ "connect_animation": "donut" })).unwrap();
+        let err = apply_program_to(&mut s, &json!({ "connect_animation": "circle" })).unwrap_err();
+        assert!(err.contains("连接加载动画无效"), "err: {err}");
+        assert_eq!(s.connect_animation_style(), ConnectAnimation::Donut);
+    }
+
+    /// 程序分组向前端下发 connect_animation 选项与当前值
+    #[test]
+    fn program_group_exposes_connect_animation_choices() {
+        let catalog = SettingsCatalog::load_all();
+        let program = catalog["groups"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|g| g["id"] == "program")
+            .expect("应有 program 分组");
+        let field = program["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["key"] == "connect_animation")
+            .expect("应有 connect_animation 字段");
+        assert_eq!(field["kind"], "select");
+        let values: Vec<&str> = field["options"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|o| o["value"].as_str().unwrap())
+            .collect();
+        assert_eq!(values, vec!["donut", "spinner"]);
+        assert!(program["values"]["connect_animation"].is_string());
     }
 
     #[test]
